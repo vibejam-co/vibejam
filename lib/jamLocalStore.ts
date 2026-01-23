@@ -1,7 +1,4 @@
-
-import { AppProject } from '../types';
-import { db } from './firebase';
-import { collection, query, where, orderBy, limit as firestoreLimit, getDocs } from 'firebase/firestore';
+import { AppProject, JamStatus } from '../types';
 
 export interface JamPublished extends AppProject {
   slug: string;
@@ -33,10 +30,12 @@ export const jamLocalStore = {
 
   get: (id: string): any | null => {
     try {
+      // 1. Check Published
       const published = jamLocalStore.listLocalOnly();
       const found = published.find((j: any) => j.id === id);
       if (found) return found;
 
+      // 2. Check Draft
       const draftRaw = localStorage.getItem('vj_draft_jam');
       if (draftRaw) {
         const draft = JSON.parse(draftRaw);
@@ -48,70 +47,16 @@ export const jamLocalStore = {
     }
   },
 
+  /**
+   * Unified hybrid fetcher for v1
+   * Returns only localStorage jams (Supabase is now the source of truth via backend.ts)
+   */
   listAll: async (limit = 20): Promise<JamPublished[]> => {
-    let remoteJams: JamPublished[] = [];
-    const isConfigured = Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
-
-    if (isConfigured) {
-      try {
-        const q = query(
-          collection(db, "jams"),
-          where("status", "==", "published"),
-          orderBy("publishedAt", "desc"),
-          firestoreLimit(limit)
-        );
-        const snapshot = await getDocs(q);
-        remoteJams = snapshot.docs.map(doc => mapDocToJam(doc.id, doc.data()));
-      } catch (e) {
-        console.warn("VJ: Failed to fetch remote jams, using local only.", e);
-      }
-    }
-
+    // Return local jams only - Supabase data fetching is handled by backend.ts
     const localJams = jamLocalStore.listLocalOnly();
-    const combined = [...localJams, ...remoteJams];
-    const seen = new Set();
-    return combined.filter(j => {
-      const duplicate = seen.has(j.id);
-      seen.add(j.id);
-      return !duplicate;
-    });
+    return localJams.slice(0, limit);
   }
 };
-
-function mapDocToJam(id: string, data: any): JamPublished {
-  return {
-    id: id,
-    slug: data.slug || slugify(data.name || 'untitled'),
-    name: data.name || 'Untitled Jam',
-    description: data.tagline || data.description || '',
-    category: data.category || 'Uncategorized',
-    screenshot: data.media?.heroImageUrl || 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&q=80&w=1200',
-    mediaType: 'image',
-    thumbnailUrl: data.media?.heroImageUrl || '',
-    icon: data.media?.faviconUrl || '',
-    stats: {
-      revenue: data.mrrBucket || '$0',
-      isRevenuePublic: data.mrrVisibility === 'public',
-      growth: '+0%',
-      rank: data.rank?.scoreTrending || 99,
-      upvotes: data.stats?.upvotes || 0,
-      daysLive: 0,
-      views: data.stats?.views || 0,
-      bookmarks: data.stats?.bookmarks || 0
-    },
-    creator: {
-      name: 'Creator',
-      avatar: 'https://picsum.photos/seed/vj/100',
-      type: data.teamType === 'team' ? 'Team' : 'Solo Founder',
-      handle: '@unknown',
-    },
-    stack: data.techStack || [],
-    vibeTools: data.vibeTools || [],
-    publishedAt: data.publishedAt ? (data.publishedAt.toMillis ? data.publishedAt.toMillis() : new Date(data.publishedAt).getTime()) : Date.now(),
-    status: 'published',
-    websiteUrl: data.websiteUrl
-  };
-}
 
 export const slugify = (text: string) => {
   return text
