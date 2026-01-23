@@ -1,8 +1,70 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Public read-only snapshots
+    match /leaderboards/{scope} {
+      allow read: if true;
+      allow write: if false; // Only Functions via Admin SDK
+    }
+
+    match /site/{docId} {
+      allow read: if true;
+      allow write: if false; // Only Functions
+    }
+
+    // Users
+    match /users/{uid} {
+      allow read: if true; // MVP: public profiles ok
+      allow create, update: if isOwner(uid);
+
+      match /bookmarks/{jamId} {
+        allow read: if isOwner(uid);
+        allow create, delete: if isOwner(uid);
+        allow update: if false;
+      }
+
+      match /following/{targetUid} {
+        allow read: if isOwner(uid);
+        allow create, delete: if isOwner(uid);
+        allow update: if false;
+      }
+    }
+
+    // Creators
+    match /creators/{creatorId} {
+      allow read: if true;
+      allow create, update: if isOwner(creatorId); // simplest MVP assumption
+      allow delete: if false;
+    }
+
+    // Jams
+    match /jams/{jamId} {
+      allow read: if resource.data.status == "published" || (isSignedIn() && request.auth.uid == resource.data.creatorId);
+
+      // Create jam draft by signed-in creator
+      allow create: if isSignedIn()
+        && request.resource.data.creatorId == request.auth.uid
+        && request.resource.data.status == "draft";
+
+      // Update only by owner
+      allow update: if isSignedIn()
+        && resource.data.creatorId == request.auth.uid;
+
+      allow delete: if false;
+    }
+
+    // Optional: block direct writes to dedupe
+    match /signals_dedupe/{dedupeId} {
+      allow read, write: if false; // Only Functions
     }
   }
 }

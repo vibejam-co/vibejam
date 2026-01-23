@@ -1,48 +1,140 @@
-import { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
-import { useAuth } from '../contexts/AuthContext';
+import { useState, useEffect, useCallback } from 'react';
+import { AppProject } from '../types';
+import { backend } from './backend';
+
+const BOOKMARKS_KEY = 'vj_bookmarks_v1';
+export const VJ_BOOKMARKS_UPDATED_EVENT = 'vj:bookmarks-updated';
+
+export interface BookmarkItem {
+  id: string;
+  name: string;
+  screenshot: string;
+  category: string;
+  creator: {
+    name: string;
+    handle: string;
+    avatar: string;
+  };
+  mrr: string;
+  createdAt: number;
+}
 
 export function useBookmarks() {
-  const { user } = useAuth();
-  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
+  const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([]);
 
-  useEffect(() => {
-    if (!user) return;
-    const fetchBookmarks = async () => {
-      const { data } = await supabase
-        .from('bookmarks')
-        .select('jam_id')
-        .eq('user_id', user.id);
-      
-      if (data) {
-        setBookmarks(new Set(data.map(b => b.jam_id)));
-      }
-    };
-    fetchBookmarks();
-  }, [user]);
-
-  const toggleBookmark = async (jamId: string) => {
-    if (!user) return false;
-    
+  const hydrate = useCallback(async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('bookmark-toggle', {
-        body: { jamId }
-      });
-      if (error) throw error;
-      
-      const newSet = new Set(bookmarks);
-      if (data.bookmarked) {
-        newSet.add(jamId);
-      } else {
-        newSet.delete(jamId);
+      if (typeof window === 'undefined') return;
+
+      // 1. Load from Backend (Fail-open)
+      const { jams, error } = await backend.listMyBookmarks();
+
+      if (!error && jams.length > 0) {
+        // Map JamDoc to BookmarkItem
+        const mapped: BookmarkItem[] = jams.map(j => ({
+          id: j.id,
+          name: j.name,
+          screenshot: j.media?.heroImageUrl || '',
+          category: j.category,
+          creator: {
+            name: 'Maker',
+            handle: '@maker',
+            avatar: ''
+          },
+          mrr: j.mrrBucket || '',
+          createdAt: Date.now()
+        }));
+        setBookmarks(mapped);
+        localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(mapped)); // Sync local
+        return;
       }
-      setBookmarks(newSet);
-      return true;
-    } catch (err) {
-      console.error('Error toggling bookmark:', err);
-      return false;
+
+      // 2. Fallback to LocalStorage if backend empty/fails
+      const raw = localStorage.getItem(BOOKMARKS_KEY);
+      if (raw) {
+        setBookmarks(JSON.parse(raw));
+      } else {
+        setBookmarks([]);
+      }
+    } catch (e) {
+      console.error("VJ: Bookmark hydration failed", e);
+      // Final fallback
+      const raw = localStorage.getItem(BOOKMARKS_KEY);
+      if (raw) setBookmarks(JSON.parse(raw));
     }
+  }, []);
+
+  const notify = () => {
+    window.dispatchEvent(new CustomEvent(VJ_BOOKMARKS_UPDATED_EVENT));
   };
 
-  return { bookmarks, toggleBookmark };
+  useEffect(() => {
+    hydrate();
+
+    const handleSync = () => hydrate();
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === BOOKMARKS_KEY) hydrate();
+    };
+
+    window.addEventListener(VJ_BOOKMARKS_UPDATED_EVENT, handleSync);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener(VJ_BOOKMARKS_UPDATED_EVENT, handleSync);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [hydrate]);
+
+  const isBookmarked = (id: string) => bookmarks.some(b => b.id === id);
+
+  const toggleBookmark = (jam: AppProject) => {
+    const existing = isBookmarked(jam.id);
+    let next: BookmarkItem[];
+
+    // BACKEND SYNC (Fire/Forget or Optimistic with rollback could go here)
+    // We do optimistic here.
+    backend.toggleBookmark(jam.id).catch(err => {
+      console.warn('Backend bookmark toggle failed', err);
+      // Ideally rollback here if strict
+    });
+
+    if (existing) {
+      next = bookmarks.filter(b => b.id !== jam.id);
+    } else {
+      const newItem: BookmarkItem = {
+        id: jam.id,
+        name: jam.name,
+        screenshot: jam.screenshot,
+        category: jam.category,
+        creator: {
+          name: jam.creator.name,
+          handle: jam.creator.handle,
+          avatar: jam.creator.avatar,
+        },
+        mrr: jam.stats.revenue,
+        createdAt: Date.now(),
+      };
+      next = [newItem, ...bookmarks];
+    }
+
+    setBookmarks(next);
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(next));
+    notify();
+  };
+
+  const removeBookmark = (id: string) => {
+    const next = bookmarks.filter(b => b.id !== id);
+    setBookmarks(next);
+    localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(next));
+    notify();
+  };
+
+  return {
+    bookmarks,
+    count: bookmarks.length,
+    isBookmarked,
+    toggleBookmark,
+    removeBookmark,
+    refresh: hydrate
+  };
 }

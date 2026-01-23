@@ -1,6 +1,6 @@
 
 import React from 'react';
-import Badge from './Badge';
+import Badge, { BadgeRow } from './Badge';
 
 interface HoverProfileCardProps {
   user: {
@@ -10,7 +10,11 @@ interface HoverProfileCardProps {
     auraColor?: string;
     bio?: string;
     badge?: any;
-    stats?: { products: number; reach: string; signals: string; };
+    stats?: {
+      products: number;
+      reach: string;
+      signals: string;
+    };
     isFollowing?: boolean;
     badges?: any[];
   };
@@ -19,21 +23,53 @@ interface HoverProfileCardProps {
 }
 
 const HoverProfileCard: React.FC<HoverProfileCardProps> = ({ user, position, visible }) => {
-  if (!user) return null;
   return (
-    <div className={`fixed z-[9999] w-[280px] bg-white border border-gray-100 rounded-2xl shadow-xl transition-all duration-200 ${visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`} style={{ top: position.top, left: position.left }}>
-      <div className="p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-11 h-11 rounded-full border border-gray-100 overflow-hidden bg-white"><img src={user.avatar} alt={user.name} /></div>
-          <div>
-            <div className="flex items-center gap-2"><span className="font-bold text-gray-900">{user.name}</span>{user.badge && <Badge type={user.badge} showTooltip={false} size="sm" />}</div>
-            <span className="text-[11px] font-bold text-gray-300 uppercase tracking-widest">{user.handle}</span>
+    <div 
+      data-vj-hover-card
+      data-state={visible ? "open" : "closed"}
+      data-side="right"
+      style={{ 
+        top: position.top, 
+        left: position.left
+      }}
+    >
+      <div className="vj-hover-inner">
+        <div className="vj-hover-id">
+          <div className="vj-hover-avatar avatar-shell">
+            <div className="vj-aura" style={{ background: user.auraColor }} />
+            <img src={user.avatar} alt={user.name} className="relative z-10" />
+          </div>
+          <div className="vj-hover-name">
+            <div className="flex items-center gap-2">
+              <span className="name">{user.name}</span>
+              {user.badge && <Badge type={user.badge} showTooltip={false} size="sm" />}
+            </div>
+            <span className="handle">{user.handle}</span>
           </div>
         </div>
-        <div className="text-xs text-gray-500 font-medium leading-relaxed mb-4">{user.bio || "Independent architect shaping lifestyle experiences."}</div>
-        <div className="flex items-center gap-2 text-[9px] font-black text-gray-300 uppercase tracking-widest mb-4"><span>{user.stats?.products || 1} Product</span><span>•</span><span>{user.stats?.reach || '2.4k'} Reach</span></div>
-        <div className="flex items-center gap-3"><button className="flex-1 py-2 rounded-lg bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest">{user.isFollowing ? 'Following' : 'Follow'}</button></div>
+
+        <div className="vj-hover-bio">
+          {user.bio || "Independent architect shaping lifestyle experiences."}
+        </div>
+
+        <div className="vj-hover-signals">
+          <span>{user.stats?.products || 1} Product</span>
+          <span className="dot">•</span>
+          <span>{user.stats?.reach || '2.4k'} Reach</span>
+          <span className="dot">•</span>
+          <span>{user.stats?.signals || '$2.1k'} Signals</span>
+        </div>
+
+        <div className="vj-hover-actions">
+          <button className="btn-follow">
+            {user.isFollowing ? 'Following' : 'Follow'}
+          </button>
+          <a href="#" className="link-profile" onClick={(e) => e.preventDefault()}>
+            View Profile →
+          </a>
+        </div>
       </div>
+      <div className="vj-hover-arrow" />
     </div>
   );
 };

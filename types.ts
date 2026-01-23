@@ -1,4 +1,5 @@
 
+
 export type BadgeType = 'founding_creator' | 'founding_member' | 'early_access' | 'breakout_creator' | 'consistent_shipper' | 'revenue_leader' | 'cult_favorite' | 'top_curator' | 'community_builder' | 'insider';
 
 export interface TrustFlags {

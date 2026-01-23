@@ -34,7 +34,6 @@ Deno.serve(async (req) => {
                 profiles (id, display_name, avatar_url, handle)
             `)
                 .eq('status', 'published')
-                .eq('is_hidden', false)
 
             // Window/Ordering Logic
             if (scope === 'shipping_today') {
