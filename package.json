@@ -1,7 +1,8 @@
+
 {
-  "name": "vibejam-v12.2",
+  "name": "copy-2-of-vibejam-v12.2",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

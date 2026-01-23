@@ -19,8 +19,6 @@
             --radius-xl: 40px;
             --shadow-soft: 0 18px 60px rgba(0,0,0,.08);
             --border-soft: 1px solid rgba(15, 23, 42, 0.06);
-
-            /* Hover Card Invariants */
             --vj-hover-z: 9999;
             --vj-hover-card-w: 280px;
             --vj-hover-card-radius: 16px;
@@ -38,8 +36,6 @@
             --vj-aura-max-blur: 14px;
             --vj-aura-max-opacity: 0.20;
         }
-
-        /* 0) Global Invariant: Layout Stability */
         html { text-rendering: geometricPrecision; scroll-behavior: smooth; }
         body { 
           font-family: 'Plus Jakarta Sans', sans-serif;
@@ -48,8 +44,6 @@
           overflow-x: hidden;
           font-synthesis: none;
         }
-
-        /* 1) Aura Safety Contract & Patch: Universal Safe Avatar Shell */
         .aura-clip, .avatar-shell {
           position: relative;
           border-radius: 9999px !important;
@@ -58,7 +52,6 @@
           background: transparent !important;
           transform: translateZ(0);
         }
-
         .aura-layer, .aura-glow, .aura-halo, .vj-aura {
           position: absolute;
           inset: -18%;
@@ -73,138 +66,8 @@
           background-color: transparent !important;
           box-shadow: none !important;
         }
-
-        /* Micro-shine sweep — Tier-Differentiated & Session-Guarded */
-        @keyframes vj-seal-shine-sweep {
-          0%   { transform: translateX(-120%) rotate(14deg); opacity: 0; }
-          18%  { opacity: 0; }
-          38%  { opacity: var(--vj-shine-peak, 0.18); }
-          62%  { opacity: var(--vj-shine-peak, 0.18); }
-          82%  { opacity: 0; }
-          100% { transform: translateX(120%) rotate(14deg); opacity: 0; }
-        }
-
-        /* Tier 10 “Settle” — physical tighten then release */
-        @keyframes vj-seal-settle {
-          0%   { transform: translateZ(0) scale(1); }
-          40%  { transform: translateZ(0) scale(0.988); }
-          100% { transform: translateZ(0) scale(1); }
-        }
-
-        .vj-seal-shine {
-          position: absolute;
-          inset: 0;
-          border-radius: inherit;
-          pointer-events: none;
-          overflow: hidden;
-          contain: paint;
-          z-index: 5;
-        }
-
-        .vj-seal-shine::before {
-          content: "";
-          position: absolute;
-          top: -40%;
-          bottom: -40%;
-          width: var(--vj-shine-width, 45%);
-          left: -60%;
-          opacity: 0;
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255,255,255,0.0) 25%,
-            rgba(255,255,255,0.55) 50%,
-            rgba(255,255,255,0.0) 75%,
-            transparent 100%
-          );
-          transform: translateX(-120%) rotate(14deg);
-          filter: blur(0.2px);
-        }
-
-        .vj-seal-shine[data-shine="on"]::before {
-          animation: vj-seal-shine-sweep var(--vj-shine-ms, 600ms) cubic-bezier(0.2, 0.8, 0.2, 1) 1 forwards;
-        }
-
-        .vj-seal-body[data-settle="on"] {
-          animation: vj-seal-settle 240ms cubic-bezier(0.2, 0.9, 0.2, 1) 1 forwards;
-        }
-
-        /* Tier modifiers */
-        .vj-seal-shine[data-tier="10"] {
-          --vj-shine-width: 52%;
-          --vj-shine-peak: 0.16;
-          --vj-shine-ms: 600ms;
-        }
-        .vj-seal-shine[data-tier="10"]::before {
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255,255,255,0.0) 28%,
-            rgba(255,255,255,0.62) 50%,
-            rgba(255,255,255,0.0) 72%,
-            transparent 100%
-          );
-          filter: blur(0.35px);
-        }
-
-        .vj-seal-shine[data-tier="9"] {
-          --vj-shine-width: 44%;
-          --vj-shine-peak: 0.19;
-          --vj-shine-ms: 560ms;
-        }
-        .vj-seal-shine[data-tier="9"]::before {
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255,255,255,0.0) 22%,
-            rgba(255,255,255,0.58) 50%,
-            rgba(255,255,255,0.0) 78%,
-            transparent 100%
-          );
-          filter: blur(0.15px);
-        }
-
-        /* 2) Hover Card Styling (Invariants) */
-        [data-vj-hover-card] {
-          position: fixed;
-          z-index: var(--vj-hover-z);
-          width: var(--vj-hover-card-w);
-          background: var(--vj-hover-bg);
-          border: 1px solid var(--vj-hover-border);
-          border-radius: var(--vj-hover-card-radius);
-          box-shadow: var(--vj-hover-shadow);
-          contain: layout paint style;
-          isolation: isolate;
-          pointer-events: auto;
-          overflow: hidden;
-          opacity: 0;
-          transform: scale(var(--vj-hover-scale-from));
-          transition: opacity var(--vj-hover-out-ms) var(--vj-hover-ease), transform var(--vj-hover-out-ms) var(--vj-hover-ease);
-        }
-
-        [data-vj-hover-card][data-state="open"] {
-          opacity: 1;
-          transform: scale(1);
-          transition: opacity var(--vj-hover-in-ms) var(--vj-hover-ease), transform var(--vj-hover-in-ms) var(--vj-hover-ease);
-        }
-
-        /* Reduced motion = no shine/settle */
-        @media (prefers-reduced-motion: reduce) {
-          .aura-layer, .vj-aura, .vj-seal-shine[data-shine="on"]::before, .vj-seal-body[data-settle="on"] {
-            transition: none !important;
-            animation: none !important;
-            transform: none !important;
-            opacity: 0 !important;
-          }
-        }
-
-        .homepage-v4-segment { padding: var(--section-pad-y) 0; }
         .vibe-ambient-bg { position: fixed; inset: 0; z-index: -1; background: radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.03) 0%, transparent 40%), radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.03) 0%, transparent 40%), #FFFFFF; }
-        .glass-header { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); border-bottom: 0.5px solid rgba(0,0,0,0.05); }
         .premium-card { background: #FFFFFF; border: var(--border-soft); box-shadow: 0 4px 20px -2px rgba(0,0,0,0.02); transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1); overflow: hidden; position: relative; }
-        .embla { overflow: hidden; touch-action: pan-y; }
-        .embla__container { display: flex; user-select: none; margin-left: -1rem; }
-        .embla__slide { flex: 0 0 100%; min-width: 0; padding-left: 1rem; }
     </style>
 <script type="importmap">
 {
@@ -220,7 +83,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
 <body class="antialiased">
     <div class="vibe-ambient-bg"></div>
