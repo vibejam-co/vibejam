@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { BadgeType } from '../types';
 
@@ -124,7 +125,8 @@ export const SEAL_METADATA: Record<BadgeType, {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="18 15 12 9 6 15" />
       </svg>
-    )
+    ),
+    howToEarn: 'Revenue data verified via Stripe or manual audit.'
   },
   cult_favorite: {
     label: 'FAVORITE',
@@ -195,7 +197,8 @@ export const SEAL_METADATA: Record<BadgeType, {
         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
         <path d="M7 11V7a5 5 0 0 1 10 0v4" />
       </svg>
-    )
+    ),
+    howToEarn: 'Identity and creator history verified by VibeJam.'
   }
 };
 
@@ -257,11 +260,7 @@ const Badge: React.FC<BadgeProps> = ({ type, showTooltip = true, size = 'sm', is
     }
     const duration = meta.tier === 10 ? 650 : 620;
     const cleanupTimer = window.setTimeout(() => setShine(false), duration + 300);
-    return () => { 
-      clearTimeout(shineTimer); 
-      clearTimeout(cleanupTimer); 
-      if (tMid) clearTimeout(tMid);
-    };
+    return () => { clearTimeout(shineTimer); clearTimeout(cleanupTimer); if (tMid) clearTimeout(tMid); };
   }, [shouldShine, type, meta.tier]);
 
   const handleEnter = () => {
@@ -278,28 +277,11 @@ const Badge: React.FC<BadgeProps> = ({ type, showTooltip = true, size = 'sm', is
   const sizePx = size === 'sm' ? 'w-5 h-5' : size === 'md' ? 'w-6 h-6' : 'w-8 h-8';
 
   return (
-    <div 
-      className="relative inline-flex items-center group/badge"
-      onMouseEnter={handleEnter}
-      onMouseLeave={handleLeave}
-    >
+    <div className="relative inline-flex items-center group/badge" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
       <div className={`avatar-shell ${sizePx} flex items-center justify-center cursor-help`}>
-        <div 
-          className="vj-aura" 
-          style={{ background: meta.auraColor, opacity: 0.25 }} 
-        />
-        <div 
-          className={`vj-seal-body relative z-10 w-full h-full rounded-full bg-white/95 border border-black/5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] flex items-center justify-center transition-all duration-300 before:content-[""] before:absolute before:inset-[1px] before:rounded-full before:bg-gradient-to-b before:from-white/70 before:to-transparent ${isOpen ? '-translate-y-0.5 shadow-md' : ''}`}
-          data-settle={settle ? "on" : "off"}
-        >
-           {shouldShine && (
-              <span
-                className="vj-seal-shine"
-                data-shine={shine ? 'on' : 'off'}
-                data-tier={String(meta.tier)}
-                aria-hidden="true"
-              />
-            )}
+        <div className="vj-aura" style={{ background: meta.auraColor, opacity: 0.25 }} />
+        <div className={`vj-seal-body relative z-10 w-full h-full rounded-full bg-white/95 border border-black/5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] flex items-center justify-center transition-all duration-300 before:content-[""] before:absolute before:inset-[1px] before:rounded-full before:bg-gradient-to-b before:from-white/70 before:to-transparent ${isOpen ? '-translate-y-0.5 shadow-md' : ''}`} data-settle={settle ? "on" : "off"} >
+           {shouldShine && <span className="vj-seal-shine" data-shine={shine ? 'on' : 'off'} data-tier={String(meta.tier)} aria-hidden="true" />}
            <div className={`relative z-10 w-[55%] h-[55%] ${meta.color} transition-transform duration-300 ${isOpen ? 'scale-110' : ''}`}>
              {meta.icon}
            </div>
@@ -328,6 +310,11 @@ const Badge: React.FC<BadgeProps> = ({ type, showTooltip = true, size = 'sm', is
                 <p className="text-[10px] font-bold text-[#1C1C1E]">{meta.status}</p>
               </div>
             </div>
+            {meta.howToEarn && (
+              <div className="mt-3 pt-3 border-t border-[#F2F2F7]">
+                <p className="text-[9px] font-medium text-[#8E8E93] leading-relaxed italic">{meta.howToEarn}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
