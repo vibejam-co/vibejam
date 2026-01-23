@@ -1,6 +1,18 @@
 
 export type BadgeType = 'founding_creator' | 'founding_member' | 'early_access' | 'breakout_creator' | 'consistent_shipper' | 'revenue_leader' | 'cult_favorite' | 'top_curator' | 'community_builder' | 'insider';
 
+export interface TrustFlags {
+  verified: boolean;
+  consistent: boolean;
+  revenue_verified: boolean;
+  community_trusted: boolean;
+}
+
+export interface MonetizationStatus {
+  eligible: boolean;
+  pipeline_stage: 'none' | 'pending' | 'verified' | 'active';
+}
+
 export interface Badge {
   type: BadgeType;
   label: string;
@@ -34,6 +46,8 @@ export interface AppProject {
     type: 'Solo Founder' | 'Team'; // Mapped from TeamType
     handle: string;
     badges?: Badge[];
+    trust_flags?: TrustFlags;
+    monetization_status?: MonetizationStatus;
   };
   stack: string[]; // Mapped from techStack
   vibeTools: string[];
