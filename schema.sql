@@ -1,7 +1,7 @@
+
 -- VibeJam v12.2 Canonical Schema
 -- Targets: Supabase/PostgreSQL
 
--- Profiles table (extends Supabase Auth)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Jams table
 CREATE TABLE IF NOT EXISTS public.jams (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   creator_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -30,21 +29,11 @@ CREATE TABLE IF NOT EXISTS public.jams (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Basic RLS Policies (Draft)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.jams ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles
-  FOR SELECT USING (true);
-
-CREATE POLICY "Users can insert their own profile" ON public.profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile" ON public.profiles
-  FOR UPDATE USING (auth.uid() = id);
-
-CREATE POLICY "Jams are viewable by everyone" ON public.jams
-  FOR SELECT USING (true);
-
-CREATE POLICY "Authenticated users can create jams" ON public.jams
-  FOR INSERT WITH CHECK (auth.uid() = creator_id);
+CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Jams are viewable by everyone" ON public.jams FOR SELECT USING (true);
+CREATE POLICY "Authenticated users can create jams" ON public.jams FOR INSERT WITH CHECK (auth.uid() = creator_id);
