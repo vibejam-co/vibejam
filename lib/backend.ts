@@ -243,7 +243,7 @@ export const backend = {
 
             return { ...mockPublished, slug: publishedForStore.slug };
         });
-    }
+    },
 
     /**
      * Get a specific Jam.
@@ -325,6 +325,157 @@ export const backend = {
                 return { jams: [], source: 'local' };
             }
         });
+    },
+
+    /**
+     * Get private creator insights.
+     */
+    getCreatorInsights: async (): Promise<{ summary: any; jams: any[]; source: "supabase" | "local" }> => {
+        return safeInvoke('get-creator-insights', {}, async () => {
+            return {
+                summary: { totalJams: 0, totalViews: 0, totalUpvotes: 0, totalBookmarks: 0 },
+                jams: [],
+                source: 'local'
+            };
+        });
+    },
+
+    /**
+     * Check if user is eligible for monetization (plumbing).
+     */
+    checkMonetizationEligibility: async (): Promise<{ eligible: boolean; stage: string; source: "supabase" | "local" }> => {
+        if (!supabase) return { eligible: false, stage: 'none', source: 'local' };
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return { eligible: false, stage: 'none', source: 'local' };
+            const { data, error } = await supabase.from('profiles').select('monetization_status').eq('id', user.id).single();
+            if (error) throw error;
+            return {
+                eligible: data.monetization_status?.eligible || false,
+                stage: data.monetization_status?.pipeline_stage || 'none',
+                source: 'supabase'
+            };
+        } catch (e) {
+            return { eligible: false, stage: 'none', source: 'local' };
+        }
+    },
+
+    /**
+     * Report a Jam (Governance hook).
+     */
+    reportJam: async (jamId: string, reason: string): Promise<{ ok: boolean }> => {
+        // This could call a function or just log locally in demo
+        if (supabase) {
+            const { error } = await supabase.from('moderation_flags').insert({ jam_id: jamId, reason, severity: 'medium' });
+            return { ok: !error };
+        }
+        console.log(`[Governance] Local report for jam ${jamId}: ${reason}`);
+        return { ok: true };
+    },
+
+    // ============ PHASE 5: BILLING & ENTITLEMENTS ============
+
+    /**
+     * Get current user's entitlements (fail-open: returns empty array).
+     */
+    getMyEntitlements: async (): Promise<{ key: string; expiresAt: string | null }[]> => {
+        if (!supabase) return [];
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return [];
+            const { data, error } = await supabase
+                .from('entitlements')
+                .select('entitlement_key, expires_at')
+                .eq('user_id', user.id);
+            if (error) throw error;
+            return (data || []).map((e: any) => ({
+                key: e.entitlement_key,
+                expiresAt: e.expires_at
+            }));
+        } catch (e) {
+            console.error('[Backend] getMyEntitlements failed:', e);
+            return [];
+        }
+    },
+
+    /**
+     * Check if user has a specific entitlement (fail-open: returns false).
+     */
+    hasEntitlement: async (key: string): Promise<boolean> => {
+        if (!supabase) return false;
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return false;
+            const now = new Date().toISOString();
+            const { data, error } = await supabase
+                .from('entitlements')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('entitlement_key', key)
+                .or(`expires_at.is.null,expires_at.gt.${now}`)
+                .maybeSingle();
+            if (error) throw error;
+            return !!data;
+        } catch (e) {
+            console.error('[Backend] hasEntitlement failed:', e);
+            return false;
+        }
+    },
+
+    /**
+     * List current user's subscriptions (fail-open: returns empty array).
+     */
+    listMySubscriptions: async (): Promise<{ id: string; planId: string; status: string; periodEnd: string | null }[]> => {
+        if (!supabase) return [];
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return [];
+            const { data, error } = await supabase
+                .from('subscriptions')
+                .select('id, plan_id, status, current_period_end')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return (data || []).map((s: any) => ({
+                id: s.id,
+                planId: s.plan_id,
+                status: s.status,
+                periodEnd: s.current_period_end
+            }));
+        } catch (e) {
+            console.error('[Backend] listMySubscriptions failed:', e);
+            return [];
+        }
+    },
+
+    /**
+     * Create a subscription (calls Edge Function).
+     */
+    createSubscription: async (planId: string): Promise<{ ok: boolean; subscription?: any; error?: string }> => {
+        return safeInvoke('subscription-create', { planId }, () => ({
+            ok: false,
+            error: 'BILLING_UNAVAILABLE'
+        }));
+    },
+
+    /**
+     * Cancel a subscription (calls Edge Function).
+     */
+    cancelSubscription: async (subscriptionId: string): Promise<{ ok: boolean; error?: string }> => {
+        return safeInvoke('subscription-cancel', { subscriptionId }, () => ({
+            ok: false,
+            error: 'BILLING_UNAVAILABLE'
+        }));
+    },
+
+    /**
+     * Create a paid exposure / boost (calls Edge Function).
+     */
+    createPaidExposure: async (jamId: string, exposureType: string, durationHours: number): Promise<{ ok: boolean; exposure?: any; payment?: any; error?: string }> => {
+        return safeInvoke('paid-exposure-create', { jamId, exposureType, durationHours }, () => ({
+            ok: false,
+            error: 'BILLING_UNAVAILABLE'
+        }));
     }
 
 };
