@@ -108,6 +108,8 @@ export type JamDoc = {
   createdAt: string;   // ISO string on client
   updatedAt: string;
   publishedAt?: string;
+  isListed?: boolean;
+  listedAt?: string;
 
   name: string;
   tagline: string;

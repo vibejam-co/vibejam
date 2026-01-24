@@ -202,23 +202,17 @@ export const backend = {
         });
     },
 
-    /**
-     * Publish a jam.
-     */
-    publishJam: async (params: { jamId: string, patch: Partial<JamDoc> }): Promise<{ ok: boolean; jam?: JamDoc & { slug: string }; error?: string }> => {
+    publishJam: async (params: { jamId: string, patch: Partial<JamDoc> }): Promise<{ ok: boolean; success: boolean; jam_id?: string; live_url?: string; discoverable?: boolean; reason_if_not?: string | null; data?: JamDoc; error?: string }> => {
         const { jamId, patch } = params;
         const payload = { ...patch, status: 'published' };
 
         try {
             const result = await safeInvoke<any>('jam-upsert-draft', { jamId, patch: payload }, async () => {
-                return { ok: false, error: 'BACKEND_OFFLINE' };
+                return { ok: false, success: false, error: 'BACKEND_OFFLINE' };
             });
-            if (result && result.ok && result.data) {
-                return { ok: true, jam: { ...result.data, slug: result.data.name.toLowerCase().replace(/\s+/g, '-') } };
-            }
-            return { ok: false, error: result?.error || 'PUBLISH_FAILED' };
+            return result;
         } catch (e) {
-            return { ok: false, error: normalizeError(e).code };
+            return { ok: false, success: false, error: normalizeError(e).code };
         }
     },
 
@@ -252,7 +246,7 @@ export const backend = {
      * List Published Jams (Feed).
      */
     listPublishedJams: async (params: { sort: "trending" | "new" | "revenue" | "picks"; filters?: any }): Promise<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }> => {
-        return safeInvoke<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }>('jams-list', params, async () => {
+        return safeInvoke<{ jams: any[]; source: "supabase" | "local"; ok: boolean }>('jams-list', params, async () => {
             return { jams: [], source: 'local' as const, ok: true };
         });
     },

@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
         const allowed = [
             'name', 'tagline', 'description', 'category', 'team_type',
             'socials', 'vibe_tools', 'tech_stack', 'mrr_bucket',
-            'mrr_value', 'mrr_visibility', 'media', 'app_url'
+            'mrr_value', 'mrr_visibility', 'media', 'app_url', 'is_listed', 'status'
         ]
 
         if (patch) {
@@ -47,6 +47,41 @@ Deno.serve(async (req) => {
                 if (patch[key] !== undefined) {
                     updates[key] = patch[key]
                 }
+            }
+
+            // Validation for Publishing
+            if (updates.status === 'published') {
+                const name = updates.name || '';
+                const category = updates.category || '';
+                const heroImageUrl = updates.media?.heroImageUrl || '';
+
+                // If any critical field is missing, we check existing record first if jamId exists
+                let finalName = name;
+                let finalCategory = category;
+                let finalHero = heroImageUrl;
+
+                if (jamId && (!name || !category || !heroImageUrl)) {
+                    const { data: existing } = await supabase.from('jams').select('name, category, media').eq('id', jamId).single();
+                    finalName = name || existing?.name;
+                    finalCategory = category || existing?.category;
+                    finalHero = heroImageUrl || existing?.media?.heroImageUrl;
+                }
+
+                if (!finalName || !finalCategory || !finalHero) {
+                    return new Response(JSON.stringify({
+                        ok: false,
+                        success: false,
+                        error: 'INCOMPLETE_METADATA',
+                        message: 'Name, Category, and Hero Image are required to publish.'
+                    }), {
+                        status: 400,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                    })
+                }
+
+                updates.published_at = new Date().toISOString();
+                updates.is_listed = true;
+                updates.listed_at = updates.published_at;
             }
 
             // Safety caps
@@ -77,31 +112,21 @@ Deno.serve(async (req) => {
 
             // Scrape mode: only fill empty fields
             if (source === 'scrape') {
-                const fillable = ['name', 'tagline', 'description', 'media'] // extend as needed
+                const fillable = ['name', 'tagline', 'description', 'media']
                 for (const key of fillable) {
                     if (updates[key]) {
-                        // Logic: if existing is empty/null/default, allow update.
-                        // For media, it's a JSONB, so we might need deeper merge. 
-                        // Simplified: if existing media is default/null, take new.
-                        // Or merge specific subfields. 
-
                         if (key === 'media') {
-                            // Shallow merge for media props if they are missing in existing
                             const existingMedia = existing.media || {}
                             const newMedia = updates.media || {}
                             updates.media = {
                                 ...existingMedia,
                                 ...newMedia,
-                                // Keep existing non-null values
                                 heroImageUrl: existingMedia.heroImageUrl || newMedia.heroImageUrl,
                                 faviconUrl: existingMedia.faviconUrl || newMedia.faviconUrl,
                                 ogImageUrl: existingMedia.ogImageUrl || newMedia.ogImageUrl,
-                                // For arrays, maybe append or keep existing?
-                                // Prompt says "do NOT overwrite a field if it already has a non-empty value"
                                 imageUrls: (existingMedia.imageUrls?.length > 0) ? existingMedia.imageUrls : newMedia.imageUrls
                             }
                         } else if (existing[key]) {
-                            // exists and not empty, delete from updates
                             delete updates[key]
                         }
                     }
@@ -126,6 +151,7 @@ Deno.serve(async (req) => {
                     creator_id: user.id,
                     status: 'draft',
                     website_url: websiteUrl,
+                    is_listed: false,
                     ...updates
                 })
                 .select()
@@ -135,12 +161,23 @@ Deno.serve(async (req) => {
             result = data
         }
 
-        return new Response(JSON.stringify(result), {
+        // Construct authoritative response
+        const response = {
+            ok: true,
+            success: true,
+            jam_id: result.id,
+            live_url: result.status === 'published' ? `${Deno.env.get('SITE_URL') || 'https://vibejam.co'}/jam/${result.id}` : null,
+            discoverable: result.is_listed && result.status === 'published',
+            reason_if_not: (result.status === 'published' && !result.is_listed) ? 'NOT_LISTED' : null,
+            data: result
+        }
+
+        return new Response(JSON.stringify(response), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
 
     } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
+        return new Response(JSON.stringify({ ok: false, success: false, error: error.message }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })

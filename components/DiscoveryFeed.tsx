@@ -34,11 +34,11 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{customTitle || "Discover What’s Shipping Now"}</h2>
-          <p className="text-sm text-gray-400 font-medium leading-relaxed">Live launches from the VibeJam community</p>
+          <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mt-1">Preview examples — founding launches will replace this content.</p>
         </div>
         <div className="flex items-center gap-2 p-1 bg-gray-100/50 rounded-xl border border-gray-100">
           {(['Trending', 'Today', 'This Week', 'Revenue'] as const).map((f) => (
-            <button 
+            <button
               key={f}
               onClick={() => setFilter(f)}
               className={`px-4 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-400 hover:text-gray-900'}`}
@@ -51,7 +51,7 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
 
       <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
         {filteredApps.map((app, idx) => (
-          <div 
+          <div
             key={app.id}
             onClick={() => onSelect(app)}
             className={`group flex items-center p-4 md:p-6 cursor-pointer transition-all hover:bg-gray-50/50 relative ${idx !== filteredApps.length - 1 ? 'border-b border-gray-50' : ''}`}
@@ -60,7 +60,7 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
             {idx < 3 && (
               <div className="absolute left-0 top-4 bottom-4 w-0.5 bg-blue-500/20 rounded-full" />
             )}
-            
+
             {/* 1. Left: Rank & Icon */}
             <div className="flex items-center gap-4 md:gap-8 min-w-[100px] md:min-w-[140px]">
               <span className={`text-xs font-black w-4 text-center ${idx < 3 ? 'text-blue-500' : 'text-gray-300'}`}>{idx + 1}</span>
@@ -68,7 +68,7 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
                 <img src={app.thumbnailUrl || app.screenshot} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt={app.name} />
                 {app.mediaType === 'video' && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                    <svg className="w-4 h-4 text-white fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <svg className="w-4 h-4 text-white fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   </div>
                 )}
               </div>
@@ -85,7 +85,7 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
                 </span>
               </div>
               <p className="text-sm text-gray-400 truncate mb-3 font-medium leading-tight">{app.description}</p>
-              
+
               <div className="flex flex-wrap gap-2 items-center">
                 <div className="flex gap-1">
                   {app.vibeTools.slice(0, 2).map(tool => (
@@ -95,7 +95,7 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
                   ))}
                 </div>
 
-                <div 
+                <div
                   onClick={(e) => { e.stopPropagation(); onCreatorClick?.(app.creator); }}
                   className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-white transition-all group/creator"
                 >
@@ -122,12 +122,12 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
                 </span>
                 <span className="text-[9px] text-gray-300 uppercase tracking-widest font-black">MRR</span>
               </div>
-              
-              <button 
+
+              <button
                 className="flex flex-col items-center justify-center w-12 h-14 md:w-14 md:h-16 rounded-2xl bg-white border border-gray-100 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/20 active:scale-95 group/upvote"
                 onClick={(e) => { e.stopPropagation(); }}
               >
-                <svg className="w-4 h-4 text-gray-300 group-hover/upvote:text-blue-500 transition-colors" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l-8 8h16l-8-8z"/></svg>
+                <svg className="w-4 h-4 text-gray-300 group-hover/upvote:text-blue-500 transition-colors" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l-8 8h16l-8-8z" /></svg>
                 <span className="text-xs font-black text-gray-600 mt-1">{app.stats.upvotes}</span>
               </button>
             </div>

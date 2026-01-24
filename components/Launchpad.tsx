@@ -153,9 +153,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
         jamId: formData.id,
         websiteUrl: finalUrl,
         source: 'manual',
-        patch: {
-          websiteUrl: finalUrl
-        }
+        name: formData.name || fallbackTitle
       });
 
       // Update local ID if changed (unlikely for upsert but good practice)
@@ -215,19 +213,19 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
     setIsPublishing(true);
 
     // Prepare payload
-    const patchPayload = {
+    const patchPayload: any = {
       name: formData.name,
       tagline: formData.description,
       category: formData.category,
       teamType: formData.makerType === 'Solo Founder' ? 'solo' : 'team',
       vibeTools: formData.vibeTools || [],
-      techStack: formData.stack || [], // Guardrail: ensure array
-      mrrBucket: formData.mrr,
-      mrrVisibility: formData.isRevenuePublic ? 'public' : 'hidden',
-      websiteUrl: formData.sourceUrl,
+      tech_stack: formData.stack || [], // Match DB field name or adapter expectation
+      mrr_bucket: formData.mrr,
+      mrr_visibility: formData.isRevenuePublic ? 'public' : 'hidden',
+      website_url: formData.sourceUrl,
       media: {
         heroImageUrl: formData.mediaUrl,
-        imageUrls: [], // MVP
+        imageUrls: [],
         videoEmbedUrl: undefined,
         faviconUrl: undefined,
         ogImageUrl: undefined,
@@ -236,17 +234,16 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
     };
 
     try {
-      // Backend Adapter Call
-      // Returns the final "Published" jam doc (or the local fallback)
-      const finalJam = await backend.publishJam({
+      const result = await backend.publishJam({
         jamId: formData.id,
         patch: patchPayload
       });
 
-      // Convert to UI model for Preview
-      // Note: backend.publishJam matches JamDoc, we need JamPublished for the overlay
-      // The fallback in backend.ts handles local storage save.
-      // We just need to drive the UI.
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'PUBLISH_FAILED');
+      }
+
+      const finalJam = result.data;
 
       const previewJam: JamPublished = {
         id: finalJam.id,
@@ -254,9 +251,8 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
         status: 'published',
         publishedAt: Date.now(),
         name: finalJam.name,
-        description: finalJam.description || '', // Ensure extraction
+        description: finalJam.description || '',
         websiteUrl: finalJam.websiteUrl,
-        tagline: finalJam.tagline || '',
         category: finalJam.category,
         mediaType: 'image',
         screenshot: finalJam.media?.heroImageUrl || '',
@@ -277,7 +273,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
         },
         stack: finalJam.techStack || [],
         vibeTools: finalJam.vibeTools || []
-      };
+      } as any; // Cast for legacy AppProject compatibility
 
       setPublishedJam(previewJam);
       setPreviewOpen(true);
