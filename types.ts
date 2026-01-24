@@ -110,6 +110,8 @@ export type JamDoc = {
   publishedAt?: string;
   isListed?: boolean;
   listedAt?: string;
+  isPrivate?: boolean;
+  slug?: string;
 
   name: string;
   tagline: string;

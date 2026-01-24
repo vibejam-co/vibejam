@@ -1,7 +1,5 @@
 -- Migration: 20260124154500_query_layer_hardening
--- Description: Privacy and Slug System
-
--- Add is_private and slug for deterministic queries and trust-safe filtering
+-- Description: Add is_private and slug for deterministic queries and trust-safe filtering
 
 -- 1. SCHEMA UPDATES
 ALTER TABLE public.jams 

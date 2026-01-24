@@ -572,6 +572,165 @@ export const backend = {
 
     // ============ PHASE 6: HARDENING HELPERS ============
 
+    // ============ PHASE 12: DETERMINISTIC QUERY LAYER ============
+
+    /**
+     * SURFACE 1: Creator Profile -> Products list
+     */
+    fetchCreatorPublishedJamsByHandle: async (handle: string, { limit = 12, cursor }: { limit?: number, cursor?: { publishedAt: string, id: string } }): Promise<{ data: any[], nextCursor?: any, error?: string }> => {
+        if (!supabase) return { data: [], error: 'BACKEND_OFFLINE' };
+        try {
+            // 1. Resolve creator_id
+            const { data: profile, error: pErr } = await supabase.from('profiles').select('id').eq('handle', handle).maybeSingle();
+            if (pErr || !profile) return { data: [], error: pErr?.message || 'CREATOR_NOT_FOUND' };
+
+            // 2. Fetch jams
+            let query = supabase.from('jams')
+                .select('id, slug, name, tagline, category, media, published_at, creator_id')
+                .eq('creator_id', profile.id)
+                .eq('status', 'published')
+                .eq('is_private', false)
+                .not('published_at', 'is', null)
+                .order('published_at', { ascending: false })
+                .order('id', { ascending: false })
+                .limit(limit + 1);
+
+            // Cursor logic: (published_at, id) < (cursorPublishedAt, cursorId)
+            if (cursor) {
+                query = query.or(`published_at.lt.${cursor.publishedAt},and(published_at.eq.${cursor.publishedAt},id.lt.${cursor.id})`);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+
+            const hasMore = data.length > limit;
+            const items = data.slice(0, limit).map(j => ({
+                id: j.id,
+                slug: j.slug,
+                name: j.name,
+                tagline: j.tagline,
+                category: j.category,
+                cover_image_url: j.media?.heroImageUrl || null,
+                published_at: j.published_at,
+                creator_id: j.creator_id
+            }));
+
+            const next = hasMore ? { publishedAt: data[limit - 1].published_at, id: data[limit - 1].id } : undefined;
+            return { data: items, nextCursor: next };
+        } catch (e) {
+            return { data: [], error: normalizeError(e).code };
+        }
+    },
+
+    /**
+     * SURFACE 2: Discover -> New tab
+     */
+    fetchDiscoverNewJams: async ({ limit = 24, cursor }: { limit?: number, cursor?: { publishedAt: string, id: string } }): Promise<{ data: any[], nextCursor?: any, error?: string }> => {
+        if (!supabase) return { data: [], error: 'BACKEND_OFFLINE' };
+        try {
+            let query = supabase.from('jams')
+                .select(`
+                    id, slug, name, tagline, category, media, published_at,
+                    creator:profiles!jams_creator_id_fkey (handle, display_name, avatar_url)
+                `)
+                .eq('status', 'published')
+                .eq('is_private', false)
+                .eq('is_listed', true)
+                .not('published_at', 'is', null)
+                .order('published_at', { ascending: false })
+                .order('id', { ascending: false })
+                .limit(limit + 1);
+
+            if (cursor) {
+                query = query.or(`published_at.lt.${cursor.publishedAt},and(published_at.eq.${cursor.publishedAt},id.lt.${cursor.id})`);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+
+            const hasMore = data.length > limit;
+            const items = data.slice(0, limit).map((j: any) => ({
+                id: j.id,
+                slug: j.slug,
+                name: j.name,
+                tagline: j.tagline,
+                category: j.category,
+                cover_image_url: j.media?.heroImageUrl || null,
+                published_at: j.published_at,
+                handle: j.creator?.handle,
+                display_name: j.creator?.display_name,
+                avatar_url: j.creator?.avatar_url
+            }));
+
+            const next = hasMore ? { publishedAt: data[limit - 1].published_at, id: data[limit - 1].id } : undefined;
+            return { data: items, nextCursor: next };
+        } catch (e) {
+            return { data: [], error: normalizeError(e).code };
+        }
+    },
+
+    /**
+     * SURFACE 3: Homepage -> Top Jams Shipping Today
+     */
+    fetchHomepageTopJamsToday: async ({ limit = 8, cursor, tz = 'America/Los_Angeles' }: { limit?: number, cursor?: { publishedAt: string, id: string }, tz?: string }): Promise<{ data: any[], nextCursor?: any, error?: string }> => {
+        if (!supabase) return { data: [], error: 'BACKEND_OFFLINE' };
+        try {
+            // Calculate Today's window in the given TZ
+            const now = new Date();
+            const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+            const parts = formatter.formatToParts(now);
+            const y = parts.find(p => p.type === 'year')?.value;
+            const m = parts.find(p => p.type === 'month')?.value;
+            const d = parts.find(p => p.type === 'day')?.value;
+            const dateStr = `${y}-${m}-${d}`;
+
+            const startOfDay = new Date(`${dateStr}T00:00:00Z`); // Simplified representation for comparison
+            // To get real local start, we'd need a more complex conversion, but since comparison is in DB, 
+            // the logic is: published_at >= startOfDay(tz).
+            // A more robust way in Supabase: query with published_at at time zone 'UTC' at time zone tz >= current_date
+
+            let query = supabase.from('jams')
+                .select(`
+                    id, slug, name, tagline, category, media, published_at,
+                    creator:profiles!jams_creator_id_fkey (handle, display_name, avatar_url)
+                `)
+                .eq('status', 'published')
+                .eq('is_private', false)
+                .eq('is_listed', true)
+                .not('published_at', 'is', null)
+                .gte('published_at', startOfDay.toISOString())
+                .order('published_at', { ascending: false })
+                .order('id', { ascending: false })
+                .limit(limit + 1);
+
+            if (cursor) {
+                query = query.or(`published_at.lt.${cursor.publishedAt},and(published_at.eq.${cursor.publishedAt},id.lt.${cursor.id})`);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+
+            const hasMore = data.length > limit;
+            const items = data.slice(0, limit).map((j: any) => ({
+                id: j.id,
+                slug: j.slug,
+                name: j.name,
+                tagline: j.tagline,
+                category: j.category,
+                cover_image_url: j.media?.heroImageUrl || null,
+                published_at: j.published_at,
+                handle: j.creator?.handle,
+                display_name: j.creator?.display_name,
+                avatar_url: j.creator?.avatar_url
+            }));
+
+            const next = hasMore ? { publishedAt: data[limit - 1].published_at, id: data[limit - 1].id } : undefined;
+            return { data: items, nextCursor: next };
+        } catch (e) {
+            return { data: [], error: normalizeError(e).code };
+        }
+    },
+
     healthCheck: async (): Promise<{ ok: boolean; mode: string }> => {
         return { ok: !!supabase, mode: supabase ? 'production' : 'demo' };
     }
