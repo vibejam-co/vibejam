@@ -1,14 +1,13 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import {
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  User
-} from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { createClient, User, Session } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = (supabaseUrl && supabaseKey)
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
 
 export interface VJUser {
   id: string;
@@ -81,78 +80,121 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   }, []);
 
-  const mapUser = (fbUser: User): VJUser => {
+  const mapUser = (supaUser: User): VJUser => {
+    const email = supaUser.email || '';
+    const metadata = supaUser.user_metadata || {};
     return {
-      id: fbUser.uid,
-      name: fbUser.displayName || fbUser.email?.split('@')[0] || 'Maker',
-      handle: `@${fbUser.email?.split('@')[0] || 'user'}`,
-      avatar: fbUser.photoURL || 'https://picsum.photos/seed/vj/100',
+      id: supaUser.id,
+      name: metadata.full_name || metadata.name || email.split('@')[0] || 'Maker',
+      handle: `@${email.split('@')[0] || 'user'}`,
+      avatar: metadata.avatar_url || metadata.picture || 'https://picsum.photos/seed/vj/100',
     };
   };
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      // 1. If Firebase User exists, prioritize it over demo
-      if (fbUser) {
-        localStorage.removeItem(DEMO_SESSION_KEY);
-        const vjUser = mapUser(fbUser);
-        setSession({ mode: "real", user: vjUser, createdAt: Date.now() });
+  const fetchOrCreateProfile = async (supaUser: User, vjUser: VJUser) => {
+    if (!supabase) return;
 
-        // Fetch or Create Profile
-        try {
-          const userDocRef = doc(db, 'users', fbUser.uid);
-          const userDoc = await getDoc(userDocRef);
+    try {
+      // Try to get existing profile
+      const { data: existingProfile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', supaUser.id)
+        .single();
 
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            setProfile({
-              id: fbUser.uid,
-              username: data.handle?.replace('@', '') || vjUser.handle.replace('@', ''),
-              display_name: data.displayName || vjUser.name,
-              avatar_url: data.avatarUrl || vjUser.avatar,
-              bio: data.bio || ''
-            });
-          } else {
-            // Auto-create MVP profile
-            const newProfile = {
-              displayName: vjUser.name,
-              handle: vjUser.handle.replace('@', ''),
-              avatarUrl: vjUser.avatar,
-              createdAt: serverTimestamp(),
-              followersCount: 0,
-              followingCount: 0,
-              bookmarksCount: 0
-            };
-            await setDoc(userDocRef, newProfile);
-            setProfile({
-              id: fbUser.uid,
-              username: newProfile.handle,
-              display_name: newProfile.displayName,
-              avatar_url: newProfile.avatarUrl,
-              bio: ''
-            });
-          }
-        } catch (e) {
-          console.error("Profile fetch error", e);
-        }
+      if (existingProfile && !error) {
+        setProfile({
+          id: supaUser.id,
+          username: existingProfile.username || vjUser.handle.replace('@', ''),
+          display_name: existingProfile.display_name || vjUser.name,
+          avatar_url: existingProfile.avatar_url || vjUser.avatar,
+          bio: existingProfile.bio || ''
+        });
       } else {
-        // 2. Fallback to Demo if no real user
-        const hasDemo = hydrateDemo();
-        if (!hasDemo) {
-          setSession(null);
-          setProfile(null);
-        }
+        // Create new profile
+        const newProfile = {
+          id: supaUser.id,
+          username: vjUser.handle.replace('@', ''),
+          display_name: vjUser.name,
+          avatar_url: vjUser.avatar,
+          bio: '',
+          created_at: new Date().toISOString()
+        };
+
+        await supabase.from('profiles').upsert(newProfile);
+
+        setProfile({
+          id: supaUser.id,
+          username: newProfile.username,
+          display_name: newProfile.display_name,
+          avatar_url: newProfile.avatar_url,
+          bio: ''
+        });
+      }
+    } catch (e) {
+      console.error("Profile fetch error", e);
+    }
+  };
+
+  useEffect(() => {
+    // If Supabase is not configured, fall back to demo mode
+    if (!supabase) {
+      console.warn('[Auth] Supabase not configured. Demo mode only.');
+      hydrateDemo();
+      setLoading(false);
+      return;
+    }
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session: supaSession } }) => {
+      if (supaSession?.user) {
+        localStorage.removeItem(DEMO_SESSION_KEY);
+        const vjUser = mapUser(supaSession.user);
+        setSession({ mode: "real", user: vjUser, createdAt: Date.now() });
+        fetchOrCreateProfile(supaSession.user, vjUser);
+      } else {
+        hydrateDemo();
       }
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, supaSession) => {
+        if (supaSession?.user) {
+          localStorage.removeItem(DEMO_SESSION_KEY);
+          const vjUser = mapUser(supaSession.user);
+          setSession({ mode: "real", user: vjUser, createdAt: Date.now() });
+          fetchOrCreateProfile(supaSession.user, vjUser);
+        } else {
+          const hasDemo = hydrateDemo();
+          if (!hasDemo) {
+            setSession(null);
+            setProfile(null);
+          }
+        }
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, [hydrateDemo]);
 
   const signInWithGoogle = async () => {
+    if (!supabase) {
+      console.error("Supabase not configured");
+      alert("Authentication is not available. Please use Demo Login.");
+      return;
+    }
+
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
     } catch (error) {
       console.error("Login failed", error);
     }
@@ -175,7 +217,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     localStorage.removeItem(DEMO_SESSION_KEY);
-    await firebaseSignOut(auth);
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     setSession(null);
     setProfile(null);
   };

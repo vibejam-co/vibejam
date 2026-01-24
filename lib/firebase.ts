@@ -1,23 +1,10 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
+// Firebase is no longer used - VibeJam uses Supabase as the backend.
+// This file is kept as a stub to prevent import errors from any legacy code.
 
-const firebaseConfig = {
-    // TODO: Replace with your actual Firebase config
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
+// To fully migrate, search the codebase for any remaining imports from this file
+// and update them to use the Supabase backend (lib/backend.ts).
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const functions = getFunctions(app);
-
-export default app;
+export const auth = null;
+export const db = null;
+export const functions = null;
+export default null;
