@@ -1,124 +1,205 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+type ScrapeResult = {
+    site_url: string;
+    name?: string;
+    tagline?: string;
+    image_url?: string;
+    favicon_url?: string;
+    warnings: string[];
+};
+
+const DEFAULT_UA =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36";
+
+function absolutize(baseUrl: string, maybeRelative?: string) {
+    if (!maybeRelative) return undefined;
+    try {
+        return new URL(maybeRelative, baseUrl).toString();
+    } catch {
+        return undefined;
+    }
 }
 
-Deno.serve(async (req) => {
-    if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders })
-    }
+function strip(s?: string) {
+    return s?.replace(/\s+/g, " ").trim();
+}
+
+// Match meta tags by property or name
+function getMetaAll(html: string, key: string): string[] {
+    const out: string[] = [];
+
+    const propRe = new RegExp(
+        `<meta[^>]+property=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+        "gi",
+    );
+    const nameRe = new RegExp(
+        `<meta[^>]+name=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`,
+        "gi",
+    );
+
+    let m: RegExpExecArray | null;
+    while ((m = propRe.exec(html))) out.push(m[1].trim());
+    while ((m = nameRe.exec(html))) out.push(m[1].trim());
+
+    // Also handle attribute order swapped (content before property/name)
+    const propRe2 = new RegExp(
+        `<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${key}["'][^>]*>`,
+        "gi",
+    );
+    const nameRe2 = new RegExp(
+        `<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${key}["'][^>]*>`,
+        "gi",
+    );
+    while ((m = propRe2.exec(html))) out.push(m[1].trim());
+    while ((m = nameRe2.exec(html))) out.push(m[1].trim());
+
+    // de-dupe preserving order
+    return [...new Set(out)];
+}
+
+function getMetaFirst(html: string, key: string): string | undefined {
+    return getMetaAll(html, key)[0];
+}
+
+// Pull <title>…</title>
+function getHtmlTitle(html: string): string | undefined {
+    const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    return m?.[1]?.trim();
+}
+
+// <link rel="..."> selectors (icons etc.)
+function getLinkRelAll(html: string, relContains: string): string[] {
+    const out: string[] = [];
+    const re = new RegExp(
+        `<link[^>]+rel=["']^"']*${relContains}[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>`,
+        "gi",
+    );
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html))) out.push(m[1].trim());
+
+    // handle swapped attr order (href before rel)
+    const re2 = new RegExp(
+        `<link[^>]+href=["']([^"']+)["'][^>]+rel=["']^"']*${relContains}[^"']*["'][^>]*>`,
+        "gi",
+    );
+    while ((m = re2.exec(html))) out.push(m[1].trim());
+
+    return [...new Set(out)];
+}
+
+// Some sites give data: or svg; avoid those as hero images
+function isBadHeroImage(url?: string) {
+    if (!url) return true;
+    const u = url.toLowerCase();
+    if (u.startsWith("data:")) return true;
+    if (u.endsWith(".svg")) return true; // often logos; optional: allow if you want
+    return false;
+}
+
+async function fetchHtmlWithTimeout(url: string, timeoutMs = 8000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
 
     try {
-        const supabase = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-            { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-        )
+        const res = await fetch(url, {
+            method: "GET",
+            redirect: "follow",
+            signal: ctrl.signal,
+            headers: {
+                "user-agent": DEFAULT_UA,
+                "accept":
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "accept-language": "en-US,en;q=0.9",
+                "cache-control": "no-cache",
+            },
+        });
 
-        const { jamId, websiteUrl, mode } = await req.json()
-        if (!websiteUrl) throw new Error('URL required')
+        const ct = res.headers.get("content-type") || "";
+        const html = await res.text();
 
-        // 1. Fetch HTML with 5s timeout
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 5000)
-
-        let html = ''
-        try {
-            const res = await fetch(websiteUrl, {
-                signal: controller.signal,
-                headers: { 'User-Agent': 'VibeJam-Scraper/1.0' }
-            })
-            if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`)
-            html = await res.text()
-        } catch (e) {
-            // If fetch fails, we still might want to proceed if we just wanted to init a jam
-            // But the prompt implies returning extraction.
-            throw new Error(`Scrape failed: ${e.message}`)
-        } finally {
-            clearTimeout(timeoutId)
-        }
-
-        // 2. Parse Metadata
-        const doc = new DOMParser().parseFromString(html, "text/html");
-        if (!doc) throw new Error('Failed to parse HTML')
-
-        const getMeta = (prop: string) =>
-            doc.querySelector(`meta[property="${prop}"]`)?.getAttribute("content") ||
-            doc.querySelector(`meta[name="${prop}"]`)?.getAttribute("content");
-
-        const title = getMeta("og:title") || doc.querySelector("title")?.textContent || "";
-        const description = getMeta("og:description") || getMeta("description") || "";
-        const ogImage = getMeta("og:image") || getMeta("twitter:image");
-
-        // Favicon
-        let favicon = doc.querySelector("link[rel~='icon']")?.getAttribute("href")
-        if (favicon && !favicon.startsWith('http')) {
-            // resolve relative
-            try {
-                favicon = new URL(favicon, websiteUrl).href
-            } catch { }
-        }
-
-        // Hero / Screenshot fallback
-        let heroImage = ogImage;
-        if (!heroImage) {
-            // find first large image
-            const imgs = doc.querySelectorAll('img');
-            // simple heuristic: first img with src
-            for (const img of imgs) {
-                const src = img.getAttribute('src');
-                if (src) {
-                    heroImage = src.startsWith('http') ? src : new URL(src, websiteUrl).href;
-                    break;
-                }
-            }
-        }
-
-        const payload = {
-            name: title.substring(0, 100), // truncate
-            tagline: description.substring(0, 150),
-            media: {
-                heroImageUrl: heroImage,
-                ogImageUrl: ogImage,
-                faviconUrl: favicon,
-                imageUrls: [] // Could extract more if needed
-            }
-        }
-
-        // 3. Call jam-upsert-draft internally
-        // We can call the function directly or just do DB update since we have the client.
-        // However, jam-upsert-draft has the logic for "fill_if_empty" and validation.
-        // It's cleaner to reuse logic, but invoking another edge function via HTTP can be tricky with auth.
-        // Since we are in the same project, let's just replicate the update logic simply here or use the DB directly 
-        // to avoid RTT, complying to "call jam-upsert-draft internally" instruction from prompt.
-        // "call jam-upsert-draft internally" -> usually means invoke.
-
-        const { data: updatedJam, error: upsertError } = await supabase.functions.invoke('jam-upsert-draft', {
-            body: {
-                jamId,
-                websiteUrl,
-                patch: payload,
-                source: 'scrape'
-            }
-        })
-
-        if (upsertError) throw upsertError
-
-        return new Response(JSON.stringify({
-            extraction: payload,
-            jam: updatedJam
-        }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-
-    } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        return { res, ct, html };
+    } finally {
+        clearTimeout(t);
     }
-})
+}
+
+serve(async (req) => {
+    try {
+        const { url } = await req.json().catch(() => ({}));
+        if (!url) {
+            return new Response(JSON.stringify({ error: "Missing url" }), { status: 400 });
+        }
+
+        const inputUrl = new URL(url).toString();
+        const warnings: string[] = [];
+
+        const { res, ct, html } = await fetchHtmlWithTimeout(inputUrl, 9000);
+
+        if (!ct.includes("text/html")) {
+            warnings.push(`Non-HTML content-type returned: ${ct}`);
+        }
+
+        // Normalize the final URL after redirects
+        const finalUrl = res.url || inputUrl;
+
+        // ---- Title/Description Ladder ----
+        const ogTitle = strip(getMetaFirst(html, "og:title"));
+        const twTitle = strip(getMetaFirst(html, "twitter:title"));
+        const docTitle = strip(getHtmlTitle(html));
+
+        const ogDesc = strip(getMetaFirst(html, "og:description"));
+        const twDesc = strip(getMetaFirst(html, "twitter:description"));
+        const metaDesc = strip(getMetaFirst(html, "description"));
+
+        const name = ogTitle || twTitle || docTitle;
+        const tagline = ogDesc || twDesc || metaDesc;
+
+        if (!name) warnings.push("No title found (og:title/twitter:title/<title>).");
+        if (!tagline) warnings.push("No description found (og:description/twitter:description/meta description).");
+
+        // ---- Image Ladder (OG -> Twitter -> Icons) ----
+        // Prefer OG image; some pages have multiple og:image; take first valid
+        const ogImages = getMetaAll(html, "og:image").map((x) => absolutize(finalUrl, x));
+        const twImages = getMetaAll(html, "twitter:image").map((x) => absolutize(finalUrl, x));
+
+        let image_url =
+            ogImages.find((u) => u && !isBadHeroImage(u)) ||
+            twImages.find((u) => u && !isBadHeroImage(u));
+
+        // Icon fallbacks (good for "no image scraped" cases)
+        const appleIcons = getLinkRelAll(html, "apple-touch-icon").map((x) => absolutize(finalUrl, x));
+        const icons = getLinkRelAll(html, "icon").map((x) => absolutize(finalUrl, x));
+
+        const favicon_url =
+            icons.find(Boolean) ||
+            appleIcons.find(Boolean) ||
+            absolutize(finalUrl, "/favicon.ico");
+
+        if (!image_url) {
+            // last-resort: use apple-touch-icon or icon as hero image
+            image_url =
+                appleIcons.find((u) => u && !isBadHeroImage(u)) ||
+                icons.find((u) => u && !isBadHeroImage(u));
+
+            warnings.push(
+                "No og:image/twitter:image found. Falling back to site icon (consider screenshot fallback for richer covers).",
+            );
+        }
+
+        const out: ScrapeResult = {
+            site_url: finalUrl,
+            name,
+            tagline,
+            image_url,
+            favicon_url,
+            warnings,
+        };
+
+        return new Response(JSON.stringify(out), {
+            headers: { "content-type": "application/json" },
+        });
+    } catch (e) {
+        return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
+    }
+});
