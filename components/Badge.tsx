@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import { BadgeType } from '../types';
 
@@ -11,8 +10,16 @@ interface BadgeProps {
   onAnimationComplete?: () => void;
 }
 
-export const SEAL_METADATA: Record<BadgeType, { 
-  label: string, 
+/**
+ * VibeJam v12.2 Badge Prominence Invariants
+ * Seal = Solid Object (No blur, crisp glyph)
+ * Aura = Pure Light (Behind, clipped, capped)
+ * Shine = Micro-sweep for Tier ≥ 9 (Session-Guarded)
+ * Settle = Tighten -> Release for Tier 10 (Synced with Shine)
+ */
+
+export const SEAL_METADATA: Record<BadgeType, {
+  label: string,
   description: string,
   earned: string,
   status: string,
@@ -248,19 +255,31 @@ const Badge: React.FC<BadgeProps> = ({ type, showTooltip = true, size = 'sm', is
 
   useEffect(() => {
     if (!shouldShine) return;
+
+    // One-time per session per badge type to prevent spamming
     if (typeof window !== 'undefined' && sessionStorage.getItem(SHINE_KEY) === '1') return;
+
     if (typeof window !== 'undefined') sessionStorage.setItem(SHINE_KEY, '1');
+
     const shineTimer = window.setTimeout(() => setShine(true), 250);
+
+    // Tier 10: trigger settle near shine midpoint
     let tMid: number | undefined;
     if (meta.tier === 10) {
       tMid = window.setTimeout(() => {
         setSettle(true);
         window.setTimeout(() => setSettle(false), 280);
-      }, 260);
+      }, 260); // midpoint-ish of sweep
     }
+
     const duration = meta.tier === 10 ? 650 : 620;
     const cleanupTimer = window.setTimeout(() => setShine(false), duration + 300);
-    return () => { clearTimeout(shineTimer); clearTimeout(cleanupTimer); if (tMid) clearTimeout(tMid); };
+
+    return () => {
+      clearTimeout(shineTimer);
+      clearTimeout(cleanupTimer);
+      if (tMid) clearTimeout(tMid);
+    };
   }, [shouldShine, type, meta.tier]);
 
   const handleEnter = () => {
@@ -277,16 +296,39 @@ const Badge: React.FC<BadgeProps> = ({ type, showTooltip = true, size = 'sm', is
   const sizePx = size === 'sm' ? 'w-5 h-5' : size === 'md' ? 'w-6 h-6' : 'w-8 h-8';
 
   return (
-    <div className="relative inline-flex items-center group/badge" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+    <div
+      className="relative inline-flex items-center group/badge"
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+    >
+      {/* 1) Shell & Aura Layer */}
       <div className={`avatar-shell ${sizePx} flex items-center justify-center cursor-help`}>
-        <div className="vj-aura" style={{ background: meta.auraColor, opacity: 0.25 }} />
-        <div className={`vj-seal-body relative z-10 w-full h-full rounded-full bg-white/95 border border-black/5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] flex items-center justify-center transition-all duration-300 before:content-[""] before:absolute before:inset-[1px] before:rounded-full before:bg-gradient-to-b before:from-white/70 before:to-transparent ${isOpen ? '-translate-y-0.5 shadow-md' : ''}`} data-settle={settle ? "on" : "off"} >
-           {shouldShine && <span className="vj-seal-shine" data-shine={shine ? 'on' : 'off'} data-tier={String(meta.tier)} aria-hidden="true" />}
-           <div className={`relative z-10 w-[55%] h-[55%] ${meta.color} transition-transform duration-300 ${isOpen ? 'scale-110' : ''}`}>
-             {meta.icon}
-           </div>
+        <div
+          className="vj-aura"
+          style={{ background: meta.auraColor, opacity: 0.25 }}
+        />
+
+        {/* 2) Solid Seal Body */}
+        <div
+          className={`vj-seal-body relative z-10 w-full h-full rounded-full bg-white/95 border border-black/5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] flex items-center justify-center transition-all duration-300 before:content-[""] before:absolute before:inset-[1px] before:rounded-full before:bg-gradient-to-b before:from-white/70 before:to-transparent ${isOpen ? '-translate-y-0.5 shadow-md' : ''}`}
+          data-settle={settle ? "on" : "off"}
+        >
+          {/* Tier-Differentiated Micro-shine sweep (tier ≥ 9 only) */}
+          {shouldShine && (
+            <span
+              className="vj-seal-shine"
+              data-shine={shine ? 'on' : 'off'}
+              data-tier={String(meta.tier)}
+              aria-hidden="true"
+            />
+          )}
+
+          <div className={`relative z-10 w-[55%] h-[55%] ${meta.color} transition-transform duration-300 ${isOpen ? 'scale-110' : ''}`}>
+            {meta.icon}
+          </div>
         </div>
       </div>
+
       {showTooltip && isOpen && (
         <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-[240px] z-[400] bg-white border border-[#F2F2F7] rounded-[16px] shadow-[0_12px_32px_-4px_rgba(0,0,0,0.08)] overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out ${meta.accentClass}`}>
           <div className="p-4">
@@ -312,7 +354,9 @@ const Badge: React.FC<BadgeProps> = ({ type, showTooltip = true, size = 'sm', is
             </div>
             {meta.howToEarn && (
               <div className="mt-3 pt-3 border-t border-[#F2F2F7]">
-                <p className="text-[9px] font-medium text-[#8E8E93] leading-relaxed italic">{meta.howToEarn}</p>
+                <p className="text-[9px] font-medium text-[#8E8E93] leading-relaxed italic">
+                  {meta.howToEarn}
+                </p>
               </div>
             )}
           </div>

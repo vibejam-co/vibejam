@@ -6,8 +6,8 @@ import { createClient, User, Session } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = (supabaseUrl && supabaseKey)
-    ? createClient(supabaseUrl, supabaseKey)
-    : null;
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
 
 export interface VJUser {
   id: string;
@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchOrCreateProfile = async (supaUser: User, vjUser: VJUser) => {
     if (!supabase) return;
-    
+
     try {
       // Try to get existing profile
       const { data: existingProfile, error } = await supabase
@@ -120,9 +120,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           bio: '',
           created_at: new Date().toISOString()
         };
-        
+
         await supabase.from('profiles').upsert(newProfile);
-        
+
         setProfile({
           id: supaUser.id,
           username: newProfile.username,
@@ -186,7 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       alert("Authentication is not available. Please use Demo Login.");
       return;
     }
-    
+
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
