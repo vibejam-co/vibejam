@@ -339,39 +339,6 @@ export const backend = {
 
     // ============ PHASE 5: BILLING & ENTITLEMENTS ============
 
-    getMyEntitlements: async (): Promise<{ key: string; expiresAt: string | null }[]> => {
-        if (!supabase) return [];
-        try {
-            const { data: auth } = await withTimeout(supabase.auth.getUser());
-            const user = auth?.user;
-            if (!user) return [];
-            const { data, error } = await supabase.from('entitlements').select('entitlement_key, expires_at').eq('user_id', user.id);
-            if (error) throw error;
-            return (data || []).map((e: any) => ({ key: e.entitlement_key, expiresAt: e.expires_at }));
-        } catch (e) {
-            return [];
-        }
-    },
-
-    hasEntitlement: async (key: string): Promise<boolean> => {
-        if (!supabase) return false;
-        try {
-            const { data: auth } = await withTimeout(supabase.auth.getUser());
-            const user = auth?.user;
-            if (!user) return false;
-            const now = new Date().toISOString();
-            const { data, error } = await supabase
-                .from('entitlements')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('entitlement_key', key)
-                .or(`expires_at.is.null,expires_at.gt.${now}`)
-                .maybeSingle();
-            return !!data && !error;
-        } catch (e) {
-            return false;
-        }
-    },
 
     listMySubscriptions: async (): Promise<{ id: string; planId: string; status: string; periodEnd: string | null }[]> => {
         if (!supabase) return [];
@@ -397,6 +364,52 @@ export const backend = {
 
     createPaidExposure: async (jamId: string, exposureType: string, durationHours: number): Promise<{ ok: boolean; error?: string }> => {
         return safeInvoke<{ ok: boolean, error?: string }>('paid-exposure-create', { jamId, exposureType, durationHours }, () => ({ ok: false, error: 'BILLING_UNAVAILABLE' }));
+    },
+
+    // ============ PHASE 10: PAYMENTS ACTIVATION ============
+
+    /**
+     * Create a Stripe Checkout session.
+     */
+    createCheckoutSession: async (priceId: string, successUrl: string, cancelUrl: string): Promise<{ ok: boolean; enabled: boolean; url?: string; errorCode?: string }> => {
+        return safeInvoke<any>('billing-create-checkout-session', { priceId, successUrl, cancelUrl }, () => ({
+            ok: true,
+            enabled: false,
+            url: null
+        }));
+    },
+
+    /**
+     * Create a Stripe Customer Portal session.
+     */
+    openBillingPortal: async (returnUrl?: string): Promise<{ ok: boolean; url?: string }> => {
+        return safeInvoke<any>('billing-portal', { returnUrl }, () => ({
+            ok: true,
+            url: null
+        }));
+    },
+
+    /**
+     * Get entitlements for current user.
+     */
+    getMyEntitlements: async (): Promise<{ ok: boolean; entitlements: { is_pro: boolean; source: string } }> => {
+        return safeInvoke<any>('billing-get-my-entitlements', {}, () => ({
+            ok: true,
+            entitlements: { is_pro: false, source: 'none' }
+        }));
+    },
+
+    /**
+     * Check for a specific entitlement.
+     */
+    hasEntitlement: async (key: string): Promise<boolean> => {
+        if (key !== 'is_pro') return false;
+        try {
+            const res = await backend.getMyEntitlements();
+            return !!res?.entitlements?.is_pro;
+        } catch {
+            return false;
+        }
     },
 
     // ============ PHASE 7: MEDIA STORAGE PLUMBING ============

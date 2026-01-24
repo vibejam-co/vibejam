@@ -14,6 +14,12 @@ export interface MonetizationStatus {
   pipeline_stage: 'none' | 'pending' | 'verified' | 'active';
 }
 
+export interface Entitlements {
+  isPro: boolean;
+  source: 'stripe' | 'manual' | 'none';
+  validUntil?: string;
+}
+
 export interface Badge {
   type: BadgeType;
   label: string;
