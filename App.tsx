@@ -160,9 +160,9 @@ const RevenueCarousel: React.FC<{ onSelect: (app: AppProject) => void }> = ({ on
   return (
     <section className="earnings homepage-v4-segment bg-white overflow-hidden">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="earnings-header mb-10">
+        <div className="earnings-header mb-10 text-center lg:text-left">
           <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Highest Earning VibeJams</h2>
-          <p className="text-gray-400 font-medium text-lg mt-2">Products achieving sustainability through public building.</p>
+          <p className="text-gray-400 font-medium text-lg mt-2">Example of revenue transparency supported by VibeJam.</p>
         </div>
 
         <div className="embla" ref={emblaRef} tabIndex={0} style={{ outline: 'none' }}>
@@ -316,7 +316,7 @@ const VibeCheckV4: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6">
         <div className="mb-10 md:mb-16">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Vibe Check</h2>
-          <p className="text-gray-400 font-medium text-base md:text-lg mt-2">What the community is saying about the latest jams.</p>
+          <p className="text-gray-400 font-medium text-base md:text-lg mt-2">Design preview — real curator feedback coming from founding launches.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
@@ -416,7 +416,7 @@ const FooterV4: React.FC<{ onNavigate?: (page: any) => void; onNavigateSubmitApp
 
       <div className="pt-10 border-t border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6">
         <span className="text-[9px] md:text-[10px] font-black text-gray-300 uppercase tracking-widest text-center md:text-left">
-          © 2024 VIBEJAM INC. MADE WITH TASTE IN PUBLIC.
+          © 2024 VibeJam Inc. An early, curated platform for builders shipping in public.
         </span>
         <div className="flex flex-wrap justify-center gap-6 md:gap-8">
           <button onClick={() => onNavigate?.('privacy')} className="text-[9px] md:text-[10px] font-black text-gray-300 hover:text-gray-600 uppercase tracking-widest">PRIVACY</button>
@@ -559,6 +559,7 @@ const AppContent: React.FC = () => {
     <div className="homepage-v4 overflow-x-hidden">
       <section className="relative pt-32 md:pt-48 pb-16 md:pb-20 overflow-hidden hero-spotlight">
         <div className="max-w-7xl mx-auto px-4 md:px-6 text-center relative z-10">
+          <span className="block text-[10px] font-black text-blue-500 uppercase tracking-[.3em] mb-4 md:mb-6 animate-in fade-in slide-in-from-bottom-2 duration-1000">Founding Era — Curated Preview</span>
           <h1 className="text-[clamp(2.5rem,10vw,5.5rem)] font-black text-gray-900 tracking-tighter leading-[1] mb-8 md:mb-10 max-w-5xl mx-auto">
             Discover <span className="text-blue-500 whitespace-nowrap">vibe–coded</span> apps built in public.
           </h1>
@@ -597,7 +598,7 @@ const AppContent: React.FC = () => {
             <div className="flex flex-col lg:flex-row items-center gap-12 md:gap-20 relative z-10">
               <div className="flex-1 space-y-6 md:space-y-10 text-center lg:text-left">
                 <span className="inline-block px-4 md:px-5 py-2 rounded-full bg-blue-50/50 text-blue-500 text-[9px] md:text-[10px] font-black uppercase tracking-[0.3em] border border-blue-100/20">
-                  Creator of the Month
+                  Founding Creator Spotlight
                 </span>
                 <h2 className="text-4xl md:text-7xl font-black text-gray-900 leading-[1.1] tracking-tighter">
                   Crafting <span className="text-blue-500/80">Digital Poetry</span> with Elena Voss.
