@@ -1,13 +1,6 @@
-
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { createClient, User, Session } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = (supabaseUrl && supabaseKey)
-  ? createClient(supabaseUrl, supabaseKey)
-  : null;
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabaseClient';
 
 export interface VJUser {
   id: string;
@@ -24,7 +17,7 @@ export interface VJSession {
 
 interface Profile {
   id: string;
-  username: string; // handle without @
+  username: string;
   display_name: string;
   avatar_url: string;
   bio: string;
@@ -50,35 +43,11 @@ const AuthContext = createContext<AuthContextType>({
   signInWithGoogle: async () => { },
 });
 
-const DEMO_SESSION_KEY = 'vj_demo_session';
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<VJSession | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const hydrateDemo = useCallback(() => {
-    try {
-      const raw = localStorage.getItem(DEMO_SESSION_KEY);
-      if (raw) {
-        const data = JSON.parse(raw);
-        if (data?.user?.id) {
-          setSession(data);
-          setProfile({
-            id: data.user.id,
-            username: data.user.handle.replace('@', ''),
-            display_name: data.user.name,
-            avatar_url: data.user.avatar,
-            bio: 'Demo curator mode active.'
-          });
-          return true;
-        }
-      }
-    } catch (e) {
-      localStorage.removeItem(DEMO_SESSION_KEY);
-    }
-    return false;
-  }, []);
+  const initStarted = useRef(false);
 
   const mapUser = (supaUser: User): VJUser => {
     const email = supaUser.email || '';
@@ -92,10 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const fetchOrCreateProfile = async (supaUser: User, vjUser: VJUser) => {
-    if (!supabase) return;
-
     try {
-      // Try to get existing profile
       const { data: existingProfile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -105,88 +71,137 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (existingProfile && !error) {
         setProfile({
           id: supaUser.id,
-          username: existingProfile.username || vjUser.handle.replace('@', ''),
+          username: existingProfile.handle || vjUser.handle.replace('@', ''),
           display_name: existingProfile.display_name || vjUser.name,
           avatar_url: existingProfile.avatar_url || vjUser.avatar,
           bio: existingProfile.bio || ''
         });
       } else {
-        // Create new profile
         const newProfile = {
           id: supaUser.id,
-          username: vjUser.handle.replace('@', ''),
+          handle: vjUser.handle.replace('@', ''),
           display_name: vjUser.name,
           avatar_url: vjUser.avatar,
           bio: '',
           created_at: new Date().toISOString()
         };
 
-        await supabase.from('profiles').upsert(newProfile);
+        const { error: upsertError } = await supabase.from('profiles').upsert(newProfile);
+        if (upsertError) console.error("[Auth] Profile upsert error", upsertError);
 
         setProfile({
           id: supaUser.id,
-          username: newProfile.username,
+          username: newProfile.handle,
           display_name: newProfile.display_name,
           avatar_url: newProfile.avatar_url,
           bio: ''
         });
       }
     } catch (e) {
-      console.error("Profile fetch error", e);
+      console.error("[Auth] Profile fetch error", e);
     }
   };
 
-  useEffect(() => {
-    // If Supabase is not configured, fall back to demo mode
-    if (!supabase) {
-      console.warn('[Auth] Supabase not configured. Demo mode only.');
-      hydrateDemo();
-      setLoading(false);
-      return;
+  const handleAuthUser = async (supaUser: User | null, eventName: string) => {
+    console.log(`[Auth] Event: ${eventName} ${supaUser ? '(User active)' : '(No user)'}`);
+
+    if (supaUser) {
+      console.log(`[Auth] User id: ${supaUser.id}`);
+      const vjUser = mapUser(supaUser);
+      setSession({ mode: "real", user: vjUser, createdAt: Date.now() });
+      await fetchOrCreateProfile(supaUser, vjUser);
+    } else {
+      setSession(null);
+      setProfile(null);
     }
+    setLoading(false);
+  };
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: supaSession } }) => {
-      if (supaSession?.user) {
-        localStorage.removeItem(DEMO_SESSION_KEY);
-        const vjUser = mapUser(supaSession.user);
-        setSession({ mode: "real", user: vjUser, createdAt: Date.now() });
-        fetchOrCreateProfile(supaSession.user, vjUser);
-      } else {
-        hydrateDemo();
-      }
-      setLoading(false);
-    });
+  useEffect(() => {
+    // Prevent double-init from React Strict Mode
+    if (initStarted.current) return;
+    initStarted.current = true;
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, supaSession) => {
-        if (supaSession?.user) {
-          localStorage.removeItem(DEMO_SESSION_KEY);
-          const vjUser = mapUser(supaSession.user);
-          setSession({ mode: "real", user: vjUser, createdAt: Date.now() });
-          fetchOrCreateProfile(supaSession.user, vjUser);
-        } else {
-          const hasDemo = hydrateDemo();
-          if (!hasDemo) {
-            setSession(null);
-            setProfile(null);
+    console.log('%c[Auth] Initializing authentication (REAL mode)...', 'color: #3ecf8e; font-weight: bold;');
+
+    const initializeAuth = async () => {
+      // 1. Check for tokens in URL (Implicit Flow) - Manual Handling
+      // This is necessary because automatic detection can be flaky in some production environments
+      const hash = window.location.hash;
+      if (hash && hash.includes('access_token')) {
+        console.log('[Auth] Detected tokens in URL, attempting manual session set...');
+        try {
+          const params = new URLSearchParams(hash.substring(1)); // remove #
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (error) throw error;
+
+            if (data.session) {
+              console.log('[Auth] Manual session set successful');
+              await handleAuthUser(data.session.user, 'MANUAL_URL_Hydration');
+              // Validate and persist explicitly (double-check)
+              localStorage.setItem('supabase.auth.token', JSON.stringify(data.session));
+
+              // Clean URL
+              window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+              return; // Exit early as we're done
+            }
           }
+        } catch (e) {
+          console.error('[Auth] Manual session set failed:', e);
         }
+      }
+
+      // 2. Initial session check (if not handled by manual hydration)
+      try {
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('[Auth] getSession error:', error.message);
+          setLoading(false);
+          return;
+        }
+        if (currentSession?.user) {
+          console.log('[Auth] Found existing session:', currentSession.user.id);
+          await handleAuthUser(currentSession.user, 'INITIAL_SESSION');
+        } else {
+          console.log('[Auth] No session found');
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error('[Auth] Session check failed:', e);
         setLoading(false);
+      }
+    };
+
+    // Execute initialization
+    initializeAuth();
+
+    // 3. Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, supaSession: Session | null) => {
+        console.log(`[Auth] onAuthStateChange: ${event}`);
+
+        // Defer to next tick to avoid React batching issues
+        setTimeout(() => {
+          // Only handle if we haven't just manually hydrated (avoid race w/ manual set)
+          handleAuthUser(supaSession?.user || null, event);
+        }, 0);
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, [hydrateDemo]);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const signInWithGoogle = async () => {
-    if (!supabase) {
-      console.error("Supabase not configured");
-      alert("Authentication is not available. Please use Demo Login.");
-      return;
-    }
-
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -196,30 +211,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (error) throw error;
     } catch (error) {
-      console.error("Login failed", error);
+      console.error("[Auth] Login failed", error);
     }
   };
 
   const signInDemo = () => {
-    const demo: VJSession = {
-      mode: "demo",
-      user: {
-        id: "demo_" + Math.random().toString(36).slice(2, 7),
-        name: "Demo Curator",
-        handle: "@demo",
-        avatar: "https://picsum.photos/seed/demo/100",
-      },
-      createdAt: Date.now(),
-    };
-    localStorage.setItem(DEMO_SESSION_KEY, JSON.stringify(demo));
-    hydrateDemo();
+    alert("Demo Mode is disabled. Please Sign in with Google.");
   };
 
   const signOut = async () => {
-    localStorage.removeItem(DEMO_SESSION_KEY);
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
+    await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
   };
@@ -229,7 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user: session?.user || null,
       profile,
       loading,
-      isDemo: session?.mode === 'demo',
+      isDemo: false,
       signOut,
       signInDemo,
       signInWithGoogle

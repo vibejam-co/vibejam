@@ -22,8 +22,7 @@ import { AppProject } from './types';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { signInDemo, signInWithGoogle } = useAuth();
-  // Capabilities assumed true for Firebase MVP or could be added to context
+  const { signInWithGoogle } = useAuth();
   const oauthEnabled = true;
 
   if (!isOpen) return null;
@@ -41,11 +40,6 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
       console.error("OAuth init failed", error);
       alert(error.message || "Failed to start sign-in flow.");
     }
-  };
-
-  const handleDemoLogin = () => {
-    signInDemo();
-    onClose();
   };
 
   return (
@@ -76,26 +70,10 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
               >
                 <img src={platform.icon} alt="" className="w-5 h-5 grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100 transition-all" />
                 <span className="flex-1 text-sm font-bold text-gray-700">
-                  {oauthEnabled ? `Continue with ${platform.name}` : `${platform.name} (Coming Soon)`}
+                  Continue with {platform.name}
                 </span>
               </button>
             ))}
-          </div>
-
-          <div className="mt-8 flex items-center gap-4 w-full">
-            <div className="h-px bg-gray-100 flex-1" />
-            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">or</span>
-            <div className="h-px bg-gray-100 flex-1" />
-          </div>
-
-          <div className="mt-8 w-full text-left">
-            <p className="text-xs text-gray-400 font-medium mb-4 text-center">Instant access for the public hybrid demo.</p>
-            <button
-              onClick={handleDemoLogin}
-              className="w-full h-14 rounded-full bg-gray-900 text-white text-sm font-bold shadow-lg shadow-gray-900/10 active:scale-95 transition-all"
-            >
-              Demo Login
-            </button>
           </div>
 
           <p className="mt-10 text-[10px] text-gray-300 font-medium leading-relaxed">
@@ -441,12 +419,15 @@ const AppContent: React.FC = () => {
 
   // Use the validated unified session user/profile
   const currentUser = useMemo(() => {
-    if (authUser) return {
-      name: profile?.display_name || authUser.name,
-      avatar: profile?.avatar_url || authUser.avatar,
-      handle: authUser.handle,
-      auraColor: '#C7D6EA'
-    };
+    if (authUser) {
+      const userObj = {
+        name: profile?.display_name || authUser.name,
+        avatar: profile?.avatar_url || authUser.avatar,
+        handle: authUser.handle,
+        auraColor: '#C7D6EA'
+      };
+      return userObj;
+    }
     return null;
   }, [authUser, profile]);
 
@@ -455,6 +436,7 @@ const AppContent: React.FC = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
 
   useEffect(() => {
     if (selectedApp || isLaunchpadOpen || selectedCreator || isAuthOpen) {

@@ -106,17 +106,8 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
     const fetchFeed = async () => {
       try {
         const { jams } = await backend.listPublishedJams({ sort: 'trending' });
-        // Mapper from JamDoc to AppProject (UI type)
-        // If jams is empty (local fallback with no data), we might want to keep MOCK_APPS for demo? 
-        // Prompt says: "Discover loads even when Supabase env is missing"
-        // "Feed loads from local fallback if necessary"
-        // For now, if empty, we might fall back to MOCK_APPS to avoid empty screen in pure demo mode
-        // UNLESS user publishes something.
-
         if (jams.length === 0) {
-          // Keep MOCK_APPS for empty state demo purposes as per "No blank screens" if local is empty?
-          // Or maybe just show MOCK_APPS if backend fetch returns "local" source and empty?
-          // Let's iterate: Try to use jams. If empty, use MOCK_APPS to ensure "wow".
+          // Placeholder state if no jams are published yet
           setApps(MOCK_APPS);
         } else {
           const mapped = jams.map(j => ({

@@ -348,7 +348,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
                     </select>
                   </div>
                 </div>
-                {scrapeStatus === 'degraded' && <p className="mt-6 text-[10px] text-gray-400 font-bold uppercase tracking-widest italic opacity-60">Preview unavailable in demo. Continue to publish.</p>}
+                {scrapeStatus === 'degraded' && <p className="mt-6 text-[10px] text-gray-400 font-bold uppercase tracking-widest italic opacity-60">Metadata extraction unavailable. Please enter details manually.</p>}
                 <button onClick={() => setStep(2)} className="mt-12 w-full py-4 rounded-2xl bg-gray-900 text-white font-black text-xs tracking-widest uppercase hover:bg-gray-800 active:scale-[0.98] transition-all">Continue →</button>
               </div>
             )}

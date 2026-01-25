@@ -1,14 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
 import { JamDoc, JamStatus, JamMedia, LeaderboardDoc, LeaderboardItem } from '../types';
 import { jamLocalStore } from './jamLocalStore';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
-// Initialize Supabase (Fail-safe)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = (supabaseUrl && supabaseKey)
-    ? createClient(supabaseUrl, supabaseKey)
-    : null;
-
+const BACKEND_OFFLINE_ERROR = { ok: false, success: false, error: 'BACKEND_OFFLINE' };
 
 // ============ PHASE 6: HARDENING & OBSERVABILITY ============
 
@@ -44,20 +38,29 @@ function logEventSafe(eventType: string, level: 'info' | 'warn' | 'error' = 'inf
     }).catch(() => { });
 }
 
-// Helper: Fail-open wrapper with Hardening
-async function safeInvoke<T>(functionName: string, body: any, fallback: () => Promise<T> | T): Promise<T> {
-    if (!supabase) {
-        logEventSafe('fallback_local', 'info', { functionName });
-        return fallback();
-    }
+// Helper: Fail-open wrapper with Hardening (Now strictly REAL mode)
+async function safeInvoke<T>(functionName: string, body: any): Promise<T> {
+    if (!supabase) throw new Error('SUPABASE_NOT_CONFIGURED');
     try {
+        await requireSession();
         const { data, error } = await withTimeout(supabase.functions.invoke(functionName, { body }));
         if (error) throw error;
         return data as T;
     } catch (err) {
-        logEventSafe('invoke_fail', 'warn', { functionName, error: err.message });
-        return fallback();
+        console.error(`[Backend] safeInvoke failed for ${functionName}:`, err.message);
+        throw err;
     }
+}
+
+/**
+ * Ensures a valid Supabase session exists.
+ * Throws an error if no session is present.
+ */
+async function requireSession(): Promise<any> {
+    if (!supabase) throw new Error('SUPABASE_NOT_CONFIGURED');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('NO_SESSION');
+    return session;
 }
 
 export const backend = {
@@ -66,71 +69,44 @@ export const backend = {
      * Create or update a jam draft.
      */
     upsertDraft: async (draft: Partial<JamDoc> & { websiteUrl: string, jamId?: string, source?: 'manual' | 'scrape' }): Promise<JamDoc> => {
-        return safeInvoke('jam-upsert-draft', draft, async () => {
-            console.log('[Backend] Fallback: Simulating upsertDraft');
-            const mockJam: JamDoc = {
-                id: draft.jamId || `local-${Date.now()}`,
-                creatorId: 'local-user',
-                status: (draft.status as JamStatus) || 'draft',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                websiteUrl: draft.websiteUrl,
-                name: draft.name || 'Untitled Jam',
-                tagline: draft.tagline || '',
-                description: draft.description || '',
-                category: draft.category || 'Tech',
-                teamType: draft.teamType || 'solo',
-                media: draft.media || { heroImageUrl: '', faviconUrl: '', imageUrls: [] },
-                stats: { upvotes: 0, views: 0, bookmarks: 0, commentsCount: 0 },
-                rank: { scoreTrending: 0, scoreRevenue: 0, scoreNewest: 0 },
-                vibeTools: draft.vibeTools || [],
-                techStack: draft.techStack || [],
-                mrrBucket: draft.mrrBucket || 'pre_revenue',
-                mrrVisibility: draft.mrrVisibility || 'hidden',
-                ...draft
-            } as JamDoc;
+        if (!isSupabaseConfigured || !supabase) {
+            throw new Error('BACKEND_OFFLINE');
+        }
 
-            if (draft.status === 'published') {
-                const published = {
-                    ...mockJam,
-                    slug: mockJam.name.toLowerCase().replace(/\s+/g, '-'),
-                    publishedAt: Date.now(),
-                    status: 'published' as const,
-                    screenshot: mockJam.media.heroImageUrl || '',
-                    mediaType: 'image' as const,
-                    thumbnailUrl: mockJam.media.heroImageUrl || '',
-                    icon: mockJam.media.faviconUrl || '',
-                    stack: mockJam.techStack,
-                    stats: {
-                        revenue: mockJam.mrrBucket,
-                        isRevenuePublic: mockJam.mrrVisibility === 'public',
-                        growth: '+0%', rank: 0, upvotes: 0, daysLive: 0, views: 0, bookmarks: 0
-                    },
-                    creator: {
-                        name: 'Local User',
-                        avatar: '',
-                        type: mockJam.teamType === 'team' ? 'Team' : 'Solo Founder',
-                        handle: 'localuser'
-                    }
-                };
-                jamLocalStore.savePublished(published as any);
-            }
-            return mockJam;
-        });
+        try {
+            await requireSession();
+            const { data, error } = await supabase.functions.invoke('jam-upsert-draft', { body: draft });
+            if (error) throw error;
+            return data;
+        } catch (err) {
+            console.error('[Backend] UpsertDraft failed:', err);
+            throw err;
+        }
     },
 
     /**
      * Scrape URL metadata.
      */
-    scrapeUrl: async (websiteUrl: string, jamId?: string): Promise<{ extraction: Partial<JamDoc>, jam?: JamDoc; ok: boolean; error?: string }> => {
+    scrapeUrl: async (websiteUrl: string, jamId?: string): Promise<{ extraction: Partial<JamDoc>, jam?: JamDoc; ok: boolean; error?: string; code?: string }> => {
+        if (!isSupabaseConfigured || !supabase) {
+            return { extraction: {}, ok: false, code: 'SUPABASE_NOT_CONFIGURED' };
+        }
+
         try {
-            const result = await safeInvoke<{ extraction: any, jam: any, ok: boolean, error?: string }>('scrape', { websiteUrl, jamId }, async () => {
-                return { extraction: {}, jam: undefined, ok: false, error: 'BACKEND_OFFLINE' };
+            await requireSession();
+            const { data, error } = await supabase.functions.invoke('scrape', {
+                body: { url: websiteUrl, jamId }
             });
-            return result;
+
+            if (error) {
+                console.warn('[Backend] Scrape failed:', error);
+                return { extraction: {}, ok: false, code: 'SCRAPE_FAILED', error: error.message };
+            }
+
+            return { extraction: data, ok: true };
         } catch (e) {
-            const err = normalizeError(e);
-            return { extraction: {}, ok: false, error: err.code };
+            console.error('[Backend] Scrape hit critical error:', e);
+            return { extraction: {}, ok: false, code: 'INTERNAL_ERROR', error: normalizeError(e).code };
         }
     },
 
@@ -149,19 +125,18 @@ export const backend = {
     /**
      * Toggle Upvote.
      */
+    /**
+     * Toggle Upvote.
+     */
     toggleUpvote: async (jamId: string): Promise<{ ok: boolean; stats: any, isUpvoted: boolean; error?: string }> => {
-        return safeInvoke<{ ok: boolean; stats: any, isUpvoted: boolean; error?: string }>('upvote-toggle', { jamId }, async () => {
-            return { ok: true, stats: { upvotes: 0 }, isUpvoted: false };
-        });
+        return safeInvoke<{ ok: boolean; stats: any, isUpvoted: boolean; error?: string }>('upvote-toggle', { jamId });
     },
 
     /**
      * Toggle Bookmark.
      */
     toggleBookmark: async (jamId: string): Promise<{ ok: boolean; stats: any, isBookmarked: boolean; error?: string }> => {
-        return safeInvoke<{ ok: boolean; stats: any, isBookmarked: boolean; error?: string }>('bookmark-toggle', { jamId }, async () => {
-            return { ok: true, stats: { bookmarks: 0 }, isBookmarked: false };
-        });
+        return safeInvoke<{ ok: boolean; stats: any, isBookmarked: boolean; error?: string }>('bookmark-toggle', { jamId });
     },
 
     /**
@@ -188,30 +163,34 @@ export const backend = {
      * Search Jams using Full-text Search.
      */
     searchJams: async (q: string, limit: number = 20): Promise<{ ok: boolean; items: any[]; errorCode?: string }> => {
-        return safeInvoke<any>('search-jams', { q, limit }, async () => {
-            // Local Fallback: Basic string match
-            const allLocal = jamLocalStore.listLocalOnly();
-            const query = q.toLowerCase();
-            const matched = allLocal.filter(j =>
-                j.name.toLowerCase().includes(query) ||
-                j.description.toLowerCase().includes(query) ||
-                j.category.toLowerCase().includes(query)
-            ).slice(0, limit);
-
-            return { ok: true, items: matched };
-        });
+        return safeInvoke<any>('search-jams', { q, limit });
     },
 
     publishJam: async (params: { jamId: string, patch: Partial<JamDoc> }): Promise<{ ok: boolean; success: boolean; jam_id?: string; live_url?: string; discoverable?: boolean; reason_if_not?: string | null; data?: JamDoc; error?: string }> => {
+        if (!isSupabaseConfigured || !supabase) {
+            return { ok: false, success: false, error: 'BACKEND_OFFLINE' };
+        }
+
         const { jamId, patch } = params;
         const payload = { ...patch, status: 'published' };
 
         try {
-            const result = await safeInvoke<any>('jam-upsert-draft', { jamId, patch: payload }, async () => {
-                return { ok: false, success: false, error: 'BACKEND_OFFLINE' };
+            const session = await requireSession();
+            // Inject creator_id from session for safety
+            const finalPayload = { ...payload, jamId, creator_id: session.user.id };
+
+            const { data, error } = await supabase.functions.invoke('jam-upsert-draft', {
+                body: finalPayload
             });
-            return result;
+
+            if (error) {
+                console.error('[Backend] Publish failed:', error);
+                return { ok: false, success: false, error: error.message };
+            }
+
+            return { ok: true, success: true, data };
         } catch (e) {
+            console.error('[Backend] Publish hit critical error:', e);
             return { ok: false, success: false, error: normalizeError(e).code };
         }
     },
@@ -221,10 +200,7 @@ export const backend = {
      */
     getJam: async (jamId: string): Promise<{ jam: JamDoc | null; source: "supabase" | "local"; ok: boolean; error?: string }> => {
         try {
-            const result = await safeInvoke<any>('jam-get', { jamId }, async () => {
-                const local = jamLocalStore.get(jamId);
-                return { jam: local || null, source: 'local' as const, ok: true };
-            });
+            const result = await safeInvoke<any>('jam-get', { jamId });
             return { ...result, ok: true };
         } catch (e) {
             return { jam: null, source: 'local', ok: false, error: normalizeError(e).code };
@@ -235,63 +211,35 @@ export const backend = {
      * Get Latest Draft.
      */
     getMyLatestDraft: async (): Promise<{ jam: JamDoc | null; source: "supabase" | "local"; ok: boolean }> => {
-        return safeInvoke<{ jam: JamDoc | null, source: "supabase" | "local", ok: boolean }>('jam-latest-draft', {}, async () => {
-            const lastId = localStorage.getItem("vj_last_draft_id");
-            const local = lastId ? jamLocalStore.get(lastId) : null;
-            return { jam: local || null, source: 'local' as const, ok: true };
-        });
+        return safeInvoke<{ jam: JamDoc | null, source: "supabase" | "local", ok: boolean }>('jam-latest-draft', {});
     },
 
     /**
      * List Published Jams (Feed).
      */
     listPublishedJams: async (params: { sort: "trending" | "new" | "revenue" | "picks"; filters?: any }): Promise<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }> => {
-        return safeInvoke<{ jams: any[]; source: "supabase" | "local"; ok: boolean }>('jams-list', params, async () => {
-            return { jams: [], source: 'local' as const, ok: true };
-        });
+        return safeInvoke<{ jams: any[]; source: "supabase" | "local"; ok: boolean }>('jams-list', params);
     },
 
     /**
      * Get Leaderboard Snapshot.
      */
     getLeaderboardSnapshot: async (kind: string): Promise<{ rows: any[]; source: "supabase" | "local"; ok: boolean }> => {
-        return safeInvoke<{ rows: any[]; source: "supabase" | "local"; ok: boolean }>('leaderboard-snapshot', { kind }, async () => {
-            try {
-                const cached = localStorage.getItem(`vj_leaderboard_${kind}`);
-                return { rows: cached ? JSON.parse(cached) : [], source: 'local' as const, ok: true };
-            } catch {
-                return { rows: [], source: 'local' as const, ok: true };
-            }
-        });
+        return safeInvoke<{ rows: any[]; source: "supabase" | "local"; ok: boolean }>('leaderboard-snapshot', { kind });
     },
 
     /**
      * List My Bookmarks.
      */
     listMyBookmarks: async (): Promise<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }> => {
-        return safeInvoke<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }>('bookmarks-list', {}, async () => {
-            try {
-                const raw = localStorage.getItem('vj_bookmarks_v1');
-                const items = raw ? JSON.parse(raw) : [];
-                return { jams: items as any[], source: 'local' as const, ok: true };
-            } catch {
-                return { jams: [], source: 'local' as const, ok: true };
-            }
-        });
+        return safeInvoke<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }>('bookmarks-list', {});
     },
 
     /**
      * Get private creator insights.
      */
     getCreatorInsights: async (): Promise<{ summary: any; jams: any[]; source: "supabase" | "local"; ok: boolean }> => {
-        return safeInvoke<{ summary: any; jams: any[]; source: "supabase" | "local"; ok: boolean }>('get-creator-insights', {}, async () => {
-            return {
-                summary: { totalJams: 0, totalViews: 0, totalUpvotes: 0, totalBookmarks: 0 },
-                jams: [],
-                source: 'local' as const,
-                ok: true
-            };
-        });
+        return safeInvoke<{ summary: any; jams: any[]; source: "supabase" | "local"; ok: boolean }>('get-creator-insights', {});
     },
 
     /**
@@ -349,15 +297,15 @@ export const backend = {
     },
 
     createSubscription: async (planId: string): Promise<{ ok: boolean; error?: string }> => {
-        return safeInvoke<{ ok: boolean, error?: string }>('subscription-create', { planId }, () => ({ ok: false, error: 'BILLING_UNAVAILABLE' }));
+        return safeInvoke<{ ok: boolean, error?: string }>('subscription-create', { planId });
     },
 
     cancelSubscription: async (subscriptionId: string): Promise<{ ok: boolean; error?: string }> => {
-        return safeInvoke<{ ok: boolean, error?: string }>('subscription-cancel', { subscriptionId }, () => ({ ok: false, error: 'BILLING_UNAVAILABLE' }));
+        return safeInvoke<{ ok: boolean, error?: string }>('subscription-cancel', { subscriptionId });
     },
 
     createPaidExposure: async (jamId: string, exposureType: string, durationHours: number): Promise<{ ok: boolean; error?: string }> => {
-        return safeInvoke<{ ok: boolean, error?: string }>('paid-exposure-create', { jamId, exposureType, durationHours }, () => ({ ok: false, error: 'BILLING_UNAVAILABLE' }));
+        return safeInvoke<{ ok: boolean, error?: string }>('paid-exposure-create', { jamId, exposureType, durationHours });
     },
 
     // ============ PHASE 10: PAYMENTS ACTIVATION ============
@@ -366,31 +314,21 @@ export const backend = {
      * Create a Stripe Checkout session.
      */
     createCheckoutSession: async (priceId: string, successUrl: string, cancelUrl: string): Promise<{ ok: boolean; enabled: boolean; url?: string; errorCode?: string }> => {
-        return safeInvoke<any>('billing-create-checkout-session', { priceId, successUrl, cancelUrl }, () => ({
-            ok: true,
-            enabled: false,
-            url: null
-        }));
+        return safeInvoke<any>('billing-create-checkout-session', { priceId, successUrl, cancelUrl });
     },
 
     /**
      * Create a Stripe Customer Portal session.
      */
     openBillingPortal: async (returnUrl?: string): Promise<{ ok: boolean; url?: string }> => {
-        return safeInvoke<any>('billing-portal', { returnUrl }, () => ({
-            ok: true,
-            url: null
-        }));
+        return safeInvoke<any>('billing-portal', { returnUrl });
     },
 
     /**
      * Get entitlements for current user.
      */
     getMyEntitlements: async (): Promise<{ ok: boolean; entitlements: { is_pro: boolean; source: string } }> => {
-        return safeInvoke<any>('billing-get-my-entitlements', {}, () => ({
-            ok: true,
-            entitlements: { is_pro: false, source: 'none' }
-        }));
+        return safeInvoke<any>('billing-get-my-entitlements', {});
     },
 
     /**
@@ -419,11 +357,7 @@ export const backend = {
         contentType: string;
         ext: string;
     }): Promise<{ ok: boolean; uploadUrl?: string; path?: string; publicUrl?: string; error?: string }> => {
-        return safeInvoke<any>('media-sign-upload', params, () => ({
-            ok: true,
-            upload: false,
-            error: 'STORAGE_UNAVAILABLE'
-        }));
+        return safeInvoke<any>('media-sign-upload', params);
     },
 
     /**
@@ -436,11 +370,7 @@ export const backend = {
         profileId?: string;
         slot: 'hero' | 'image' | 'avatar';
     }): Promise<{ ok: boolean; updated: boolean; url?: string; error?: string }> => {
-        return safeInvoke<any>('media-finalize', params, () => ({
-            ok: true,
-            updated: false,
-            error: 'STORAGE_UNAVAILABLE'
-        }));
+        return safeInvoke<any>('media-finalize', params);
     },
 
     // ============ PHASE 8: ADMIN OPS & REVIEW QUEUES ============
@@ -732,7 +662,7 @@ export const backend = {
     },
 
     healthCheck: async (): Promise<{ ok: boolean; mode: string }> => {
-        return { ok: !!supabase, mode: supabase ? 'production' : 'demo' };
+        return { ok: true, mode: 'production' };
     }
 
 };
