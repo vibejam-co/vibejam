@@ -16,13 +16,24 @@ Deno.serve(async (req) => {
         const { data: { user } } = await authClient.auth.getUser()
         if (!user) throw new Error('Unauthorized')
 
-        // Mock Stripe checkout session
-        const session = {
-            id: 'cs_test_123',
-            url: 'https://checkout.stripe.com/pay/cs_test_123'
-        }
+        const adminClient = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        )
 
-        return standardResponse({ ok: true, session })
+        const { planId } = await req.json()
+        
+        const { data: subscription } = await adminClient
+            .from('subscriptions')
+            .insert({
+                user_id: user.id,
+                plan_id: planId,
+                status: 'active'
+            })
+            .select()
+            .single()
+
+        return standardResponse({ ok: true, subscription })
     } catch (error) {
         return standardResponse(normalizeError(error), 400)
     }
