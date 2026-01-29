@@ -1,30 +1,43 @@
 
 import React from 'react';
 
-interface CookiePageProps {
-  onBack: () => void;
-}
-
-const CookiePage: React.FC<CookiePageProps> = ({ onBack }) => {
+const CookiePage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   return (
-    <div className="min-h-screen bg-white pt-48 pb-32 animate-in fade-in duration-500">
-      <div className="max-w-3xl mx-auto px-6">
-        <button onClick={onBack} className="mb-12 flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-all group">
-          <div className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg></div>
-          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Return Home</span>
+    <div className=\"min-h-screen bg-white pt-48 pb-20 px-6\">
+      <div className=\"max-w-3xl mx-auto\">
+        <button onClick={onBack} className=\"mb-12 text-gray-400 hover:text-gray-900 transition-colors flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest\">
+          <svg className=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path strokeLinecap=\"round\" strokeLinejoin=\"round\" strokeWidth=\"2.5\" d=\"M15 19l-7-7 7-7\" /></svg>
+          Back to Home
         </button>
-        <header className="mb-16">
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter mb-4">Cookie Policy</h1>
-          <p className="text-gray-400 font-bold text-[11px] uppercase tracking-widest">Last updated: May 24, 2024</p>
-        </header>
-        <div className="space-y-12 text-gray-500 leading-relaxed font-medium">
-          <section>
-            <h2 className="text-xl font-bold text-gray-900 mb-4 tracking-tight">1. Use of Cookies</h2>
-            <p>VibeJam uses cookies and localStorage to manage your session and preferences. These are necessary for the platform to function.</p>
+        
+        <h1 className=\"text-5xl font-black text-gray-900 tracking-tighter mb-8\">Cookie Policy.</h1>
+        <p className=\"text-[10px] font-black text-gray-300 uppercase tracking-[.3em] mb-16\">Last Updated: Jan 24, 2026</p>
+
+        <div className=\"prose prose-gray prose-lg max-w-none\">
+          <section className=\"mb-16\">
+            <h2 className=\"text-2xl font-bold text-gray-900 mb-6\">1. What are cookies?</h2>
+            <p className=\"text-gray-500 leading-relaxed font-medium\">
+              Cookies are small pieces of text sent by your web browser by a website you visit. A cookie file is stored in your web browser and allows the Service or a third-party to recognize you and make your next visit easier and the Service more useful to you.
+            </p>
           </section>
-          <section>
-            <h2 className="text-xl font-bold text-gray-900 mb-4 tracking-tight">2. Managing Cookies</h2>
-            <p>Most browsers allow you to control cookies through settings. Disabling them may impact your ability to use some features of VibeJam.</p>
+
+          <section className=\"mb-16\">
+            <h2 className=\"text-2xl font-bold text-gray-900 mb-6\">2. How VibeJam uses cookies</h2>
+            <p className=\"text-gray-500 leading-relaxed font-medium mb-6\">
+              When you use and access the Service, we may place a number of cookies files in your web browser. We use cookies for the following purposes:
+            </p>
+            <ul className=\"space-y-4 text-gray-500 font-medium\">
+              <li className=\"flex gap-4\"><span className=\"font-bold text-gray-900 shrink-0\">Essential Check:</span> Necessary for authentication and secure account features.</li>
+              <li className=\"flex gap-4\"><span className=\"font-bold text-gray-900 shrink-0\">Preferences:</span> We remember your dark mode settings and filter selections.</li>
+              <li className=\"flex gap-4\"><span className=\"font-bold text-gray-900 shrink-0\">Analytics:</span> We use aggregate data to understand how curators discover jams.</li>
+            </ul>
+          </section>
+
+          <section className=\"mb-16\">
+            <h2 className=\"text-2xl font-bold text-gray-900 mb-6\">3. Your choices</h2>
+            <p className=\"text-gray-500 leading-relaxed font-medium\">
+              If you'd like to delete cookies or instruct your web browser to delete or refuse cookies, please visit the help pages of your web browser. Please note, however, that if you delete cookies or refuse to accept them, you might not be able to use all of the features we offer.
+            </p>
           </section>
         </div>
       </div>

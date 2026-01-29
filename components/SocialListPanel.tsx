@@ -1,76 +1,43 @@
 
-import React, { useState, useRef } from 'react';
-import Badge from './Badge';
-import HoverProfileCard from './HoverProfileCard';
-
-interface SocialUser {
-  id: string;
-  name: string;
-  handle: string;
-  avatar: string;
-  auraColor?: string;
-  badge?: any;
-  isFollowing?: boolean;
-  bio?: string;
-  stats?: { products: number; reach: string; signals: string; };
-}
+import React from 'react';
 
 interface SocialListPanelProps {
-  title: 'Followers' | 'Following';
-  count: string;
-  users: SocialUser[];
   onClose: () => void;
-  onSelectUser: (user: any) => void;
+  title: string;
+  users: any[];
 }
 
-const SocialListPanel: React.FC<SocialListPanelProps> = ({ title, count, users, onClose, onSelectUser }) => {
-  const [hoveredUser, setHoveredUser] = useState<SocialUser | null>(null);
-  const [cardPos, setCardPos] = useState({ top: 0, left: 0 });
-  const hoverTimeout = useRef<number | null>(null);
-
-  const handleMouseEnter = (e: React.MouseEvent, user: SocialUser) => {
-    if (window.innerWidth < 1024) return;
-    if (hoverTimeout.current) window.clearTimeout(hoverTimeout.current);
-    const rect = e.currentTarget.getBoundingClientRect();
-    setCardPos({ top: rect.top, left: rect.right + 12 });
-    setHoveredUser(user);
-  };
-
-  const handleMouseLeave = () => {
-    hoverTimeout.current = window.setTimeout(() => setHoveredUser(null), 100);
-  };
-
+const SocialListPanel: React.FC<SocialListPanelProps> = ({ onClose, title, users }) => {
   return (
-    <div className="fixed inset-0 z-[500] flex items-end md:items-center justify-center animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[600] flex justify-end animate-in fade-in duration-300">
       <div className="absolute inset-0 bg-black/5 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full max-w-[560px] bg-white rounded-t-[32px] md:rounded-[32px] shadow-2xl flex flex-col max-h-[75vh] animate-in slide-in-from-bottom-full md:slide-in-from-bottom-8 duration-500 ease-out">
-        <header className="flex items-center justify-between px-8 h-20 border-b border-gray-50 shrink-0">
-          <div className="flex items-center gap-6">
-            <button onClick={onClose} className="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"/></svg></button>
+      
+      <div className="relative w-full max-w-[440px] h-full bg-white shadow-[-24px_0_80px_rgba(0,0,0,0.08)] flex flex-col animate-in slide-in-from-right duration-500 ease-out">
+        <header className="h-24 px-8 border-b border-gray-50 flex items-center justify-between shrink-0">
+          <div className="flex flex-col">
             <h2 className="text-xl font-bold text-gray-900 tracking-tight">{title}</h2>
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{users.length} Users</span>
           </div>
-          <span className="text-sm font-black text-gray-300 uppercase tracking-widest">{count}</span>
+          <button onClick={onClose} className="w-10 h-10 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors hover:bg-gray-50">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
         </header>
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-2 scrollbar-hide">
-          {users.length > 0 ? (
-            users.map((user) => (
-              <div key={user.id} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50/80 transition-all group w-full" onMouseEnter={(e) => handleMouseEnter(e, user)} onMouseLeave={handleMouseLeave}>
-                <div className="relative shrink-0 cursor-pointer" onClick={() => onSelectUser(user)}>
-                  <div className="w-10 h-10 rounded-full border border-gray-100 overflow-hidden bg-white"><img src={user.avatar} className="w-full h-full object-cover" alt={user.name} /></div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+          {users.map((user, i) => (
+            <div key={i} className="flex items-center justify-between p-3 rounded-2xl hover:bg-gray-50 transition-all border border-transparent hover:border-gray-100">
+              <div className="flex items-center gap-4">
+                <img src={user.avatar} className="w-12 h-12 rounded-full border border-gray-100" alt={user.name} />
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">{user.name}</h3>
+                  <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">{user.handle}</p>
                 </div>
-                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelectUser(user)}>
-                  <p className="text-sm font-bold text-gray-900 leading-tight group-hover:text-blue-500 transition-colors truncate">{user.name}</p>
-                  <p className="text-xs font-medium text-gray-400 leading-tight truncate">{user.handle}</p>
-                </div>
-                <button className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${user.isFollowing ? 'border border-gray-200 text-gray-400' : 'bg-gray-900 text-white shadow-sm'}`}>{user.isFollowing ? 'Following' : 'Follow'}</button>
               </div>
-            ))
-          ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center"><p className="text-sm font-bold text-gray-900">No {title.toLowerCase()} yet</p></div>
-          )}
+              <button className="px-4 py-1.5 rounded-lg border border-gray-100 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-gray-900 hover:border-gray-900 transition-all">Follow</button>
+            </div>
+          ))}
         </div>
       </div>
-      <HoverProfileCard user={hoveredUser as any} position={cardPos} visible={!!hoveredUser} />
     </div>
   );
 };
