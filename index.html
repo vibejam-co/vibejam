@@ -1,92 +1,17 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VibeJam v12.2 — Vibrant Clarity</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VibeJam - Community Discovery</title>
+    <meta name="description" content="Discover high-vibe products and the creators behind them." />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --aura-genesis: #E6C89A;
-            --aura-editorial: #C7D6EA;
-            --aura-impact: #A9D6C2;
-            --aura-craft: #C8C2D8;
-            --section-pad-y: 56px;
-            --radius-xl: 40px;
-            --shadow-soft: 0 18px 60px rgba(0,0,0,.08);
-            --border-soft: 1px solid rgba(15, 23, 42, 0.06);
-            --vj-hover-z: 9999;
-            --vj-hover-card-w: 280px;
-            --vj-hover-card-radius: 16px;
-            --vj-hover-bg: #ffffff;
-            --vj-hover-fg: #0b0f1a;
-            --vj-hover-muted: rgba(11, 15, 26, 0.56);
-            --vj-hover-border: rgba(11, 15, 26, 0.08);
-            --vj-hover-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-            --vj-hover-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-            --vj-hover-in-ms: 140ms;
-            --vj-hover-out-ms: 120ms;
-            --vj-hover-scale-from: 0.985;
-            --vj-hover-avatar: 44px;
-            --vj-hover-gap: 12px;
-            --vj-aura-max-blur: 14px;
-            --vj-aura-max-opacity: 0.20;
-        }
-        html { text-rendering: geometricPrecision; scroll-behavior: smooth; }
-        body { 
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          background-color: #FFFFFF;
-          color: #1a1a1a;
-          overflow-x: hidden;
-          font-synthesis: none;
-        }
-        .aura-clip, .avatar-shell {
-          position: relative;
-          border-radius: 9999px !important;
-          overflow: hidden !important; 
-          isolation: isolate;
-          background: transparent !important;
-          transform: translateZ(0);
-        }
-        .aura-layer, .aura-glow, .aura-halo, .vj-aura {
-          position: absolute;
-          inset: -18%;
-          border-radius: inherit;
-          pointer-events: none !important;
-          user-select: none !important;
-          z-index: 0;
-          contain: paint;
-          filter: blur(14px);
-          opacity: 0.35;
-          transform: translateZ(0);
-          background-color: transparent !important;
-          box-shadow: none !important;
-        }
-        .vibe-ambient-bg { position: fixed; inset: 0; z-index: -1; background: radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.03) 0%, transparent 40%), radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.03) 0%, transparent 40%), #FFFFFF; }
-        .premium-card { background: #FFFFFF; border: var(--border-soft); box-shadow: 0 4px 20px -2px rgba(0,0,0,0.02); transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1); overflow: hidden; position: relative; }
-    </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "embla-carousel-react": "https://esm.sh/embla-carousel-react@8.5.2?external=react",
-    "@google/genai": "https://esm.sh/@google/genai@1.3.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "next/": "https://esm.sh/next@^16.1.4/"
-  }
-}
-</script>
-</head>
-<body class="antialiased">
-    <div class="vibe-ambient-bg"></div>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-black">
     <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>

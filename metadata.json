@@ -1,5 +1,4 @@
 {
-  "name": "VibeJam v12.2",
-  "description": "A vibrant, premium product discovery platform for vibe-coded apps built in public, featuring expressive color, soft gradients, and modern creative aesthetics.",
-  "requestFramePermissions": []
+  "name": "vibejam",
+  "version": "1.0.0"
 }

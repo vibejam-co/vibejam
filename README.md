@@ -1,24 +1,14 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# VibeJam
 
-# VibeJam v12.2
+VibeJam is a discovery platform for "Jams" - minimalist, high-vibe products built for the community.
 
-A vibrant, premium product discovery platform for vibe-coded apps built in public.
+## tech Stack
+- Frontend: Vite + React + TailwindCSS
+- Backend: Supabase (PostgreSQL, Auth, Functions, Storage)
+- Deployment: Vercel / Netlify
 
-## Tech Stack
-- **Frontend**: React, Vite, Tailwind CSS
-- **Backend**: Supabase (Postgres, Edge Functions, Auth, RLS)
-- **State**: AuthContext + Supabase JS Client
-- **Animations**: Embla Carousel, Tailwind Animate
-
-## Project Structure
-- `supabase/`: Database schema, migrations, and Edge Functions.
-- `components/`: UI components with premium aesthetics.
-- `pages/`: Application pages.
-- `lib/`: Backend adapters and utilities.
-
-## Setup
-1. `npm install`
-2. Configure `.env.local` with Supabase keys.
-3. `npm run dev`
+## Getting Started
+1. Clone the repo
+2. Install deps: `npm install`
+3. Set up environment variables (see `.env.example`)
+4. Start dev server: `npm run dev`
