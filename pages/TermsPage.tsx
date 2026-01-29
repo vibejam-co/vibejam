@@ -1,30 +1,38 @@
 
 import React from 'react';
 
-interface TermsPageProps {
-  onBack: () => void;
-}
-
-const TermsPage: React.FC<TermsPageProps> = ({ onBack }) => {
+const TermsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   return (
-    <div className="min-h-screen bg-white pt-48 pb-32 animate-in fade-in duration-500">
-      <div className="max-w-3xl mx-auto px-6">
-        <button onClick={onBack} className="mb-12 flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-all group">
-          <div className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg></div>
-          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Return Home</span>
+    <div className=\"min-h-screen bg-white pt-48 pb-20 px-6\">
+      <div className=\"max-w-3xl mx-auto\">
+        <button onClick={onBack} className=\"mb-12 text-gray-400 hover:text-gray-900 transition-colors flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest\">
+          <svg className=\"w-4 h-4\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path strokeLinecap=\"round\" strokeLinejoin=\"round\" strokeWidth=\"2.5\" d=\"M15 19l-7-7 7-7\" /></svg>
+          Back to Home
         </button>
-        <header className="mb-16">
-          <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter mb-4">Terms of Service</h1>
-          <p className="text-gray-400 font-bold text-[11px] uppercase tracking-widest">Last updated: May 24, 2024</p>
-        </header>
-        <div className="space-y-12 text-gray-500 leading-relaxed font-medium">
-          <section>
-            <h2 className="text-xl font-bold text-gray-900 mb-4 tracking-tight">1. Agreement to Terms</h2>
-            <p>By accessing VibeJam, you agree to be bound by these Terms. If you do not agree, you may not use the platform.</p>
+        
+        <h1 className=\"text-5xl font-black text-gray-900 tracking-tighter mb-8\">Terms of Service.</h1>
+        <p className=\"text-[10px] font-black text-gray-300 uppercase tracking-[.3em] mb-16\">Last Updated: Jan 24, 2026</p>
+
+        <div className=\"prose prose-gray prose-lg max-w-none\">
+          <section className=\"mb-16\">
+            <h2 className=\"text-2xl font-bold text-gray-900 mb-6\">1. Acceptance of Terms</h2>
+            <p className=\"text-gray-500 leading-relaxed font-medium\">
+              By accessing VibeJam, you are agreeing to be bound by these terms of service, all applicable laws and regulations, and agree that you are responsible for compliance with any applicable local laws.
+            </p>
           </section>
-          <section>
-            <h2 className="text-xl font-bold text-gray-900 mb-4 tracking-tight">2. Content Ownership</h2>
-            <p>You retain ownership of the content you post. However, you grant us a license to display and distribute that content on our platform.</p>
+
+          <section className=\"mb-16\">
+            <h2 className=\"text-2xl font-bold text-gray-900 mb-6\">2. Use License</h2>
+            <p className=\"text-gray-500 leading-relaxed font-medium\">
+              VibeJam is a curated platform. Permission is granted to temporarily view the content for personal, non-commercial transitory viewing only. You may not scrape data from this site for commercial purposes without explicit written consent.
+            </p>
+          </section>
+
+          <section className=\"mb-16\">
+            <h2 className=\"text-2xl font-bold text-gray-900 mb-6\">3. Revenue Verification</h2>
+            <p className=\"text-gray-500 leading-relaxed font-medium\">
+              Creators who opt-in to public revenue metrics agree that they may be subject to manual verification. Falsifying metrics is grounds for immediate and permanent account termination.
+            </p>
           </section>
         </div>
       </div>

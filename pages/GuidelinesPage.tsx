@@ -1,36 +1,56 @@
 
 import React from 'react';
 
-interface GuidelinesPageProps {
-  onStartJam: () => void;
-  onBrowseJams: () => void;
-}
+const GuidelinesPage: React.FC<{ onStartJam: () => void; onBrowseJams: () => void }> = ({ onStartJam, onBrowseJams }) => {
+  const rules = [
+    {
+       title: 'Quality over Quantity',
+       desc: 'We prioritize Jams with high attention to detail, unique aesthetics, and meaningful utility. Generic templates and spam will be unlisted.',
+       icon: '💎'
+    },
+    {
+       title: 'Build in Public',
+       desc: 'Transparency is our core. Public revenue metrics and milestone updates gain significantly more reach in the feed.',
+       icon: '📡'
+    },
+    {
+       title: 'Community Respect',
+       desc: 'Trolling, hate speech, or malicious signals toward other makers will result in permanent aura revocation.',
+       icon: '🤝'
+    }
+  ];
 
-const GuidelinesPage: React.FC<GuidelinesPageProps> = ({ onStartJam, onBrowseJams }) => {
   return (
-    <div className="min-h-screen bg-white animate-in fade-in duration-700">
-      <section className="pt-48 pb-32 border-b border-gray-50 text-center">
-        <div className="max-w-7xl mx-auto px-6">
-          <h1 className="text-5xl md:text-8xl font-black text-gray-900 tracking-tighter leading-[1] mb-10 max-w-4xl mx-auto">Build in public <br/> <span className="text-blue-500">with respect.</span></h1>
-          <p className="text-xl md:text-2xl text-gray-400 max-w-2xl mx-auto mb-16 leading-relaxed font-medium">Guidelines to keep VibeJam a high-signal sanctuary for creators.</p>
-          <button onClick={onStartJam} className="vibe-pill text-white text-[11px] font-black uppercase tracking-[0.2em] py-5 px-12 rounded-full shadow-2xl shadow-blue-500/20 active:scale-95 transition-all bg-blue-500">Submit an App</button>
+    <div className=\"min-h-screen bg-white pt-48 pb-20 px-6\">
+      <div className=\"max-w-5xl mx-auto\">
+        <header className=\"mb-24\">
+          <h1 className=\"text-5xl font-black text-gray-900 tracking-tighter mb-8\">The Vibe Code.</h1>
+          <p className=\"text-xl text-gray-400 font-medium leading-relaxed\">
+            VibeJam is a curated ecosystem. We uphold these standards to ensure the highest signal-to-noise ratio for both makers and curators.
+          </p>
+        </header>
+
+        <div className=\"space-y-16\">
+           {rules.map((rule, i) => (
+             <div key={i} className=\"flex flex-col md:flex-row gap-8 md:gap-16 items-start\">
+                <div className=\"w-16 h-16 rounded-[22px] bg-gray-50 flex items-center justify-center text-3xl shrink-0\">{rule.icon}</div>
+                <div className=\"flex-1\">
+                   <h3 className=\"text-2xl font-bold text-gray-900 mb-4\">{rule.title}</h3>
+                   <p className=\"text-lg text-gray-500 font-medium leading-relaxed\">{rule.desc}</p>
+                </div>
+             </div>
+           ))}
         </div>
-      </section>
-      <section className="py-32">
-        <div className="max-w-3xl mx-auto px-6 space-y-12">
-          <h2 className="text-3xl font-bold tracking-tight">The Golden Rules</h2>
-          <div className="space-y-8">
-            <div>
-              <h3 className="font-bold text-gray-900 mb-2">Be real</h3>
-              <p className="text-gray-500">No fake numbers or inflated stats. Transparency builds long-term trust.</p>
+
+        <div className=\"mt-32 p-12 md:p-20 rounded-[50px] bg-gray-900 text-center\">
+            <h2 className=\"text-3xl md:text-4xl font-black text-white tracking-tight mb-6\">Ready to join the culture?</h2>
+            <p className=\"text-gray-400 font-medium mb-12 max-w-xl mx-auto\">Once you understand the vibe, you're ready to launch your first Jam.</p>
+            <div className=\"flex flex-wrap justify-center gap-6\">
+               <button onClick={onStartJam} className=\"vibe-pill bg-white text-gray-900 px-10 py-5 rounded-full text-[11px] font-black uppercase tracking-widest shadow-2xl\">Start Your Jam</button>
+               <button onClick={onBrowseJams} className=\"px-10 py-5 rounded-full border border-white/10 text-[11px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-all\">Explore Jams</button>
             </div>
-            <div>
-              <h3 className="font-bold text-gray-900 mb-2">Respect creators</h3>
-              <p className="text-gray-500">Constructive feedback is welcome; harassment is not.</p>
-            </div>
-          </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 };
