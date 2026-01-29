@@ -6,10 +6,10 @@ import { useBookmarks } from '../lib/useBookmarks';
 
 interface Comment {
   id: string;
-  user: { 
-    name: string; 
-    avatar: string; 
-    handle: string; 
+  user: {
+    name: string;
+    avatar: string;
+    handle: string;
     badge?: string;
   };
   text: string;
@@ -30,32 +30,8 @@ interface AppViewProps {
 
 const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isLoggedIn = false, onAuthTrigger, onManageJam, isOwner = false }) => {
   const { isBookmarked, toggleBookmark } = useBookmarks();
-  
-  const [comments, setComments] = useState<Comment[]>([
-    { 
-      id: '1', 
-      user: { name: 'Jordan T.', handle: '@jt', avatar: 'https://picsum.photos/seed/jordan/100', badge: 'top_curator' }, 
-      text: "The attention to detail on the shadow occlusion here is incredible. Is this using a custom shader?", 
-      timestamp: '2h ago',
-      parentId: null
-    },
-    { 
-      id: '1-1',
-      isCreator: true,
-      user: { name: project.creator.name, handle: project.creator.handle, avatar: project.creator.avatar, badge: project.creator.badges?.[0]?.type },
-      text: "Thanks Jordan! Optimized for low-power devices.",
-      timestamp: '1h ago',
-      parentId: '1'
-    },
-    { 
-      id: '2', 
-      user: { name: 'Maya R.', handle: '@maya', avatar: 'https://picsum.photos/seed/maya/100' }, 
-      text: "Cleanest UI I've seen all week. Absolute vibe.", 
-      timestamp: '5h ago',
-      parentId: null
-    }
-  ]);
 
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -102,7 +78,7 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
 
   const renderComment = (c: Comment, isReply = false) => {
     const auraColor = c.user.badge ? SEAL_METADATA[c.user.badge as any]?.auraColor : '#EAEAEA';
-    
+
     return (
       <div key={c.id} className={`flex gap-3 ${isReply ? 'ml-8 mt-6' : 'mt-10 first:mt-0'}`}>
         <div className="relative shrink-0 aura-clip">
@@ -122,14 +98,14 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
             )}
             <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{c.timestamp}</span>
           </div>
-          
+
           <p className="text-gray-600 text-sm leading-relaxed mb-3">
             {c.text}
           </p>
-          
+
           <div className="flex items-center gap-4">
             {!isReply && (
-              <button 
+              <button
                 onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}
                 className="text-[10px] font-black text-gray-300 hover:text-gray-900 uppercase tracking-widest transition-colors"
               >
@@ -140,7 +116,7 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
 
           {replyingTo === c.id && (
             <div className="mt-4 flex flex-col gap-2">
-              <textarea 
+              <textarea
                 autoFocus
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
@@ -152,7 +128,7 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
               />
               <div className="flex justify-end gap-2">
                 <button onClick={() => setReplyingTo(null)} className="px-3 py-1 text-[10px] font-black text-gray-400 uppercase tracking-widest">Cancel</button>
-                <button 
+                <button
                   onClick={() => handlePostReply(c.id)}
                   disabled={!isLoggedIn || !replyText.trim()}
                   className="px-4 py-1.5 rounded-lg bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-20"
@@ -172,31 +148,31 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
   return (
     <div className="fixed inset-0 z-[160] flex items-start justify-center overflow-y-auto bg-white/40 backdrop-blur-md pt-10 md:pt-20 pb-20 px-4 md:px-0">
       <div className="absolute inset-0" onClick={onClose} />
-      
+
       <div className="relative w-full max-w-5xl bg-white rounded-[40px] shadow-2xl border border-gray-100 overflow-hidden animate-in slide-in-from-bottom-8 duration-500">
-        
+
         <div className="sticky top-0 z-30 flex items-center justify-between px-8 h-20 bg-white/90 backdrop-blur-md border-b border-gray-50/50">
           <button onClick={onClose} className="group flex items-center gap-2 text-gray-400 hover:text-gray-900">
             <div className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
             </div>
             <span className="text-[11px] font-black uppercase tracking-[0.2em]">Close View</span>
           </button>
-          
+
           <div className="flex items-center gap-3">
             {isOwner && (
-                <button 
-                    onClick={onManageJam}
-                    className="px-5 py-2 rounded-xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest mr-4"
-                >
-                    Manage Jam
-                </button>
+              <button
+                onClick={onManageJam}
+                className="px-5 py-2 rounded-xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest mr-4"
+              >
+                Manage Jam
+              </button>
             )}
-            <button 
-              onClick={() => toggleBookmark(project)} 
+            <button
+              onClick={() => toggleBookmark(project)}
               className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${bookmarked ? 'bg-blue-50 border-blue-200 text-blue-500' : 'bg-white border-gray-100 text-gray-400 hover:text-gray-900'}`}
             >
-              <svg className="w-5 h-5" fill={bookmarked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+              <svg className="w-5 h-5" fill={bookmarked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
             </button>
           </div>
         </div>
@@ -233,7 +209,7 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
             <section className="mb-20">
               <h2 className="text-[11px] font-black text-gray-300 uppercase tracking-[0.3em] mb-12">Journey</h2>
               <div className="space-y-0 border-l-[1.5px] border-dashed border-gray-100 ml-4">
-                {project.milestones.map((m, i) => (
+                {project.milestones?.map((m, i) => (
                   <div key={i} className="relative pl-12 pb-12 last:pb-0">
                     <div className="absolute left-[-6px] top-1 w-3 h-3 rounded-full bg-white border-2 border-blue-500" />
                     <span className="block text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">{m.date}</span>
@@ -249,7 +225,7 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
               <div className="flex gap-4 mb-12">
                 <img src={isLoggedIn ? "https://picsum.photos/seed/user-curator/100" : "https://picsum.photos/seed/current/100"} className="w-8 h-8 rounded-full border border-gray-100" alt="Me" />
                 <div className="flex-1 space-y-3">
-                  <textarea 
+                  <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handlePostComment(); }}
@@ -259,7 +235,7 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-sm focus:bg-white focus:border-blue-200 transition-all outline-none min-h-[100px] resize-none"
                   />
                   <div className="flex justify-end">
-                    <button 
+                    <button
                       onClick={handlePostComment}
                       className="px-6 py-2 rounded-xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest transition-all"
                     >
@@ -277,7 +253,7 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
 
           <div className="w-full md:w-[320px] lg:w-[380px] p-8 lg:p-12 shrink-0 bg-[#F9F9FB]/30">
             <div className="sticky top-28">
-              <div 
+              <div
                 onClick={() => onCreatorClick?.(project.creator)}
                 className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm hover:border-blue-100 transition-all cursor-pointer text-center"
               >
@@ -287,7 +263,7 @@ const AppView: React.FC<AppViewProps> = ({ project, onClose, onCreatorClick, isL
                 </div>
                 <h3 className="font-bold text-gray-900 text-xl leading-none mb-1">{project.creator.name}</h3>
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-6">{project.creator.handle}</p>
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     if (!isLoggedIn) onAuthTrigger?.();

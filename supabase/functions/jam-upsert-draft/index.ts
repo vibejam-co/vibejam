@@ -3,182 +3,221 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-client-request-id',
 }
+
+function dbKeyMapping(key: string): string {
+    if (key === 'teamType') return 'team_type';
+    if (key === 'vibeTools') return 'vibe_tools';
+    if (key === 'techStack') return 'tech_stack';
+    if (key === 'isPrivate') return 'is_private';
+    if (key === 'isListed') return 'is_listed';
+    if (key === 'websiteUrl') return 'website_url';
+    if (key === 'appUrl') return 'app_url';
+    if (key === 'mrrBucket') return 'mrr_bucket';
+    if (key === 'mrrValue') return 'mrr_value';
+    if (key === 'mrrVisibility') return 'mrr_visibility';
+    return key;
+}
+
+const ALLOWED_COLUMNS = [
+    'creator_id', 'status', 'name', 'tagline', 'description', 'category', 'team_type',
+    'website_url', 'app_url', 'socials', 'vibe_tools', 'tech_stack',
+    'mrr_bucket', 'mrr_value', 'mrr_visibility', 'media', 'stats', 'rank',
+    'published_at', 'is_hidden', 'is_listed', 'listed_at', 'slug', 'is_private'
+];
 
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
 
+    const requestId = req.headers.get('x-client-request-id') || crypto.randomUUID();
+    console.log(`[${requestId}] === JAM-UPSERT-DRAFT START ===`);
+
     try {
-        const supabase = createClient(
+        const authHeader = req.headers.get('Authorization');
+        if (!authHeader) {
+            console.error(`[${requestId}] No Authorization header`);
+            throw new Error('Unauthorized');
+        }
+
+        const authClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-            { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+            { global: { headers: { Authorization: authHeader } } }
+        )
+        const { data: { user }, error: authError } = await authClient.auth.getUser()
+        if (authError || !user) {
+            console.error(`[${requestId}] Auth failed: ${authError?.message || 'no user'}`);
+            throw new Error('Unauthorized');
+        }
+        console.log(`[${requestId}] User: ${user.id}`);
+
+        const adminClient = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        // Get current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        if (userError || !user) throw new Error('Unauthorized')
-
-        const body = await req.json()
-        const { jamId, websiteUrl, patch, source } = body
-
-        if (!websiteUrl && !jamId) {
-            return new Response(JSON.stringify({ error: 'websiteUrl or jamId required' }), {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            })
+        // Ensure profile exists
+        const { data: profileExists } = await adminClient.from('profiles').select('id').eq('id', user.id).maybeSingle();
+        if (!profileExists) {
+            console.log(`[${requestId}] Profile missing, creating stub...`);
+            await adminClient.from('profiles').insert({
+                id: user.id,
+                display_name: user.user_metadata?.full_name || 'Maker',
+                handle: `user_${user.id.slice(0, 5)}`
+            });
         }
 
-        // Prepare fields to update
-        const updates: any = { updated_at: new Date().toISOString() }
+        const body = await req.json();
+        console.log(`[${requestId}] Request Body:`, JSON.stringify(body));
 
-        // Allowed patch fields
-        const allowed = [
-            'name', 'tagline', 'description', 'category', 'team_type',
-            'socials', 'vibe_tools', 'tech_stack', 'mrr_bucket',
-            'mrr_value', 'mrr_visibility', 'media', 'app_url', 'is_listed', 'status'
-        ]
+        let { jamId, websiteUrl, patch, ...rest } = body;
 
-        if (patch) {
-            for (const key of allowed) {
-                if (patch[key] !== undefined) {
-                    updates[key] = patch[key]
-                }
-            }
-
-            // Validation for Publishing
-            if (updates.status === 'published') {
-                const name = updates.name || '';
-                const category = updates.category || '';
-                const heroImageUrl = updates.media?.heroImageUrl || '';
-
-                // If any critical field is missing, we check existing record first if jamId exists
-                let finalName = name;
-                let finalCategory = category;
-                let finalHero = heroImageUrl;
-
-                if (jamId && (!name || !category || !heroImageUrl)) {
-                    const { data: existing } = await supabase.from('jams').select('name, category, media').eq('id', jamId).single();
-                    finalName = name || existing?.name;
-                    finalCategory = category || existing?.category;
-                    finalHero = heroImageUrl || existing?.media?.heroImageUrl;
-                }
-
-                if (!finalName || !finalCategory || !finalHero) {
-                    return new Response(JSON.stringify({
-                        ok: false,
-                        success: false,
-                        error: 'INCOMPLETE_METADATA',
-                        message: 'Name, Category, and Hero Image are required to publish.'
-                    }), {
-                        status: 400,
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                    })
-                }
-
-                updates.published_at = new Date().toISOString();
-                updates.is_listed = true;
-                updates.listed_at = updates.published_at;
-            }
-
-            // Safety caps
-            if (updates.media?.imageUrls?.length > 5) {
-                updates.media.imageUrls = updates.media.imageUrls.slice(0, 5)
-            }
-            if (updates.tech_stack?.length > 12) {
-                updates.tech_stack = updates.tech_stack.slice(0, 12)
-            }
-            if (updates.vibe_tools?.length > 10) {
-                updates.vibe_tools = updates.vibe_tools.slice(0, 10)
-            }
+        // 1. Validate UUID
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (jamId && !uuidRegex.test(jamId)) {
+            console.warn(`[${requestId}] Invalid UUID: ${jamId}`);
+            jamId = undefined;
         }
 
-        let result;
+        // 2. Prepare Updates
+        const sourceData = { ...rest, ...(patch || {}) };
+        const updates: any = {};
 
-        if (jamId) {
-            // Fetch existing to check ownership and existence
-            const { data: existing, error: fetchError } = await supabase
-                .from('jams')
-                .select('*')
-                .eq('id', jamId)
-                .single()
+        Object.keys(sourceData).forEach(key => {
+            const mappedKey = dbKeyMapping(key);
+            if (ALLOWED_COLUMNS.includes(mappedKey) && sourceData[key] !== undefined) {
+                let value = sourceData[key];
 
-            if (fetchError || !existing) throw new Error('Jam not found or not editable')
-
-            if (existing.creator_id !== user.id) throw new Error('Unauthorized')
-
-            // Scrape mode: only fill empty fields
-            if (source === 'scrape') {
-                const fillable = ['name', 'tagline', 'description', 'media']
-                for (const key of fillable) {
-                    if (updates[key]) {
-                        if (key === 'media') {
-                            const existingMedia = existing.media || {}
-                            const newMedia = updates.media || {}
-                            updates.media = {
-                                ...existingMedia,
-                                ...newMedia,
-                                heroImageUrl: existingMedia.heroImageUrl || newMedia.heroImageUrl,
-                                faviconUrl: existingMedia.faviconUrl || newMedia.faviconUrl,
-                                ogImageUrl: existingMedia.ogImageUrl || newMedia.ogImageUrl,
-                                imageUrls: (existingMedia.imageUrls?.length > 0) ? existingMedia.imageUrls : newMedia.imageUrls
-                            }
-                        } else if (existing[key]) {
-                            delete updates[key]
-                        }
+                // Sanitization
+                if (mappedKey === 'mrr_value') {
+                    if (typeof value === 'string') {
+                        const num = value.replace(/[^0-9.]/g, '');
+                        value = num ? parseFloat(num) : 0;
                     }
                 }
+
+                if ((mappedKey === 'tech_stack' || mappedKey === 'vibe_tools') && !Array.isArray(value)) {
+                    value = typeof value === 'string' ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+                }
+
+                updates[mappedKey] = value;
             }
+        });
 
-            const { data, error } = await supabase
-                .from('jams')
-                .update(updates)
-                .eq('id', jamId)
-                .select()
-                .single()
-
-            if (error) throw error
-            result = data
-
-        } else {
-            // Create new draft
-            const { data, error } = await supabase
-                .from('jams')
-                .insert({
-                    creator_id: user.id,
-                    status: 'draft',
-                    website_url: websiteUrl,
-                    is_listed: false,
-                    ...updates
-                })
-                .select()
-                .single()
-
-            if (error) throw error
-            result = data
+        // 3. Special handling for websiteUrl (camelCase)
+        if (websiteUrl && !updates.website_url) {
+            updates.website_url = websiteUrl;
         }
 
-        // Construct authoritative response
-        const response = {
+        // 4. Publishing Logic
+        if (updates.status === 'published') {
+            updates.published_at = updates.published_at || new Date().toISOString();
+            updates.is_listed = (updates.is_listed !== undefined) ? updates.is_listed : true;
+            if (updates.is_listed) {
+                updates.listed_at = updates.published_at;
+            }
+            if (!updates.slug && updates.name) {
+                // Generate a simple slug if missing
+                updates.slug = `${updates.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${(jamId || crypto.randomUUID()).slice(0, 8)}`;
+            }
+        }
+
+        let result: any = null;
+
+        // 5. Execution
+        if (jamId) {
+            console.log(`[${requestId}] Attempting update for: ${jamId}`);
+            const { data, error: updateError } = await adminClient
+                .from('jams')
+                .update({ ...updates, updated_at: new Date().toISOString() })
+                .eq('id', jamId)
+                .eq('creator_id', user.id)
+                .select()
+                .single();
+
+            if (updateError) {
+                console.error(`[${requestId}] DB Update Error:`, updateError);
+                throw new Error(`Database Error (Update): ${updateError.message}`);
+            }
+            result = data;
+        } else if (updates.website_url) {
+            console.log(`[${requestId}] Lookup by URL: ${updates.website_url}`);
+            const { data: existing } = await adminClient
+                .from('jams')
+                .select('*')
+                .eq('creator_id', user.id)
+                .eq('website_url', updates.website_url)
+                .eq('status', 'draft')
+                .maybeSingle();
+
+            if (existing) {
+                console.log(`[${requestId}] Updating existing draft: ${existing.id}`);
+                const { data, error: updateError } = await adminClient
+                    .from('jams')
+                    .update({ ...updates, updated_at: new Date().toISOString() })
+                    .eq('id', existing.id)
+                    .select()
+                    .single();
+
+                if (updateError) {
+                    console.error(`[${requestId}] DB Update (Lookup) Error:`, updateError);
+                    throw new Error(`Database Error (Update/Lookup): ${updateError.message}`);
+                }
+                result = data;
+            }
+        }
+
+        if (!result) {
+            console.log(`[${requestId}] Creating new record`);
+            if (!updates.website_url && !updates.name) {
+                throw new Error('Name or Website URL is required to start a Jam.');
+            }
+
+            const insertPayload = {
+                creator_id: user.id,
+                status: 'draft',
+                ...updates,
+                updated_at: new Date().toISOString()
+            };
+
+            const { data, error: insertError } = await adminClient
+                .from('jams')
+                .insert(insertPayload)
+                .select()
+                .single();
+
+            if (insertError) {
+                console.error(`[${requestId}] DB Insert Error:`, insertError);
+                throw new Error(`Database Error (Insert): ${insertError.message}`);
+            }
+            result = data;
+        }
+
+        console.log(`[${requestId}] SUCCESS. id: ${result.id}`);
+        return new Response(JSON.stringify({
             ok: true,
             success: true,
             jam_id: result.id,
-            live_url: result.status === 'published' ? `${Deno.env.get('SITE_URL') || 'https://vibejam.co'}/jam/${result.id}` : null,
-            discoverable: result.is_listed && result.status === 'published',
-            reason_if_not: (result.status === 'published' && !result.is_listed) ? 'NOT_LISTED' : null,
-            data: result
-        }
-
-        return new Response(JSON.stringify(response), {
+            id: result.id,
+            data: result,
+            live_url: result.status === 'published' ? (Deno.env.get('SITE_URL') || 'https://vibejam.co') + '/jam/' + result.id : null
+        }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
 
-    } catch (error) {
-        return new Response(JSON.stringify({ ok: false, success: false, error: error.message }), {
-            status: 400,
+    } catch (error: any) {
+        console.error(`[${requestId}] ERROR:`, error.message);
+        return new Response(JSON.stringify({
+            ok: false,
+            success: false,
+            error: error.name === 'Error' ? error.message : 'INTERNAL_ERROR',
+            message: error.message,
+            details: error
+        }), {
+            status: error.message === 'Unauthorized' ? 401 : 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
     }

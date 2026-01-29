@@ -1,1 +1,29 @@
--- Create avatars bucket if not exists\nINSERT INTO storage.buckets (id, name, public) \nVALUES ('avatars', 'avatars', true) \nON CONFLICT (id) DO NOTHING;\n\n-- RLS Policies for avatars bucket\n\n-- Allow public access to all avatars\nCREATE POLICY \"Avatar images are publicly accessible\" \nON storage.objects FOR SELECT \nUSING (bucket_id = 'avatars');\n\n-- Allow authenticated users to upload their own avatars\n-- Files should be named like {user_id}/{filename}\nCREATE POLICY \"Users can upload their own avatars\" \nON storage.objects FOR INSERT \nWITH CHECK (\n    bucket_id = 'avatars' \n    AND auth.role() = 'authenticated'\n);\n\n-- Allow users to update/delete their own avatars\nCREATE POLICY \"Users can update their own avatars\" \nON storage.objects FOR UPDATE \nUSING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);\n\nCREATE POLICY \"Users can delete their own avatars\" \nON storage.objects FOR DELETE \nUSING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);\n
+-- Create avatars bucket if not exists
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('avatars', 'avatars', true) 
+ON CONFLICT (id) DO NOTHING;
+
+-- RLS Policies for avatars bucket
+
+-- Allow public access to all avatars
+CREATE POLICY "Avatar images are publicly accessible" 
+ON storage.objects FOR SELECT 
+USING (bucket_id = 'avatars');
+
+-- Allow authenticated users to upload their own avatars
+-- Files should be named like {user_id}/{filename}
+CREATE POLICY "Users can upload their own avatars" 
+ON storage.objects FOR INSERT 
+WITH CHECK (
+    bucket_id = 'avatars' 
+    AND auth.role() = 'authenticated'
+);
+
+-- Allow users to update/delete their own avatars
+CREATE POLICY "Users can update their own avatars" 
+ON storage.objects FOR UPDATE 
+USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+
+CREATE POLICY "Users can delete their own avatars" 
+ON storage.objects FOR DELETE 
+USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);

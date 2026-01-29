@@ -1,7 +1,6 @@
-
-import React, { useState, useMemo } from 'react';
-import { MOCK_APPS } from '../constants';
+import React, { useState, useMemo, useEffect } from 'react';
 import { AppProject } from '../types';
+import { backend } from '../lib/backend';
 import Badge from '../components/Badge';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -13,12 +12,55 @@ interface LeaderboardPageProps {
 const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onBack, onSelectCreator }) => {
   const [timeframe, setTimeframe] = useState<'weekly' | 'alltime'>('weekly');
   const { user: currentUser } = useAuth();
+  const [apps, setApps] = useState<AppProject[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Deterministic ranking logic using existing MOCK_APPS data
+  React.useEffect(() => {
+    const loadData = async () => {
+      try {
+        const { jams } = await backend.listPublishedJams({ sort: 'trending' });
+        const mapped = jams.map(j => ({
+          id: j.id,
+          name: j.name,
+          description: j.description || j.tagline,
+          category: j.category,
+          icon: '✨',
+          thumbnailUrl: j.media?.heroImageUrl || '',
+          screenshot: j.media?.heroImageUrl || '',
+          mediaType: 'image' as const,
+          creator: {
+            name: j.creator?.display_name || 'Maker',
+            handle: j.creator?.handle || '@maker',
+            avatar: j.creator?.avatar_url || '',
+            type: j.teamType === 'team' ? 'Team' : 'Solo Founder',
+            badges: j.creator?.trust_flags ? [{ type: 'founding_creator', label: 'Founding Creator' }] : []
+          },
+          stats: {
+            revenue: j.mrrBucket || '$0',
+            isRevenuePublic: j.mrrVisibility === 'public',
+            upvotes: j.stats?.upvotes || 0,
+            daysLive: 0,
+            views: j.stats?.views || 0,
+            growth: '+0%', rank: 0, bookmarks: 0
+          },
+          vibeTools: j.vibeTools || [],
+          stack: j.techStack || []
+        }));
+        setApps(mapped as any);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Deterministic ranking logic using real analytics or fallbacks
   const rankedCreators = useMemo(() => {
     const creatorsMap = new Map<string, any>();
-    
-    MOCK_APPS.forEach(app => {
+
+    apps.forEach(app => {
       const handle = app.creator.handle;
       if (!creatorsMap.has(handle)) {
         creatorsMap.set(handle, {
@@ -36,7 +78,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onBack, onSelectCreat
     });
 
     const list = Array.from(creatorsMap.values());
-    
+
     // Simple toggle logic for demo: "Weekly" sorts by upvotes, "All time" by followers
     return list.sort((a, b) => {
       if (timeframe === 'weekly') return b.totalUpvotes - a.totalUpvotes;
@@ -47,15 +89,15 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onBack, onSelectCreat
   return (
     <div className="min-h-screen bg-white pt-32 pb-40 animate-in fade-in duration-700">
       <div className="max-w-7xl mx-auto px-6">
-        
+
         {/* Navigation */}
-        <button 
-          onClick={onBack} 
+        <button
+          onClick={onBack}
           className="mb-12 flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-all group"
         >
           <div className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform shadow-sm">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
             </svg>
           </div>
           <span className="text-[10px] font-black uppercase tracking-[0.2em]">Return Home</span>
@@ -77,13 +119,13 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onBack, onSelectCreat
           </div>
 
           <div className="flex items-center gap-1 p-1 bg-gray-50 rounded-2xl border border-gray-100">
-            <button 
+            <button
               onClick={() => setTimeframe('weekly')}
               className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'weekly' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
             >
               This Week
             </button>
-            <button 
+            <button
               onClick={() => setTimeframe('alltime')}
               className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${timeframe === 'alltime' ? 'bg-white text-gray-900 shadow-sm border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
             >
@@ -93,10 +135,10 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onBack, onSelectCreat
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-12 md:gap-20 items-start">
-          
+
           <main className="min-w-0">
             <div className="bg-white rounded-[40px] border border-gray-100 shadow-sm overflow-hidden">
-              
+
               {/* Table Header */}
               <div className="hidden md:flex items-center px-8 h-16 bg-gray-50/50 border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <div className="w-12 text-center pr-4">#</div>
@@ -110,7 +152,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onBack, onSelectCreat
               {/* List */}
               <div className="flex flex-col">
                 {rankedCreators.map((creator, idx) => (
-                  <div 
+                  <div
                     key={creator.handle}
                     onClick={() => onSelectCreator(creator)}
                     className={`group flex flex-col md:flex-row md:items-center px-6 py-8 md:px-8 transition-all hover:bg-gray-50/40 cursor-pointer ${idx !== rankedCreators.length - 1 ? 'border-b border-gray-100' : ''}`}
@@ -122,7 +164,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onBack, onSelectCreat
                           {idx + 1}
                         </span>
                       </div>
-                      
+
                       <div className="flex items-center gap-4 min-w-0">
                         <div className="relative aura-clip shrink-0">
                           <div className="w-14 h-14 rounded-full border-2 border-white shadow-sm overflow-hidden relative z-10 bg-white">
@@ -134,7 +176,7 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onBack, onSelectCreat
                           <div className="flex items-center gap-2 mb-0.5">
                             <h4 className="font-bold text-gray-900 truncate text-lg group-hover:text-blue-500 transition-colors">{creator.name}</h4>
                             {creator.badges && creator.badges.length > 0 && (
-                                <Badge type={creator.badges[0].type} size="sm" showTooltip={false} />
+                              <Badge type={creator.badges[0].type} size="sm" showTooltip={false} />
                             )}
                           </div>
                           <p className="text-[11px] font-bold text-gray-300 uppercase tracking-widest truncate">{creator.handle}</p>
@@ -144,32 +186,32 @@ const LeaderboardPage: React.FC<LeaderboardPageProps> = ({ onBack, onSelectCreat
 
                     {/* Desktop Stats */}
                     <div className="hidden md:flex items-center shrink-0">
-                       <div className="w-24 text-center">
-                         <span className="block text-sm font-black text-blue-500 leading-none">{creator.totalUpvotes}</span>
-                       </div>
-                       <div className="w-24 text-center">
-                         <span className="block text-sm font-black text-gray-900 leading-none">{creator.followers}</span>
-                       </div>
-                       <div className="w-24 text-center">
-                         <span className="block text-sm font-black text-gray-400 leading-none">{creator.jamsLaunched}</span>
-                       </div>
+                      <div className="w-24 text-center">
+                        <span className="block text-sm font-black text-blue-500 leading-none">{creator.totalUpvotes}</span>
+                      </div>
+                      <div className="w-24 text-center">
+                        <span className="block text-sm font-black text-gray-900 leading-none">{creator.followers}</span>
+                      </div>
+                      <div className="w-24 text-center">
+                        <span className="block text-sm font-black text-gray-400 leading-none">{creator.jamsLaunched}</span>
+                      </div>
                     </div>
 
                     {/* Mobile Stats */}
                     <div className="flex md:hidden items-center gap-8 mb-6 ml-14">
-                       <div className="text-center">
-                         <span className="block text-xs font-black text-gray-300 uppercase tracking-widest mb-1">Upvotes</span>
-                         <span className="block text-lg font-black text-blue-500">{creator.totalUpvotes}</span>
-                       </div>
-                       <div className="text-center">
-                         <span className="block text-xs font-black text-gray-300 uppercase tracking-widest mb-1">Followers</span>
-                         <span className="block text-lg font-black text-gray-900">{creator.followers}</span>
-                       </div>
+                      <div className="text-center">
+                        <span className="block text-xs font-black text-gray-300 uppercase tracking-widest mb-1">Upvotes</span>
+                        <span className="block text-lg font-black text-blue-500">{creator.totalUpvotes}</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="block text-xs font-black text-gray-300 uppercase tracking-widest mb-1">Followers</span>
+                        <span className="block text-lg font-black text-gray-900">{creator.followers}</span>
+                      </div>
                     </div>
 
                     {/* Action */}
                     <div className="w-full md:w-32 flex justify-end">
-                      <button 
+                      <button
                         onClick={(e) => { e.stopPropagation(); }}
                         className="w-full md:w-auto px-6 py-3 rounded-xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gray-900/10 hover:bg-gray-800 transition-all active:scale-95"
                       >

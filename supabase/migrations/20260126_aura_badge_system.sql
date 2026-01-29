@@ -2,4 +2,143 @@
 -- Description: Canonical Aura + Badge System (Source of Truth)
 
 -- 1. BADGE DEFINITIONS (The Rules)
-CREATE TABLE IF NOT EXISTS public.badge_definitions (\n    id TEXT PRIMARY KEY, -- e.g. 'founding_creator'\n    tier INT NOT NULL CHECK (tier BETWEEN 1 AND 10),\n    category TEXT NOT NULL,\n    metadata JSONB NOT NULL DEFAULT '{}'::jsonb, -- { name, description, icon, aura_color }\n    created_at TIMESTAMPTZ DEFAULT NOW()\n);\n\nALTER TABLE public.badge_definitions ENABLE ROW LEVEL SECURITY;\n\n-- Everyone can read badge definitions\nCREATE POLICY \"Badge definitions are public\" \nON public.badge_definitions FOR SELECT USING (true);\n\n-- Only service role can manage definitions\nCREATE POLICY \"Service role manages badge definitions\" \nON public.badge_definitions \nFOR ALL \nUSING (auth.role() = 'service_role')\nWITH CHECK (auth.role() = 'service_role');\n\n\n-- 2. EARNED BADGES (The Source of Truth)\nCREATE TABLE IF NOT EXISTS public.profile_badges (\n    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,\n    badge_id TEXT NOT NULL REFERENCES public.badge_definitions(id) ON DELETE RESTRICT,\n    awarded_at TIMESTAMPTZ DEFAULT NOW(),\n    source TEXT NOT NULL, -- 'system_event', 'admin', 'migration'\n    UNIQUE(user_id, badge_id)\n);\n\nCREATE INDEX IF NOT EXISTS idx_profile_badges_user ON public.profile_badges(user_id);\n\nALTER TABLE public.profile_badges ENABLE ROW LEVEL SECURITY;\n\n-- Public can see who has what badge\nCREATE POLICY \"Earned badges are public\" \nON public.profile_badges FOR SELECT USING (true);\n\n-- Only service role can award badges (NO CLIENT WRITES)\nCREATE POLICY \"Service role manages earned badges\" \nON public.profile_badges \nFOR ALL \nUSING (auth.role() = 'service_role')\nWITH CHECK (auth.role() = 'service_role');\n\n\n-- 3. AUDIT LOG (Immutable History)\nCREATE TABLE IF NOT EXISTS public.badge_award_log (\n    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,\n    user_id UUID NOT NULL,\n    badge_id TEXT NOT NULL,\n    action TEXT NOT NULL, -- 'AWARD', 'REVOKE'\n    reason TEXT,\n    actor TEXT NOT NULL,\n    meta JSONB DEFAULT '{}'::jsonb,\n    created_at TIMESTAMPTZ DEFAULT NOW()\n);\n\nALTER TABLE public.badge_award_log ENABLE ROW LEVEL SECURITY;\n\n-- Only service role can read/write logs (Internal Audit)\nCREATE POLICY \"Service role manages logs\" \nON public.badge_award_log \nFOR ALL \nUSING (auth.role() = 'service_role')\nWITH CHECK (auth.role() = 'service_role');\n\n\n-- 4. SYNC TRIGGER (The Brain)\n-- Updates profiles.badges cache whenever profile_badges changes\n\nCREATE OR REPLACE FUNCTION public.sync_profile_badges()\nRETURNS TRIGGER AS $$\nDECLARE\n    target_user_id UUID;\n    badges_json JSONB;\nBEGIN\n    -- Determine user_id based on operation\n    IF (TG_OP = 'DELETE') THEN\n        target_user_id := OLD.user_id;\n    ELSE\n        target_user_id := NEW.user_id;\n    END IF;\n\n    -- Construct the JSON cache\n    -- Select earned badges, join with definitions, sort by tier desc\n    SELECT COALESCE(jsonb_agg(\n        jsonb_build_object(\n            'type', b.badge_id,\n            'tier', d.tier,\n            'category', d.category,\n            'data', d.metadata,\n            'earned_at', b.awarded_at\n        ) ORDER BY d.tier DESC, b.awarded_at DESC\n    ), '[]'::jsonb)\n    INTO badges_json\n    FROM public.profile_badges b\n    JOIN public.badge_definitions d ON b.badge_id = d.id\n    WHERE b.user_id = target_user_id;\n\n    -- Update the profile cache silently\n    -- We do NOT change updated_at to avoid triggering client side optimistic update conflicts unnecessarily\n    UPDATE public.profiles\n    SET badges = badges_json\n    WHERE id = target_user_id;\n\n    RETURN NULL;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n\n-- Bind Trigger\nDROP TRIGGER IF EXISTS on_badge_change ON public.profile_badges;\nCREATE TRIGGER on_badge_change\nAFTER INSERT OR UPDATE OR DELETE ON public.profile_badges\nFOR EACH ROW EXECUTE FUNCTION public.sync_profile_badges();\n\n\n-- 5. TAMPER PROTECTION (The Guard)\n-- Prevent clients from manually editing profiles.badges\n\nCREATE OR REPLACE FUNCTION public.protect_profile_badges()\nRETURNS TRIGGER AS $$\nBEGIN\n    -- If the operation is NOT coming from service_role (e.g. from the sync trigger or admin function)\n    -- AND the badges field is changing...\n    IF (auth.role() != 'service_role') AND (NEW.badges IS DISTINCT FROM OLD.badges) THEN\n        -- Revert changes to badges field only\n        NEW.badges := OLD.badges;\n    END IF;\n    RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\n\n-- Bind Trigger to Profiles\nDROP TRIGGER IF EXISTS protect_badges_column ON public.profiles;\nCREATE TRIGGER protect_badges_column\nBEFORE UPDATE ON public.profiles\nFOR EACH ROW EXECUTE FUNCTION public.protect_profile_badges();\n
+CREATE TABLE IF NOT EXISTS public.badge_definitions (
+    id TEXT PRIMARY KEY, -- e.g. 'founding_creator'
+    tier INT NOT NULL CHECK (tier BETWEEN 1 AND 10),
+    category TEXT NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb, -- { name, description, icon, aura_color }
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.badge_definitions ENABLE ROW LEVEL SECURITY;
+
+-- Everyone can read badge definitions
+CREATE POLICY "Badge definitions are public" 
+ON public.badge_definitions FOR SELECT USING (true);
+
+-- Only service role can manage definitions
+CREATE POLICY "Service role manages badge definitions" 
+ON public.badge_definitions 
+FOR ALL 
+USING (auth.role() = 'service_role')
+WITH CHECK (auth.role() = 'service_role');
+
+
+-- 2. EARNED BADGES (The Source of Truth)
+CREATE TABLE IF NOT EXISTS public.profile_badges (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    badge_id TEXT NOT NULL REFERENCES public.badge_definitions(id) ON DELETE RESTRICT,
+    awarded_at TIMESTAMPTZ DEFAULT NOW(),
+    source TEXT NOT NULL, -- 'system_event', 'admin', 'migration'
+    UNIQUE(user_id, badge_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_profile_badges_user ON public.profile_badges(user_id);
+
+ALTER TABLE public.profile_badges ENABLE ROW LEVEL SECURITY;
+
+-- Public can see who has what badge
+CREATE POLICY "Earned badges are public" 
+ON public.profile_badges FOR SELECT USING (true);
+
+-- Only service role can award badges (NO CLIENT WRITES)
+CREATE POLICY "Service role manages earned badges" 
+ON public.profile_badges 
+FOR ALL 
+USING (auth.role() = 'service_role')
+WITH CHECK (auth.role() = 'service_role');
+
+
+-- 3. AUDIT LOG (Immutable History)
+CREATE TABLE IF NOT EXISTS public.badge_award_log (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL,
+    badge_id TEXT NOT NULL,
+    action TEXT NOT NULL, -- 'AWARD', 'REVOKE'
+    reason TEXT,
+    actor TEXT NOT NULL,
+    meta JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.badge_award_log ENABLE ROW LEVEL SECURITY;
+
+-- Only service role can read/write logs (Internal Audit)
+CREATE POLICY "Service role manages logs" 
+ON public.badge_award_log 
+FOR ALL 
+USING (auth.role() = 'service_role')
+WITH CHECK (auth.role() = 'service_role');
+
+
+-- 4. SYNC TRIGGER (The Brain)
+-- Updates profiles.badges cache whenever profile_badges changes
+
+CREATE OR REPLACE FUNCTION public.sync_profile_badges()
+RETURNS TRIGGER AS $$
+DECLARE
+    target_user_id UUID;
+    badges_json JSONB;
+BEGIN
+    -- Determine user_id based on operation
+    IF (TG_OP = 'DELETE') THEN
+        target_user_id := OLD.user_id;
+    ELSE
+        target_user_id := NEW.user_id;
+    END IF;
+
+    -- Construct the JSON cache
+    -- Select earned badges, join with definitions, sort by tier desc
+    SELECT COALESCE(jsonb_agg(
+        jsonb_build_object(
+            'type', b.badge_id,
+            'tier', d.tier,
+            'category', d.category,
+            'data', d.metadata,
+            'earned_at', b.awarded_at
+        ) ORDER BY d.tier DESC, b.awarded_at DESC
+    ), '[]'::jsonb)
+    INTO badges_json
+    FROM public.profile_badges b
+    JOIN public.badge_definitions d ON b.badge_id = d.id
+    WHERE b.user_id = target_user_id;
+
+    -- Update the profile cache silently
+    -- We do NOT change updated_at to avoid triggering client side optimistic update conflicts unnecessarily
+    UPDATE public.profiles
+    SET badges = badges_json
+    WHERE id = target_user_id;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Bind Trigger
+DROP TRIGGER IF EXISTS on_badge_change ON public.profile_badges;
+CREATE TRIGGER on_badge_change
+AFTER INSERT OR UPDATE OR DELETE ON public.profile_badges
+FOR EACH ROW EXECUTE FUNCTION public.sync_profile_badges();
+
+
+-- 5. TAMPER PROTECTION (The Guard)
+-- Prevent clients from manually editing profiles.badges
+
+CREATE OR REPLACE FUNCTION public.protect_profile_badges()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- If the operation is NOT coming from service_role (e.g. from the sync trigger or admin function)
+    -- AND the badges field is changing...
+    IF (auth.role() != 'service_role') AND (NEW.badges IS DISTINCT FROM OLD.badges) THEN
+        -- Revert changes to badges field only
+        NEW.badges := OLD.badges;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Bind Trigger to Profiles
+DROP TRIGGER IF EXISTS protect_badges_column ON public.profiles;
+CREATE TRIGGER protect_badges_column
+BEFORE UPDATE ON public.profiles
+FOR EACH ROW EXECUTE FUNCTION public.protect_profile_badges();

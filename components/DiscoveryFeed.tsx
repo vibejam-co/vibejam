@@ -1,7 +1,7 @@
-
 import React, { useState, useMemo } from 'react';
 import { AppProject } from '../types';
 import Badge from './Badge';
+import { FEATURE_FLAGS } from '../constants';
 
 interface DiscoveryFeedProps {
   apps: AppProject[];
@@ -11,7 +11,9 @@ interface DiscoveryFeedProps {
 }
 
 const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreatorClick, customTitle }) => {
-  const [filter, setFilter] = useState<'Trending' | 'Today' | 'This Week' | 'Revenue'>('Trending');
+  const isWeek1 = FEATURE_FLAGS.VITE_LAUNCH_MODE === 'week1';
+  const initialFilter = isWeek1 ? 'This Week' : 'Trending';
+  const [filter, setFilter] = useState<'Trending' | 'Today' | 'This Week' | 'Revenue'>(initialFilter);
 
   const filteredApps = useMemo(() => {
     let result = [...apps];
@@ -29,15 +31,21 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
     return result;
   }, [apps, filter]);
 
+  const availableFilters = useMemo(() => {
+    const filters = ['Trending', 'Today', 'This Week', 'Revenue'] as const;
+    if (isWeek1) return filters.filter(f => f !== 'Today');
+    return filters;
+  }, [isWeek1]);
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{customTitle || "Discover What’s Shipping Now"}</h2>
-          <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mt-1">Preview examples — founding launches will replace this content.</p>
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">{customTitle || (isWeek1 ? "Top Jams Shipping This Week" : "Discover What’s Shipping Now")}</h2>
+          <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mt-1">Founding Era — curated early launches</p>
         </div>
         <div className="flex items-center gap-2 p-1 bg-gray-100/50 rounded-xl border border-gray-100">
-          {(['Trending', 'Today', 'This Week', 'Revenue'] as const).map((f) => (
+          {availableFilters.map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -127,8 +135,8 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
                 className="flex flex-col items-center justify-center w-12 h-14 md:w-14 md:h-16 rounded-2xl bg-white border border-gray-100 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/20 active:scale-95 group/upvote"
                 onClick={(e) => { e.stopPropagation(); }}
               >
-                <svg className="w-4 h-4 text-gray-300 group-hover/upvote:text-blue-500 transition-colors" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l-8 8h16l-8-8z" /></svg>
-                <span className="text-xs font-black text-gray-600 mt-1">{app.stats.upvotes}</span>
+                <svg className={`w-4 h-4 ${FEATURE_FLAGS.VITE_LAUNCH_MODE === 'week1' ? 'text-gray-200' : 'text-gray-300'} group-hover/upvote:text-blue-500 transition-colors`} fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l-8 8h16l-8-8z" /></svg>
+                <span className={`text-xs font-black transition-opacity mt-1 ${FEATURE_FLAGS.VITE_LAUNCH_MODE === 'week1' ? 'text-gray-200 opacity-40' : 'text-gray-600'}`}>{app.stats.upvotes}</span>
               </button>
             </div>
           </div>

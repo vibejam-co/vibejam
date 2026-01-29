@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
 
 type ScrapeResult = {
     site_url: string;
@@ -25,79 +26,11 @@ function strip(s?: string) {
     return s?.replace(/\s+/g, " ").trim();
 }
 
-// Match meta tags by property or name
-function getMetaAll(html: string, key: string): string[] {
-    const out: string[] = [];
-
-    const propRe = new RegExp(
-        `<meta[^>]+property=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`,
-        "gi",
-    );
-    const nameRe = new RegExp(
-        `<meta[^>]+name=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`,
-        "gi",
-    );
-
-    let m: RegExpExecArray | null;
-    while ((m = propRe.exec(html))) out.push(m[1].trim());
-    while ((m = nameRe.exec(html))) out.push(m[1].trim());
-
-    // Also handle attribute order swapped (content before property/name)
-    const propRe2 = new RegExp(
-        `<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${key}["'][^>]*>`,
-        "gi",
-    );
-    const nameRe2 = new RegExp(
-        `<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${key}["'][^>]*>`,
-        "gi",
-    );
-    while ((m = propRe2.exec(html))) out.push(m[1].trim());
-    while ((m = nameRe2.exec(html))) out.push(m[1].trim());
-
-    // de-dupe preserving order
-    return [...new Set(out)];
-}
-
-function getMetaFirst(html: string, key: string): string | undefined {
-    return getMetaAll(html, key)[0];
-}
-
-// Pull <title>…</title>
-function getHtmlTitle(html: string): string | undefined {
-    const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    return m?.[1]?.trim();
-}
-
-// <link rel="..."> selectors (icons etc.)
-function getLinkRelAll(html: string, relContains: string): string[] {
-    const out: string[] = [];
-    const re = new RegExp(
-        `<link[^>]+rel=["']^"']*${relContains}[^"']*["'][^>]+href=["']([^"']+)["'][^>]*>`,
-        "gi",
-    );
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(html))) out.push(m[1].trim());
-
-    // handle swapped attr order (href before rel)
-    const re2 = new RegExp(
-        `<link[^>]+href=["']([^"']+)["'][^>]+rel=["']^"']*${relContains}[^"']*["'][^>]*>`,
-        "gi",
-    );
-    while ((m = re2.exec(html))) out.push(m[1].trim());
-
-    return [...new Set(out)];
-}
-
-// Some sites give data: or svg; avoid those as hero images
-function isBadHeroImage(url?: string) {
-    if (!url) return true;
-    const u = url.toLowerCase();
-    if (u.startsWith("data:")) return true;
-    if (u.endsWith(".svg")) return true; // often logos; optional: allow if you want
+function isBadHeroImage(url: string) {
     return false;
 }
 
-async function fetchHtmlWithTimeout(url: string, timeoutMs = 8000) {
+async function fetchHtmlWithTimeout(url: string, timeoutMs = 12000) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
 
@@ -112,80 +45,118 @@ async function fetchHtmlWithTimeout(url: string, timeoutMs = 8000) {
                     "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
                 "accept-language": "en-US,en;q=0.9",
                 "cache-control": "no-cache",
+                "upgrade-insecure-requests": "1"
             },
         });
 
         const ct = res.headers.get("content-type") || "";
-        const html = await res.text();
+        if (!res.ok) {
+            throw new Error(`HTTP_${res.status}`);
+        }
 
+        const html = await res.text();
         return { res, ct, html };
     } finally {
         clearTimeout(t);
     }
 }
 
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 serve(async (req) => {
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+        return new Response('ok', { headers: corsHeaders });
+    }
+
     try {
         const { url } = await req.json().catch(() => ({}));
         if (!url) {
-            return new Response(JSON.stringify({ error: "Missing url" }), { status: 400 });
+            return new Response(JSON.stringify({ error: "Missing url" }), {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
         }
 
         const inputUrl = new URL(url).toString();
         const warnings: string[] = [];
 
-        const { res, ct, html } = await fetchHtmlWithTimeout(inputUrl, 9000);
+        let html = "";
+        let finalUrl = inputUrl;
+        let ct = "";
+
+        try {
+            const result = await fetchHtmlWithTimeout(inputUrl, 12000);
+            html = result.html;
+            finalUrl = result.res.url || inputUrl;
+            ct = result.ct;
+        } catch (e: any) {
+            // Return actionable error for UI
+            const errCode = String(e.message).startsWith("HTTP_") ? String(e.message) : "FETCH_FAILED";
+            return new Response(JSON.stringify({ error: "Scrape unreachable", code: errCode }), {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+        }
 
         if (!ct.includes("text/html")) {
             warnings.push(`Non-HTML content-type returned: ${ct}`);
         }
 
-        // Normalize the final URL after redirects
-        const finalUrl = res.url || inputUrl;
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        if (!doc) {
+            return new Response(JSON.stringify({ error: "Failed to parse HTML" }), {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+        }
 
-        // ---- Title/Description Ladder ----
-        const ogTitle = strip(getMetaFirst(html, "og:title"));
-        const twTitle = strip(getMetaFirst(html, "twitter:title"));
-        const docTitle = strip(getHtmlTitle(html));
+        const getMeta = (prop: string) =>
+            strip(doc.querySelector(`meta[property='${prop}']`)?.getAttribute("content") ||
+                doc.querySelector(`meta[name='${prop}']`)?.getAttribute("content"));
 
-        const ogDesc = strip(getMetaFirst(html, "og:description"));
-        const twDesc = strip(getMetaFirst(html, "twitter:description"));
-        const metaDesc = strip(getMetaFirst(html, "description"));
+        const getLink = (rel: string) =>
+            doc.querySelector(`link[rel~='${rel}']`)?.getAttribute("href");
 
-        const name = ogTitle || twTitle || docTitle;
-        const tagline = ogDesc || twDesc || metaDesc;
+        // ---- Extraction Priority (V6.5) ----
+        const name = getMeta("og:title") || getMeta("twitter:title") || strip(doc.querySelector("title")?.textContent) || "";
+        const tagline = getMeta("og:description") || getMeta("twitter:description") || getMeta("description") || "";
 
-        if (!name) warnings.push("No title found (og:title/twitter:title/<title>).");
-        if (!tagline) warnings.push("No description found (og:description/twitter:description/meta description).");
-
-        // ---- Image Ladder (OG -> Twitter -> Icons) ----
-        // Prefer OG image; some pages have multiple og:image; take first valid
-        const ogImages = getMetaAll(html, "og:image").map((x) => absolutize(finalUrl, x));
-        const twImages = getMetaAll(html, "twitter:image").map((x) => absolutize(finalUrl, x));
-
+        // Helper to get largest icon if no OG image
+        // (Simplified: just grab the first valid large-looking icon or OG)
         let image_url =
-            ogImages.find((u) => u && !isBadHeroImage(u)) ||
-            twImages.find((u) => u && !isBadHeroImage(u));
-
-        // Icon fallbacks (good for "no image scraped" cases)
-        const appleIcons = getLinkRelAll(html, "apple-touch-icon").map((x) => absolutize(finalUrl, x));
-        const icons = getLinkRelAll(html, "icon").map((x) => absolutize(finalUrl, x));
-
-        const favicon_url =
-            icons.find(Boolean) ||
-            appleIcons.find(Boolean) ||
-            absolutize(finalUrl, "/favicon.ico");
+            absolutize(finalUrl, getMeta("og:image")) ||
+            absolutize(finalUrl, getMeta("twitter:image")) ||
+            absolutize(finalUrl, getLink("image_src"));
 
         if (!image_url) {
-            // last-resort: use apple-touch-icon or icon as hero image
-            image_url =
-                appleIcons.find((u) => u && !isBadHeroImage(u)) ||
-                icons.find((u) => u && !isBadHeroImage(u));
-
-            warnings.push(
-                "No og:image/twitter:image found. Falling back to site icon (consider screenshot fallback for richer covers).",
-            );
+            // Fallback: Apple Touch Icon (usually high res)
+            const appleIcon = absolutize(finalUrl, getLink("apple-touch-icon"));
+            if (appleIcon && !isBadHeroImage(appleIcon)) image_url = appleIcon;
         }
+
+        // Favicon logic
+        const favicon_url =
+            absolutize(finalUrl, getLink("icon")) ||
+            absolutize(finalUrl, getLink("shortcut icon")) ||
+            absolutize(finalUrl, "/favicon.ico");
+
+        if (!name) warnings.push("No title found.");
+
+        // Special Case: Cloudflare / 403
+        // If we got a 200 OK via fetch but parsed NOTHING useful (no title, no description), 
+        // it might be a soft-block (CAPTCHA page).
+        if (!name && !tagline && html.includes("Challenge")) {
+            return new Response(JSON.stringify({
+                site_url: finalUrl,
+                warnings: ["SCRAPE_BLOCKED"],
+                code: "SCRAPE_BLOCKED"
+            }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+        }
+        if (!image_url) warnings.push("No hero image found.");
 
         const out: ScrapeResult = {
             site_url: finalUrl,
@@ -197,9 +168,12 @@ serve(async (req) => {
         };
 
         return new Response(JSON.stringify(out), {
-            headers: { "content-type": "application/json" },
+            headers: { ...corsHeaders, "content-type": "application/json" },
         });
     } catch (e) {
-        return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
+        return new Response(JSON.stringify({ error: String(e) }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
     }
 });

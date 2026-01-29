@@ -1,102 +1,100 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { standardResponse, normalizeError } from '../_shared/response.ts'
 
 Deno.serve(async (req) => {
-    if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders })
-    }
+    // 1. Setup Service Role
+    const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
     try {
-        const supabase = createClient(
-            Deno.env.get('SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // Service role to read all jams/profiles
-            { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-        )
+        const { scope = 'shipping_this_week', force = false } = await req.json().catch(() => ({}));
 
-        // Validate cron or admin secret if needed. For now, open or key protected.
-
-        const scopes = ['shipping_today', 'highest_earning', 'trending', 'newest']
-
-        const results = {}
-
-        for (const scope of scopes) {
-            let query = supabase
-                .from('jams')
-                .select(`
-                id, name, tagline, category, media,
-                mrr_bucket, stats, tech_stack, vibe_tools,
-                creator_id,
-                profiles (id, display_name, avatar_url, handle)
-            `)
-                .eq('status', 'published')
-                .eq('is_hidden', false)
-
-            // Window/Ordering Logic
-            if (scope === 'shipping_today') {
-                const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-                query = query.gt('published_at', yesterday).order('published_at', { ascending: false })
-            } else if (scope === 'highest_earning') {
-                query = query.eq('mrr_visibility', 'public').order('mrr_value', { ascending: false, nullsFirst: false })
-            } else if (scope === 'trending') {
-                // MVP: Order by upvotes for now, or rank->>scoreTrending if we populated it
-                // Using upvotes as proxy for reliability if rank is empty
-                query = query.order('stats->upvotes', { ascending: false })
-                // Or reliable: order by created_at desc limit 50?
-                // Prompt says: "trending".
-            } else if (scope === 'newest') {
-                query = query.order('published_at', { ascending: false })
-            }
-
-            const { data: jams, error } = await query.limit(50)
-
-            if (error) {
-                console.error(`Error fetching ${scope}:`, error)
-                continue
-            }
-
-            // Transform to LeaderboardItem
-            const items = jams.map((j: any) => ({
-                jamId: j.id,
-                name: j.name,
-                tagline: j.tagline,
-                heroImageUrl: j.media?.heroImageUrl,
-                creatorId: j.creator_id,
-                creatorName: j.profiles?.display_name || 'Creator',
-                creatorAvatarUrl: j.profiles?.avatar_url,
-                category: j.category,
-                mrrBucket: j.mrr_bucket,
-                upvotes: j.stats?.upvotes || 0,
-                techStackTop: (j.tech_stack || []).slice(0, 3),
-                vibeToolsTop: (j.vibe_tools || []).slice(0, 3)
-            }))
-
-            // Upsert to leaderboards
-            // time_window logic could be dynamic, for now just empty or fixed
-            await supabase
+        // 2. Check TTL (Idempotency / caching)
+        if (!force) {
+            const { data: existing } = await supabase
                 .from('leaderboards')
-                .upsert({
-                    scope,
-                    generated_at: new Date().toISOString(),
-                    time_window: {},
-                    items
-                })
+                .select('generated_at')
+                .eq('scope', scope)
+                .maybeSingle();
 
-            results[scope] = items.length
+            if (existing) {
+                const age = Date.now() - new Date(existing.generated_at).getTime();
+                const ttl = scope === 'newest' ? 10 * 60 * 1000 : 15 * 60 * 1000; // 10 min vs 15 min
+
+                if (age < ttl) {
+                    return standardResponse({ ok: true, cached: true, age_seconds: age / 1000 });
+                }
+            }
         }
 
-        return new Response(JSON.stringify({ success: true, counts: results }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        // 3. Compute (The Heavy Lift)
+        let query = supabase.from('jams').select('id, name, tagline, media, stats, creator_id, published_at')
+            .eq('status', 'published')
+            .eq('is_listed', true);
 
-    } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+        // Scope Logic
+        const now = new Date();
+        const items = [];
+
+        if (scope === 'shipping_this_week') {
+            // Last 7 days
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const { data } = await query
+                .gte('published_at', weekAgo.toISOString())
+                .order('published_at', { ascending: false }) // Initial sort, simplified
+                .limit(50);
+            // In reality, this might rank by a score formula (upvotes * time_decay)
+            // For MVP: sorting by upvotes descending
+            if (data) items.push(...data.sort((a: any, b: any) => (b.stats?.upvotes || 0) - (a.stats?.upvotes || 0)));
+        } else if (scope === 'trending') {
+            // Last 24h high activity
+            const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            const { data } = await query
+                .gte('published_at', dayAgo.toISOString())
+                .limit(50);
+            if (data) items.push(...data.sort((a: any, b: any) => (b.stats?.views || 0) - (a.stats?.views || 0)));
+        } else if (scope === 'newest') {
+            const { data } = await query
+                .order('published_at', { ascending: false })
+                .limit(50);
+            if (data) items.push(...data);
+        }
+
+        // 4. Enrich with Profiles (Avoid Client N+1)
+        const enrichedItems = [];
+        for (const item of items) {
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('display_name, handle, avatar_url, badges') // Fetch badges specifically for verified tick
+                .eq('id', item.creator_id)
+                .single();
+
+            enrichedItems.push({
+                ...item,
+                creator: profile || { display_name: 'Maker', handle: 'maker' }
+            });
+        }
+
+        // 5. Snapshot Write
+        const snapshot = {
+            scope,
+            generated_at: now.toISOString(),
+            time_window: { start: now.toISOString(), end: now.toISOString() },
+            items: enrichedItems
+        };
+
+        const { error: writeError } = await supabase
+            .from('leaderboards')
+            .upsert(snapshot);
+
+        if (writeError) throw writeError;
+
+        return standardResponse({ ok: true, generated: true, count: items.length });
+
+    } catch (e: any) {
+        return standardResponse(normalizeError(e), 500);
     }
 })

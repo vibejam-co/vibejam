@@ -142,20 +142,47 @@ export const backend = {
     /**
      * Get Leaderboard.
      */
+    /**
+     * Get Leaderboard from Snapshot (Cached).
+     */
     getLeaderboard: async (scope: string): Promise<LeaderboardDoc | null> => {
-        if (!supabase) return null;
+        // Cold Start Cache Key
+        const CACHE_KEY = `vj_leaderboard_${scope}`;
+
+        if (!supabase) {
+            // Offline fallback
+            const cached = localStorage.getItem(CACHE_KEY);
+            return cached ? JSON.parse(cached) : null;
+        }
+
         try {
-            const query = supabase.from('leaderboards').select('*').eq('scope', scope).maybeSingle();
-            const { data, error } = await withTimeout(Promise.resolve(query));
-            if (error || !data) return null;
-            return {
+            // Read from 'leaderboards' table (Snapshot)
+            const { data, error } = await withTimeout(
+                supabase.from('leaderboards').select('*').eq('scope', scope).maybeSingle()
+            );
+
+            if (error || !data) {
+                // Cold Start / Miss: Fallback to local cache if exists
+                console.warn('[Backend] Leaderboard cache miss/error, checking local...', error);
+                const cached = localStorage.getItem(CACHE_KEY);
+                return cached ? JSON.parse(cached) : null;
+            }
+
+            const doc: LeaderboardDoc = {
                 scope: data.scope,
                 generatedAt: data.generated_at,
                 window: data.time_window || { label: 'Today', from: '', to: '' },
                 items: data.items || []
-            } as LeaderboardDoc;
+            };
+
+            // Update local cache
+            localStorage.setItem(CACHE_KEY, JSON.stringify(doc));
+            return doc;
+
         } catch (e) {
-            return null;
+            console.error('[Backend] Leaderboard fail:', e);
+            const cached = localStorage.getItem(CACHE_KEY);
+            return cached ? JSON.parse(cached) : null;
         }
     },
 
@@ -179,9 +206,11 @@ export const backend = {
             // Inject creator_id from session for safety
             const finalPayload = { ...payload, jamId, creator_id: session.user.id };
 
-            const { data, error } = await supabase.functions.invoke('jam-upsert-draft', {
-                body: finalPayload
-            });
+            // Increased timeout for publish (15s) to allow for cold starts on Edge Functions
+            const { data, error } = await withTimeout(supabase.functions.invoke('jam-upsert-draft', {
+                body: finalPayload,
+                headers: { 'x-client-request-id': crypto.randomUUID() }
+            }), 15000);
 
             if (error) {
                 console.error('[Backend] Publish failed:', error);
@@ -215,10 +244,31 @@ export const backend = {
     },
 
     /**
-     * List Published Jams (Feed).
+     * List Published Jams (Feed) with Cold Start Cache.
      */
     listPublishedJams: async (params: { sort: "trending" | "new" | "revenue" | "picks"; filters?: any }): Promise<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }> => {
-        return safeInvoke<{ jams: any[]; source: "supabase" | "local"; ok: boolean }>('jams-list', params);
+        // Simple cache key based on sort
+        const CACHE_KEY = `vj_feed_${params.sort}`;
+
+        try {
+            const result = await safeInvoke<{ jams: any[]; source: "supabase" | "local"; ok: boolean }>('jams-list', params);
+
+            if (result.ok && result.jams?.length > 0) {
+                // Update Cache
+                localStorage.setItem(CACHE_KEY, JSON.stringify(result));
+                return result;
+            }
+
+            throw new Error('Feed fetch failed or empty');
+
+        } catch (e) {
+            console.warn('[Backend] Feed cold start fallback:', CACHE_KEY);
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+                return JSON.parse(cached); // Return stale data transparently
+            }
+            return { jams: [], source: 'local', ok: false };
+        }
     },
 
     /**
@@ -232,7 +282,9 @@ export const backend = {
      * List My Bookmarks.
      */
     listMyBookmarks: async (): Promise<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }> => {
-        return safeInvoke<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }>('bookmarks-list', {});
+        // TODO: bookmarks-list function doesn't exist yet
+        return { jams: [], source: "local", ok: true };
+        // return safeInvoke<{ jams: JamDoc[]; source: "supabase" | "local"; ok: boolean }>('bookmarks-list', {});
     },
 
     /**

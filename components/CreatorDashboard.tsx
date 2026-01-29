@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProject } from '../types';
-import { MOCK_APPS } from '../constants';
 import Badge from './Badge';
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CreatorDashboardProps {
   user: {
@@ -14,39 +15,44 @@ interface CreatorDashboardProps {
   };
   onBack: () => void;
   onStartJam: () => void;
+  refreshTrigger?: number;
 }
 
-const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ user, onBack, onStartJam }) => {
-  // Mock owned jams for v1 (stub)
-  const ownedJams = [
-    {
-      id: 'o1',
-      name: 'VibeStudio',
-      tagline: 'The creative operating system for modern builders.',
-      status: 'Live',
-      launchDate: 'Feb 12, 2026',
-      stats: {
-        upvotes: 412,
-        comments: 24,
-        followers: 128,
-        mrr: '$1,240'
-      }
-    }
-  ];
+const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ user, onBack, onStartJam, refreshTrigger = 0 }) => {
+  const { user: authUser } = useAuth();
+  const [ownedJams, setOwnedJams] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const recentComments = [
-    { id: 'c1', user: '@jt', text: 'This is the cleanest UI I’ve used in months.', time: '2h ago' },
-    { id: 'c2', user: '@maya', text: 'How are you handling the real-time sync?', time: '5h ago' }
-  ];
+  useEffect(() => {
+    if (!authUser) return;
+
+    const fetchMyJams = async () => {
+      try {
+        // Query real jams table for this user
+        const { data, error } = await supabase
+          .from('jams')
+          .select('*')
+          .eq('owner_id', authUser.id);
+
+        if (data) setOwnedJams(data);
+      } catch (e) {
+        console.error("[Creator] Error fetching jams:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMyJams();
+  }, [authUser, refreshTrigger]);
 
   return (
     <div className="min-h-screen bg-white pt-32 pb-40 animate-in fade-in duration-500">
       <div className="max-w-4xl mx-auto px-6">
-        
+
         {/* Navigation Back */}
         <button onClick={onBack} className="mb-12 flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-all group">
           <div className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
           </div>
           <span className="text-[10px] font-black uppercase tracking-[0.2em]">Studio</span>
         </button>
@@ -55,8 +61,12 @@ const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ user, onBack, onSta
         <header className="flex items-center justify-between mb-20">
           <div className="flex items-center gap-6">
             <div className="relative aura-clip">
-              <div className="w-20 h-20 rounded-full border-[3px] border-white p-1 bg-white relative z-10 shadow-sm">
-                <img src={user.avatar} className="w-full h-full rounded-full object-cover" alt={user.name} />
+              <div className="w-20 h-20 rounded-full border-[3px] border-white p-1 bg-white relative z-10 shadow-sm overflow-hidden flex items-center justify-center">
+                {user.avatar ? (
+                  <img src={user.avatar} className="w-full h-full rounded-full object-cover" alt={user.name} />
+                ) : (
+                  <span className="text-xl font-black text-gray-200">{user.name[0]?.toUpperCase()}</span>
+                )}
               </div>
               <div className="aura-halo" style={{ background: user.auraColor, opacity: 0.2, inset: '-6px' }} />
             </div>
@@ -69,120 +79,79 @@ const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ user, onBack, onSta
               <p className="text-[10px] font-medium text-gray-400">Creator since {user.creatorSince}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button className="px-5 py-2.5 rounded-xl border border-gray-100 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-gray-900 transition-all">View Profile</button>
-          </div>
         </header>
 
         {/* Jam Overview Section */}
         <section className="mb-20">
           <div className="flex items-center justify-between mb-10">
             <h3 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em]">My Jams</h3>
-            <button 
-                onClick={onStartJam}
-                className="text-[10px] font-black text-blue-500 hover:text-blue-600 uppercase tracking-widest transition-colors"
+            <button
+              onClick={onStartJam}
+              className="text-[10px] font-black text-blue-500 hover:text-blue-600 uppercase tracking-widest transition-colors"
             >
-                + New Jam
+              + New Jam
             </button>
           </div>
 
           <div className="space-y-6">
-            {ownedJams.map(jam => (
-              <div key={jam.id} className="premium-card rounded-[40px] p-10 border border-gray-50 bg-[#F9F9FB]/30">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-4 mb-3">
-                      <h4 className="text-2xl font-black text-gray-900 tracking-tight leading-none">{jam.name}</h4>
-                      <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-600 text-[9px] font-black uppercase tracking-widest border border-green-100/50">{jam.status}</span>
-                    </div>
-                    <p className="text-gray-500 font-medium mb-6">{jam.tagline}</p>
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-300 uppercase tracking-widest">
-                      <span>Launched {jam.launchDate}</span>
+            {ownedJams.length > 0 ? (
+              ownedJams.map(jam => (
+                <div key={jam.id} className="premium-card rounded-[40px] p-10 border border-gray-50 bg-[#F9F9FB]/30">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-4 mb-3">
+                        <h4 className="text-2xl font-black text-gray-900 tracking-tight leading-none">{jam.name}</h4>
+                        <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-600 text-[9px] font-black uppercase tracking-widest border border-green-100/50">Live</span>
+                      </div>
+                      <p className="text-gray-500 font-medium mb-6">{jam.tagline || 'No tagline set.'}</p>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-3">
-                    <button className="px-8 py-4 rounded-2xl bg-gray-900 text-white text-[11px] font-black uppercase tracking-[0.2em] shadow-lg shadow-gray-900/10">View Jam</button>
-                    <button className="w-14 h-14 rounded-2xl border border-gray-100 bg-white flex items-center justify-center text-gray-300 hover:text-gray-900 transition-all cursor-help" title="Editing coming soon">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                    </button>
-                  </div>
                 </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-12 pt-10 border-t border-gray-100/50">
-                    {[
-                        { label: 'Upvotes', value: jam.stats.upvotes },
-                        { label: 'Comments', value: jam.stats.comments },
-                        { label: 'Followers', value: jam.stats.followers },
-                        { label: 'MRR', value: jam.stats.mrr }
-                    ].map(stat => (
-                        <div key={stat.label}>
-                            <span className="block text-2xl font-black text-gray-900 tracking-tighter leading-none mb-1">{stat.value}</span>
-                            <span className="block text-[9px] font-black text-gray-400 uppercase tracking-widest">{stat.label}</span>
-                        </div>
-                    ))}
-                </div>
+              ))
+            ) : (
+              <div className="p-20 rounded-[40px] border-2 border-dashed border-gray-100 text-center flex flex-col items-center">
+                <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest mb-4">No Jams Launched</span>
+                <button
+                  onClick={onStartJam}
+                  className="px-8 py-3 rounded-2xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                >
+                  Launch Your First Jam
+                </button>
               </div>
-            ))}
+            )}
           </div>
         </section>
 
-        {/* Audience Pulse */}
+        {/* Audience Pulse - Zero State */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-20">
-            <section className="bg-white p-10 rounded-[40px] border border-gray-50 shadow-sm">
-                <h3 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em] mb-8">Audience Pulse</h3>
-                <div className="flex items-center gap-4 mb-10">
-                    <div className="flex -space-x-3">
-                        {[1, 2, 3, 4, 5].map(i => (
-                            <img key={i} src={`https://picsum.photos/seed/fan${i}/100`} className="w-9 h-9 rounded-full border-2 border-white bg-gray-50" />
-                        ))}
-                    </div>
-                    <div>
-                        <p className="text-xl font-black text-gray-900 leading-none">128</p>
-                        <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">People following your Jam</p>
-                    </div>
-                </div>
-                <div className="p-4 rounded-2xl bg-[#F9F9FB] border border-gray-50 flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-gray-400">Messaging coming soon</span>
-                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                </div>
-            </section>
+          <section className="bg-white p-10 rounded-[40px] border border-gray-50 shadow-sm">
+            <h3 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em] mb-8">Audience Pulse</h3>
+            <div className="flex items-center gap-4 mb-10">
+              <div className="w-12 h-12 flex items-center justify-center bg-gray-50 rounded-full border border-gray-100 text-gray-300">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+              </div>
+              <div>
+                <p className="text-xl font-black text-gray-900 leading-none">0</p>
+                <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Growth will show here</p>
+              </div>
+            </div>
+          </section>
 
-            <section className="bg-white p-10 rounded-[40px] border border-gray-50 shadow-sm">
-                <h3 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em] mb-8">Recent Signals</h3>
-                <div className="space-y-6">
-                    {recentComments.map(comment => (
-                        <div key={comment.id} className="group cursor-default">
-                            <div className="flex items-center gap-2 mb-1.5">
-                                <span className="text-[11px] font-bold text-gray-900">{comment.user}</span>
-                                <span className="text-[9px] font-black text-gray-200 uppercase tracking-widest">{comment.time}</span>
-                            </div>
-                            <p className="text-sm text-gray-500 font-medium leading-snug line-clamp-1 italic">"{comment.text}"</p>
-                        </div>
-                    ))}
-                    <button className="text-[10px] font-black text-blue-500 uppercase tracking-widest pt-2">View all signals →</button>
-                </div>
-            </section>
+          <section className="bg-white p-10 rounded-[40px] border border-gray-50 shadow-sm">
+            <h3 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em] mb-8">Recent Signals</h3>
+            <div className="py-8 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-100">
+              <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">No signals yet</p>
+            </div>
+          </section>
         </div>
 
         {/* Badges & Prestige */}
         <section className="flex flex-col items-center pt-10 border-t border-gray-50">
-            <h3 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em] mb-8">Launch Prestige</h3>
-            <div className="flex gap-6 p-4 px-10 bg-white border border-gray-100 rounded-full shadow-sm mb-6">
-                <Badge type="founding_creator" />
-                <Badge type="consistent_shipper" />
-            </div>
-            <p className="text-[10px] font-medium text-gray-300 text-center max-w-xs leading-relaxed uppercase tracking-widest">
-                Badges reflect your launch timing and engagement on VibeJam.
-            </p>
+          <h3 className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em] mb-8">Launch Prestige</h3>
+          <div className="flex gap-6 p-4 px-10 bg-white border border-gray-100 rounded-full shadow-sm mb-6 opacity-30 cursor-not-allowed">
+            <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Pending Achievement</span>
+          </div>
         </section>
-
-        {/* Future Stub */}
-        <div className="mt-32 p-12 rounded-[40px] border-2 border-dashed border-gray-100 text-center">
-            <p className="text-sm font-bold text-gray-400 max-w-sm mx-auto">
-                You’ll soon be able to draft, update, and iterate on your Jam from here. Stay tuned for v13.
-            </p>
-        </div>
 
       </div>
     </div>

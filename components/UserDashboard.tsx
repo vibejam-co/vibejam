@@ -1,12 +1,12 @@
-
-import React, { useState } from 'react';
-import { AppProject } from '../types';
-import { MOCK_APPS } from '../constants';
-import Badge from './Badge';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AppProject, BadgeType } from '../types';
+import { BadgeRow, SEAL_METADATA } from './Badge';
 import SocialListPanel from './SocialListPanel';
 import BookmarksPanel from './BookmarksPanel';
 import AppCard from './AppCard';
+import { useAuth } from '../contexts/AuthContext';
 import { useBookmarks } from '../lib/useBookmarks';
+import { supabase } from '../lib/supabaseClient';
 
 interface UserDashboardProps {
   onBack: () => void;
@@ -15,33 +15,154 @@ interface UserDashboardProps {
 }
 
 const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSelectCreator }) => {
+  const { user: authUser, profile, loading: authLoading, signOut, refreshProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'bookmarks'>('overview');
   const [viewingList, setViewingList] = useState<'followers' | 'following' | null>(null);
-  const { bookmarks, count: bookmarkCount } = useBookmarks();
+  const { bookmarks, count: bookmarkCount } = useBookmarks() as any;
 
-  const user = {
-    name: 'Curator X',
-    handle: '@curatorx',
-    avatar: 'https://picsum.photos/seed/user-curator/100',
-    auraColor: '#C7D6EA',
-    joined: 'Jan 2026',
-    bio: 'Curating the future of creative tools. Builder at heart.',
-    stats: {
-      upvotes: 12,
-      comments: 3,
-      followed: 8,
-      followers: 142,
-      following: 89
-    },
-    badges: [
-      { type: 'top_curator' as const },
-      { type: 'founding_member' as const }
-    ]
+  // Edit State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ display_name: '', username: '', bio: '', avatar_url: '' });
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [stats, setStats] = useState({
+    followers: 0,
+    following: 0,
+    bookmarks: 0,
+    upvotes: 0,
+    comments: 0
+  });
+
+  useEffect(() => {
+    if (profile) {
+      setEditForm({
+        display_name: profile.display_name || '',
+        username: profile.handle || '',
+        bio: profile.bio || '',
+        avatar_url: profile.avatar_url || ''
+      });
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (!authUser) return;
+
+    const fetchStats = async () => {
+      try {
+        const [
+          { count: followersCount },
+          { count: followingCount },
+          { count: upvotesCount }
+        ] = await Promise.all([
+          supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', authUser.id),
+          supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', authUser.id),
+          supabase.from('jam_upvotes').select('*', { count: 'exact', head: true }).eq('user_id', authUser.id),
+        ]);
+
+        setStats({
+          followers: followersCount || 0,
+          following: followingCount || 0,
+          bookmarks: bookmarkCount || 0,
+          upvotes: upvotesCount || 0,
+          comments: 0 // Placeholder
+        });
+      } catch (error) {
+        console.error("[Stats] Error fetching user stats:", error);
+      }
+    };
+
+    fetchStats();
+  }, [authUser, bookmarkCount]);
+
+  const handleEditSave = async () => {
+    if (!authUser) return;
+    setIsSaving(true);
+    setErrorMsg(null);
+
+    const cleanHandle = editForm.username.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (!cleanHandle) {
+      setErrorMsg("Handle cannot be empty");
+      setIsSaving(false);
+      return;
+    }
+
+    try {
+      if (cleanHandle !== profile?.handle) {
+        const { data } = await supabase.from('profiles').select('id').eq('handle', cleanHandle).maybeSingle();
+        if (data) throw new Error("Handle taken");
+      }
+
+      const updates = {
+        display_name: editForm.display_name,
+        handle: cleanHandle,
+        bio: editForm.bio,
+        avatar_url: editForm.avatar_url
+      };
+
+      const { error } = await supabase.from('profiles').update(updates).eq('id', authUser.id);
+      if (error) throw error;
+
+      await refreshProfile();
+      setIsEditing(false);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Save failed");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !authUser) return;
+
+    setIsSaving(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${authUser.id}/${Math.random()}.${fileExt}`;
+
+      const { data, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      setEditForm(prev => ({ ...prev, avatar_url: publicUrl }));
+    } catch (error: any) {
+      setErrorMsg("Upload failed: " + error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const badgeTypes = useMemo(() => {
+    return (profile?.badges || [])
+      .sort((a, b) => (SEAL_METADATA[b.type as BadgeType]?.tier || 0) - (SEAL_METADATA[a.type as BadgeType]?.tier || 0))
+      .map(b => b.type as BadgeType);
+  }, [profile?.badges]);
+
+  const primaryBadge = badgeTypes[0] ? SEAL_METADATA[badgeTypes[0]] : null;
+
+  if (authLoading || !authUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const avatarUrl = profile?.avatar_url || authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture;
+  const displayName = profile?.display_name || authUser.user_metadata?.full_name || authUser.email || 'Maker';
+  const handle = profile?.handle ? `@${profile.handle}` : (authUser.email ? `@${authUser.email.split('@')[0]}` : '@user');
+  const joinedDate = profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2026';
+
   const MetricItem = ({ label, value, active, onClick }: { label: string, value: string, active?: boolean, onClick: () => void }) => (
-    <button 
-      onClick={onClick} 
+    <button
+      onClick={onClick}
       className={`flex flex-col items-center px-6 py-2 rounded-2xl transition-all active:scale-95 ${active ? 'bg-gray-50' : 'hover:bg-gray-50/50'}`}
     >
       <span className={`text-xl font-bold transition-colors ${active ? 'text-blue-500' : 'text-gray-900'}`}>{value}</span>
@@ -52,52 +173,120 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
   return (
     <div className="min-h-screen bg-white pt-32 pb-40 animate-in fade-in duration-500">
       <div className="max-w-5xl mx-auto px-6">
-        <button onClick={onBack} className="mb-12 flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-all group">
-          <div className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg>
-          </div>
-          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Back to Feed</span>
-        </button>
+        <div className="flex justify-between items-center mb-12">
+          <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-all group">
+            <div className="w-8 h-8 rounded-full border border-gray-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Back to Feed</span>
+          </button>
+          <button onClick={() => signOut()} className="text-[10px] font-black uppercase tracking-widest text-red-400 hover:text-red-600 transition-colors">Logout</button>
+        </div>
 
         <header className="flex flex-col items-center text-center mb-16">
-          <div className="relative aura-clip mb-8">
-            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-white p-1 shadow-sm bg-white relative z-10 overflow-hidden">
-              <img src={user.avatar} className="w-full h-full rounded-full object-cover" alt={user.name} />
+          <div className="relative mb-8">
+            <div className="vj-aura" style={{ background: primaryBadge?.auraColor || '#EAEAEA', opacity: 0.25, transform: 'scale(1.5)', filter: 'blur(20px)' }} />
+            <div className={`w-24 h-24 md:w-32 md:h-32 rounded-full border-4 p-1 shadow-sm bg-white relative z-10 overflow-hidden flex items-center justify-center`} style={{ borderColor: primaryBadge?.auraColor || '#f3f4f6' }}>
+              {avatarUrl ? (
+                <img src={avatarUrl} className="w-full h-full rounded-full object-cover" alt={displayName} />
+              ) : (
+                <span className="text-2xl font-black text-gray-200">{displayName[0]?.toUpperCase()}</span>
+              )}
             </div>
-            <div className="aura-halo" style={{ background: user.auraColor, opacity: 0.2, inset: '-8px' }} />
-          </div>
-          
-          <div className="space-y-2 mb-6">
-            <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter leading-none">{user.name}</h1>
-            <p className="text-sm font-bold text-gray-300 uppercase tracking-[0.4em]">{user.handle}</p>
+            {isEditing && (
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex flex-col gap-2 w-48 z-20">
+                <label className="cursor-pointer bg-black/80 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full hover:bg-black transition-all text-center">
+                  Upload Photo
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                </label>
+                <input
+                  className="w-full text-[9px] text-center bg-white/90 backdrop-blur-md border border-gray-200 rounded-full px-2 py-1 outline-none focus:ring-2 ring-blue-500/20"
+                  placeholder="Or enter image URL..."
+                  value={editForm.avatar_url}
+                  onChange={e => setEditForm(s => ({ ...s, avatar_url: e.target.value }))}
+                />
+              </div>
+            )}
           </div>
 
-          <p className="text-gray-500 font-medium text-lg max-w-md mx-auto leading-relaxed mb-10">{user.bio}</p>
+          <div className="w-full max-w-md">
+            {isEditing ? (
+              <div className="flex flex-col gap-3 animate-in fade-in">
+                <input
+                  className="text-center text-2xl md:text-3xl font-black text-gray-900 border-b-2 border-gray-100 focus:border-blue-500 outline-none pb-2 bg-transparent placeholder:text-gray-200"
+                  value={editForm.display_name || ''}
+                  onChange={e => setEditForm(s => ({ ...s, display_name: e.target.value }))}
+                  placeholder="Your Full Name"
+                />
+                <div className="flex items-center justify-center gap-1 group/handle">
+                  <span className="text-gray-400 font-bold">@</span>
+                  <input
+                    className="text-center text-sm font-bold text-gray-500 uppercase tracking-widest border-b border-transparent focus:border-gray-300 outline-none bg-transparent"
+                    value={editForm.username}
+                    onChange={e => setEditForm(s => ({ ...s, username: e.target.value }))}
+                    placeholder="username"
+                  />
+                </div>
+                <textarea
+                  className="text-center text-sm text-gray-600 bg-gray-50 rounded-lg p-3 min-h-[80px] w-full resize-none focus:bg-white focus:ring-1 ring-black/5"
+                  value={editForm.bio || ''}
+                  onChange={e => setEditForm(s => ({ ...s, bio: e.target.value.slice(0, 250) }))}
+                  placeholder="Your bio..."
+                  maxLength={250}
+                />
+                <div className="text-[10px] text-gray-300 font-bold uppercase tracking-widest text-right">
+                  {(editForm.bio || '').length}/250
+                </div>
+                {errorMsg && <p className="text-red-500 text-xs font-bold">{errorMsg}</p>}
+                <button
+                  onClick={handleEditSave}
+                  disabled={isSaving}
+                  className="mt-2 bg-blue-600 text-white font-bold py-2 rounded-full hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button onClick={() => setIsEditing(false)} className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2">Cancel</button>
+              </div>
+            ) : (
+              <>
+                <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter leading-none mb-2">{displayName}</h1>
+                <p className="text-sm font-bold text-gray-300 uppercase tracking-[0.4em] mb-6">{handle}</p>
+                <p className="text-gray-500 font-medium text-lg max-w-md mx-auto leading-relaxed mb-10">{profile?.bio || 'No bio yet.'}</p>
+              </>
+            )}
+          </div>
 
           <div className="flex items-center justify-center gap-2 mb-10 bg-white border border-gray-50 p-2 rounded-[32px] shadow-sm">
-            <MetricItem label="Followers" value={user.stats.followers.toString()} onClick={() => setViewingList('followers')} />
+            <MetricItem label="Followers" value={stats.followers.toString()} onClick={() => setViewingList('followers')} />
             <div className="w-px h-6 bg-gray-100" />
-            <MetricItem label="Following" value={user.stats.following.toString()} onClick={() => setViewingList('following')} />
+            <MetricItem label="Following" value={stats.following.toString()} onClick={() => setViewingList('following')} />
             <div className="w-px h-6 bg-gray-100" />
-            <MetricItem 
-              label="Bookmarks" 
-              value={bookmarkCount.toString()} 
+            <MetricItem
+              label="Bookmarks"
+              value={bookmarkCount.toString()}
               active={activeTab === 'bookmarks'}
-              onClick={() => setActiveTab(activeTab === 'bookmarks' ? 'overview' : 'bookmarks')} 
+              onClick={() => setActiveTab(activeTab === 'bookmarks' ? 'overview' : 'bookmarks')}
             />
           </div>
 
-          <button className="px-8 py-3 rounded-2xl border border-gray-100 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-gray-900 transition-all">Edit Profile</button>
+          {!isEditing && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="px-8 py-3 rounded-2xl border border-gray-100 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-gray-900 hover:border-gray-900 transition-all"
+            >
+              Edit Profile
+            </button>
+          )}
         </header>
 
         {activeTab === 'overview' ? (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-20">
               {[
-                { label: 'Joined', value: user.joined },
-                { label: 'Upvotes', value: user.stats.upvotes },
-                { label: 'Comments', value: user.stats.comments },
-                { label: 'Followed', value: user.stats.followed }
+                { label: 'Joined', value: joinedDate },
+                { label: 'Upvotes', value: stats.upvotes },
+                { label: 'Comments', value: stats.comments },
+                { label: 'Followed', value: stats.following }
               ].map(stat => (
                 <div key={stat.label} className="text-center p-6 bg-gray-50/50 rounded-[32px] border border-gray-50/30">
                   <span className="block text-2xl font-black text-gray-900 tracking-tighter mb-1">{stat.value}</span>
@@ -107,11 +296,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
             </div>
 
             <section className="mb-20 flex flex-col items-center">
-              <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em] mb-8">Ecosystem Status</span>
-              <div className="flex gap-6 p-3 px-8 bg-white border border-gray-100 rounded-full shadow-sm">
-                {user.badges.map((b, i) => (
-                  <Badge key={i} type={b.type} />
-                ))}
+              <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.4em] mb-8">Prestige & Badges</span>
+              <div className={`p-3 px-8 bg-white border border-gray-100 rounded-full shadow-sm`}>
+                {badgeTypes.length > 0 ? (
+                  <BadgeRow badges={badgeTypes} limit={5} size="md" />
+                ) : (
+                  <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest px-4">No badges yet</span>
+                )}
               </div>
             </section>
           </div>
@@ -119,7 +310,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between mb-10 border-b border-gray-50 pb-6">
               <h2 className="text-2xl font-black text-gray-900 tracking-tight">Saved Jams</h2>
-              <button 
+              <button
                 onClick={() => setActiveTab('overview')}
                 className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-gray-900"
               >
@@ -129,27 +320,39 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
 
             {bookmarks.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {bookmarks.map((bookmark) => {
-                  const fullProject = MOCK_APPS.find(a => a.id === bookmark.id) || {
+                {bookmarks.map((bookmark: any) => {
+                  const fullProject = {
                     id: bookmark.id,
                     name: bookmark.name,
-                    description: 'Saved from your bookmarks.',
+                    description: bookmark.description || 'Saved.',
                     category: bookmark.category,
-                    icon: '✨',
+                    icon: bookmark.icon || '✨',
                     screenshot: bookmark.screenshot,
                     mediaType: 'image',
                     thumbnailUrl: bookmark.screenshot,
-                    stats: { revenue: bookmark.mrr, isRevenuePublic: true, growth: '0%', rank: 0, upvotes: 0, daysLive: 0 },
-                    creator: { ...bookmark.creator, color: '#3b82f6', type: 'Solo Founder' },
+                    stats: {
+                      revenue: bookmark.mrr || '$0',
+                      isRevenuePublic: true,
+                      growth: '0%',
+                      rank: 0,
+                      upvotes: 0,
+                      daysLive: 0
+                    },
+                    creator: {
+                      ...bookmark.creator,
+                      color: '#3b82f6',
+                      type: 'Solo Founder',
+                      handle: bookmark.creator?.handle || '@maker'
+                    },
                     stack: [],
                     vibeTools: [],
                     milestones: []
                   } as AppProject;
 
                   return (
-                    <AppCard 
-                      key={bookmark.id} 
-                      project={fullProject} 
+                    <AppCard
+                      key={bookmark.id}
+                      project={fullProject}
                       onClick={() => onSelectApp(fullProject)}
                       onCreatorClick={(creator) => onSelectCreator(creator)}
                     />
@@ -158,26 +361,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-32 text-center bg-gray-50/50 rounded-[40px] border border-dashed border-gray-200">
-                <div className="w-16 h-16 rounded-3xl bg-white shadow-sm flex items-center justify-center text-gray-300 mb-6 border border-gray-100">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
-                </div>
                 <h3 className="text-sm font-bold text-gray-900 mb-2">No bookmarks yet.</h3>
-                <p className="text-xs font-medium text-gray-400 max-w-[200px] leading-relaxed mb-8">Save a Jam to find it here later.</p>
-                <button 
-                  onClick={onBack}
-                  className="px-8 py-3 rounded-2xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
-                >
-                  Discover Jams
-                </button>
+                <button onClick={onBack} className="px-8 py-3 rounded-2xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">Discover Jams</button>
               </div>
             )}
           </div>
         )}
 
         {viewingList && (
-          <SocialListPanel 
+          <SocialListPanel
             title={viewingList === 'followers' ? 'Followers' : 'Following'}
-            count={viewingList === 'followers' ? user.stats.followers.toString() : user.stats.following.toString()}
+            count={viewingList === 'followers' ? stats.followers.toString() : stats.following.toString()}
             users={[]}
             onClose={() => setViewingList(null)}
             onSelectUser={() => setViewingList(null)}

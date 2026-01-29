@@ -9,6 +9,8 @@ import { JamStatus, JamMedia } from '../types';
 
 interface LaunchpadProps {
   onClose: () => void;
+  onOpenJam?: (jam: JamPublished) => void;
+  onPublishSuccess?: () => void;
 }
 
 interface JamDraft {
@@ -68,7 +70,7 @@ const ALLOWED_REVENUE_RANGES = [
   "$1M+"
 ];
 
-const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
+const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSuccess }) => {
   const { user, profile } = useAuth();
   const [step, setStep] = useState(0);
   const [urlInput, setUrlInput] = useState('');
@@ -78,6 +80,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [publishedJam, setPublishedJam] = useState<JamPublished | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [heroImageUrl, setHeroImageUrl] = useState('');
   // Ref for aborting handled via component unmount logic if needed, but keeping simple for CF call
 
   const [formData, setFormData] = useState<JamDraft>(() => {
@@ -133,6 +136,15 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
     localStorage.setItem('vj_draft_jam', JSON.stringify(formData));
   }, [formData]);
 
+  // Dirty tracking to prevent overwrite
+  const dirtyFields = useRef<Set<string>>(new Set());
+
+  // Mark fields as dirty on user edit
+  const updateField = (field: keyof JamDraft, value: any) => {
+    dirtyFields.current.add(field);
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleAutoDraft = async (url: string) => {
     if (!url) return;
 
@@ -147,8 +159,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
       const hostname = urlObj.hostname.replace('www.', '').split('.')[0];
       const fallbackTitle = hostname.charAt(0).toUpperCase() + hostname.slice(1);
 
-      // 1. Create/Upsert Draft IMMEDIATELY (Fail-open)
-      // This guarantees we have a jamId and 'draft' status mostly
+      // 1. Create/Upsert Draft (Fail-open)
       const draft = await backend.upsertDraft({
         jamId: formData.id,
         websiteUrl: finalUrl,
@@ -156,49 +167,54 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
         name: formData.name || fallbackTitle
       });
 
-      // Update local ID if changed (unlikely for upsert but good practice)
       if (draft.id && draft.id !== formData.id) {
         setFormData(prev => ({ ...prev, id: draft.id }));
       }
 
-      // 2. Trigger Scrape (Best-effort, non-blocking flow)
-      // We start the backend call but don't await the UI step transition strictly
-
-      // Advance UI immediately so user doesn't wait
       setStep(1);
 
-      // Scrape in background (awaiting here to update form, but UI is already moving)
-      const { extraction: scrapeData } = await backend.scrapeUrl(finalUrl, formData.id);
+      // 2. Scrape (Background)
+      const { extraction: scrapeData, error: scrapeErr, code: scrapeCode } = await backend.scrapeUrl(finalUrl, formData.id);
 
-      setFormData(prev => ({
-        ...prev,
-        // Fill if empty logic
-        name: prev.name || scrapeData.name || fallbackTitle,
-        description: prev.description || scrapeData.tagline || '',
-        mediaUrl: prev.mediaUrl || scrapeData.media?.heroImageUrl || '',
-        vibeTools: [...new Set([...prev.vibeTools, ...(scrapeData.vibeTools || [])])].filter(t => ALLOWED_VIBE_TOOLS.includes(t)),
-        stack: [...new Set([...prev.stack, ...(scrapeData.techStack || [])])].filter(t => ALLOWED_TECH_STACK.includes(t)),
-        sourceUrl: finalUrl
-      }));
+      if (scrapeErr) {
+        console.warn("VJ: Scrape minor error:", scrapeCode);
+        // Don't fail the flow, just alert visually if needed or stay silent
+        if (scrapeCode === 'HTTP_403' || scrapeCode === 'HTTP_404') {
+          setScrapeStatus('degraded');
+        }
+      }
+
+      setFormData(prev => {
+        // Only merge if NOT dirty
+        const next = { ...prev };
+        if (!dirtyFields.current.has('name') && scrapeData.name) next.name = scrapeData.name;
+        if (!dirtyFields.current.has('description') && scrapeData.tagline) next.description = scrapeData.tagline;
+        if (!dirtyFields.current.has('mediaUrl') && scrapeData.media?.heroImageUrl) next.mediaUrl = scrapeData.media.heroImageUrl;
+
+        // Merge arrays (safe append)
+        if (scrapeData.vibeTools) next.vibeTools = [...new Set([...prev.vibeTools, ...scrapeData.vibeTools])].filter(t => ALLOWED_VIBE_TOOLS.includes(t));
+        if (scrapeData.techStack) next.stack = [...new Set([...prev.stack, ...scrapeData.techStack])].filter(t => ALLOWED_TECH_STACK.includes(t));
+
+        next.sourceUrl = finalUrl;
+        return next;
+      });
 
       setScrapeStatus('success');
 
     } catch (err: any) {
-      console.warn(`VJ: Scrape/Draft failed locally. Proceeding with degraded status.`, err);
+      console.warn(`VJ: Scrape/Draft critical fail.`, err);
       setScrapeStatus('degraded');
+      setStep(1);
 
-      // Ensure we have a name
-      if (!formData.name) {
+      // Auto-fill fallback if empty
+      if (!formData.name && !dirtyFields.current.has('name')) {
         const simpleName = finalUrl.replace(/^https?:\/\//, '').split('/')[0].replace('www.', '').split('.')[0];
         setFormData(prev => ({
           ...prev,
-          name: prev.name || simpleName.charAt(0).toUpperCase() + simpleName.slice(1),
+          name: simpleName.charAt(0).toUpperCase() + simpleName.slice(1),
           sourceUrl: finalUrl
         }));
       }
-
-      // Ensure step advances even on total failure
-      setStep(1);
     } finally {
       setIsScraping(false);
     }
@@ -240,6 +256,13 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
       });
 
       if (!result.success || !result.data) {
+        // Map backend errors to UI
+        if (result.error === 'INCOMPLETE_METADATA') {
+          throw new Error("Missing required fields: Name.");
+        }
+        if (result.error === 'BACKEND_OFFLINE') {
+          throw new Error("Connection lost. Check your internet.");
+        }
         throw new Error(result.error || 'PUBLISH_FAILED');
       }
 
@@ -273,16 +296,17 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
         },
         stack: finalJam.techStack || [],
         vibeTools: finalJam.vibeTools || []
-      } as any; // Cast for legacy AppProject compatibility
+      } as any;
 
       setPublishedJam(previewJam);
       setPreviewOpen(true);
-      // Do NOT close the modal automatically. User must dismiss.
       localStorage.removeItem('vj_draft_jam');
+      onPublishSuccess?.();
 
-    } catch (e) {
+    } catch (e: any) {
       console.error("VJ: Publish failed critical.", e);
-      setError("Publishing failed temporarily. Please try again.");
+      // Show specific message if available, else generic
+      setError(e.message || "Publishing failed temporarily. Please try again.");
     } finally {
       setIsPublishing(false);
     }
@@ -335,17 +359,56 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
                 <div className="space-y-6">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Name</label>
-                    <input type="text" placeholder="App Name" className="w-full text-xl font-bold border-b border-gray-100 focus:border-blue-500 pb-2 outline-none bg-transparent" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                    <input type="text" placeholder="App Name" className="w-full text-xl font-bold border-b border-gray-100 focus:border-blue-500 pb-2 outline-none bg-transparent" value={formData.name} onChange={e => updateField('name', e.target.value)} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">One-liner</label>
-                    <input type="text" placeholder="Tagline" className="w-full text-lg border-b border-gray-100 focus:border-blue-500 pb-2 outline-none bg-transparent" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+                    <input type="text" placeholder="Tagline" className="w-full text-lg border-b border-gray-100 focus:border-blue-500 pb-2 outline-none bg-transparent" value={formData.description} onChange={e => updateField('description', e.target.value)} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Category</label>
-                    <select className="w-full bg-white text-sm font-bold border-b border-gray-100 focus:border-blue-500 pb-2 outline-none" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
+                    <select className="w-full bg-white text-sm font-bold border-b border-gray-100 focus:border-blue-500 pb-2 outline-none" value={formData.category} onChange={e => updateField('category', e.target.value)}>
                       {ALLOWED_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
+                  </div>
+
+                  {/* Image Upload Section */}
+                  <div className="space-y-3 pt-4">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">App Image</label>
+                    <div className="space-y-3">
+                      <input
+                        type="url"
+                        placeholder="https://example.com/screenshot.png"
+                        className="w-full text-sm border-b border-gray-100 focus:border-blue-500 pb-2 outline-none bg-transparent"
+                        value={heroImageUrl}
+                        onChange={(e) => {
+                          setHeroImageUrl(e.target.value);
+                          updateField('mediaUrl', e.target.value);
+                        }}
+                      />
+                      {(heroImageUrl || formData.mediaUrl) && (
+                        <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-100">
+                          <img
+                            src={heroImageUrl || formData.mediaUrl}
+                            alt="App preview"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23f3f4f6" width="400" height="300"/%3E%3Ctext x="50%" y="50%" text-anchor="middle" fill="%239ca3af" font-family="sans-serif" font-size="14"%3EImage failed to load%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              setHeroImageUrl('');
+                              updateField('mediaUrl', '');
+                            }}
+                            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center text-xs transition-colors"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                      <p className="text-[9px] text-gray-400 font-medium">Paste an image URL or let scraping auto-detect it</p>
+                    </div>
                   </div>
                 </div>
                 {scrapeStatus === 'degraded' && <p className="mt-6 text-[10px] text-gray-400 font-bold uppercase tracking-widest italic opacity-60">Metadata extraction unavailable. Please enter details manually.</p>}
@@ -423,7 +486,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose }) => {
           </div>
         </div>
       </div>
-      <StartJamPreviewOverlay open={previewOpen} jam={publishedJam} onClose={() => { setPreviewOpen(false); onClose(); }} />
+      <StartJamPreviewOverlay open={previewOpen} jam={publishedJam} onClose={() => { setPreviewOpen(false); onClose(); }} onOpenJam={onOpenJam} />
     </>
   );
 };

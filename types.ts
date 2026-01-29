@@ -139,6 +139,15 @@ export type JamDoc = {
   media: JamMedia;
   stats: JamStats;
   rank: JamRank;
+  creator?: {
+    id: string;
+    display_name: string;
+    handle: string;
+    avatar_url?: string;
+    bio?: string;
+    badges?: any[];
+    trust_flags?: any;
+  };
 };
 
 export type LeaderboardItem = {

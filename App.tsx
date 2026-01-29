@@ -17,7 +17,9 @@ import LeaderboardPage from './pages/LeaderboardPage';
 import CreatorToolsPage from './pages/CreatorToolsPage';
 import GuidelinesPage from './pages/GuidelinesPage';
 import ContactPage from './pages/ContactPage';
-import { MOCK_APPS } from './constants';
+import { backend } from './lib/backend';
+import { jamLocalStore } from './lib/jamLocalStore';
+import { FEATURE_FLAGS } from './constants';
 import { AppProject } from './types';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -86,7 +88,7 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
   );
 };
 
-const RevenueCarousel: React.FC<{ onSelect: (app: AppProject) => void }> = ({ onSelect }) => {
+const RevenueCarousel: React.FC<{ apps: AppProject[], onSelect: (app: AppProject) => void }> = ({ apps, onSelect }) => {
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'start',
     containScroll: 'trimSnaps',
@@ -129,11 +131,11 @@ const RevenueCarousel: React.FC<{ onSelect: (app: AppProject) => void }> = ({ on
   const scrollTo = useCallback((index: number) => emblaApi && emblaApi.scrollTo(index), [emblaApi]);
 
   const leaders = useMemo(() => {
-    return [...MOCK_APPS]
+    return apps
       .filter(a => a.stats.isRevenuePublic)
-      .sort((a, b) => parseFloat(b.stats.revenue.replace(/[^0-9.]/g, '')) - parseFloat(a.stats.revenue.replace(/[^0-9.]/g, '')))
+      .sort((a, b) => parseFloat(`${b.stats.revenue}`.replace(/[^0-9.]/g, '')) - parseFloat(`${a.stats.revenue}`.replace(/[^0-9.]/g, '')))
       .slice(0, 10);
-  }, []);
+  }, [apps]);
 
   return (
     <section className="earnings homepage-v4-segment bg-white overflow-hidden">
@@ -406,8 +408,41 @@ const FooterV4: React.FC<{ onNavigate?: (page: any) => void; onNavigateSubmitApp
   </footer>
 );
 
+// Helper to map JamDoc to AppProject
+const mapJamToAppProject = (jam: any): AppProject => ({
+  id: jam.id,
+  name: jam.name,
+  description: jam.description || jam.tagline || '',
+  category: jam.category,
+  icon: jam.media?.faviconUrl || '✨',
+  screenshot: jam.media?.heroImageUrl || '',
+  mediaType: 'image',
+  thumbnailUrl: jam.media?.heroImageUrl || '',
+  stats: {
+    revenue: jam.mrrBucket || '$0',
+    isRevenuePublic: jam.mrrVisibility === 'public',
+    growth: '+0%',
+    rank: jam.rank?.scoreTrending || 99,
+    upvotes: jam.stats?.upvotes || 0,
+    daysLive: jam.publishedAt ? Math.floor((Date.now() - new Date(jam.publishedAt).getTime()) / (1000 * 60 * 60 * 24)) : 0,
+    views: jam.stats?.views || 0,
+    bookmarks: jam.stats?.bookmarks || 0
+  },
+  creator: {
+    name: jam.creator_id ? 'Maker' : 'Maker', // We might need to fetch profile separately or use what's in JamDoc if expanded
+    avatar: '', // JamDoc might not have creator details if not expanded. backend.getJam calls jam-get which DOES expand creator.
+    type: jam.teamType === 'team' ? 'Team' : 'Solo Founder',
+    handle: '',
+    color: '#3b82f6'
+  },
+  stack: jam.techStack || [],
+  vibeTools: jam.vibeTools || [],
+  websiteUrl: jam.websiteUrl,
+  status: jam.status
+});
+
 const AppContent: React.FC = () => {
-  const { user: authUser, profile, loading: authLoading } = useAuth();
+  const { user: authUser, profile, loading: authLoading, signOut } = useAuth();
   const [selectedApp, setSelectedApp] = useState<AppProject | null>(null);
   const [selectedCreator, setSelectedCreator] = useState<AppProject['creator'] | null>(null);
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(false);
@@ -416,15 +451,110 @@ const AppContent: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<'home' | 'discover' | 'learn' | 'me' | 'creator-studio' | 'privacy' | 'terms' | 'cookie' | 'leaderboard' | 'creator-tools' | 'guidelines' | 'contact'>('home');
   const [isFirstTimeEarnDemo, setIsFirstTimeEarnDemo] = useState(false);
   const [returnToJam, setReturnToJam] = useState<AppProject | null>(null);
+  const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
+  const [discoveryApps, setDiscoveryApps] = useState<AppProject[]>([]);
+
+  // Deep Link Handling
+  useEffect(() => {
+    const handleDeepLink = async () => {
+      const path = window.location.pathname;
+      if (path.startsWith('/jam/')) {
+        const slug = path.split('/jam/')[1];
+        if (slug) {
+          // Extract ID from slug (format: name-id or just id)
+          // Just try the whole slug as ID first, or split by hyphen if standard format
+          let jamId = slug;
+          if (slug.includes('-')) {
+            const parts = slug.split('-');
+            jamId = parts[parts.length - 1];
+          }
+
+          try {
+            const { jam, ok } = await backend.getJam(jamId);
+            if (ok && jam) {
+              // We need to map JamDoc to AppProject. 
+              // Note: backend.getJam returns expanded creator profile usually? 
+              // Actually jam-get raw return includes creator join. 
+              // We'll trust the mapping holds or improve it.
+              const project = mapJamToAppProject(jam);
+              // Improve creator mapping if available in jam object (depends on backend expansion)
+              if ((jam as any).creator) {
+                const c = (jam as any).creator;
+                project.creator = {
+                  name: c.display_name || 'Maker',
+                  avatar: c.avatar_url || '',
+                  handle: c.handle || '',
+                  type: project.creator.type,
+                  color: '#3b82f6'
+                };
+              }
+              setSelectedApp(project);
+            }
+          } catch (e) {
+            console.warn("Deep link failed", e);
+          }
+        }
+      }
+    };
+    handleDeepLink();
+  }, []);
+
+  // Poll real discovery feed
+  useEffect(() => {
+    const loadFeed = async () => {
+      try {
+        const res = await backend.fetchDiscoverNewJams({ limit: 20 });
+        if (!res.error && res.data) {
+          const mapped = res.data.map(item => ({
+            id: item.id,
+            name: item.name,
+            description: item.tagline || '',
+            category: item.category,
+            icon: '✨',
+            screenshot: item.cover_image_url || '',
+            thumbnailUrl: item.cover_image_url || '',
+            mediaType: 'image',
+            stats: {
+              revenue: 'Prefer not to say',
+              isRevenuePublic: false,
+              growth: '+0%',
+              rank: 99,
+              upvotes: 0,
+              daysLive: 0,
+              views: 0,
+              bookmarks: 0
+            },
+            creator: {
+              name: item.display_name || 'Maker',
+              avatar: item.avatar_url || '',
+              handle: item.handle || '',
+              type: 'Solo Founder',
+              color: '#3b82f6'
+            },
+            stack: [],
+            vibeTools: [],
+            websiteUrl: '',
+            status: 'published'
+          } as AppProject));
+
+          setDiscoveryApps(mapped);
+        }
+      } catch (e) {
+        console.warn("Feed fetch error", e);
+      }
+    };
+    loadFeed();
+  }, [dashboardRefreshTrigger]);
 
   // Use the validated unified session user/profile
   const currentUser = useMemo(() => {
     if (authUser) {
       const userObj = {
-        name: profile?.display_name || authUser.name,
-        avatar: profile?.avatar_url || authUser.avatar,
-        handle: authUser.handle,
-        auraColor: '#C7D6EA'
+        name: profile?.display_name || authUser.user_metadata?.full_name || authUser.email || 'Maker',
+        avatar: profile?.avatar_url || authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture,
+        handle: profile?.handle ? `@${profile.handle}` : (authUser.email ? `@${authUser.email.split('@')[0]}` : '@user'),
+        auraColor: '#C7D6EA',
+        joinedDate: profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Jan 2026'
       };
       return userObj;
     }
@@ -474,68 +604,100 @@ const AppContent: React.FC = () => {
     }
   }, [currentUser]);
 
-  const renderHeader = () => (
-    <nav className={`fixed top-0 border-transparent left-0 right-0 z-50 transition-all duration-500 ${isScrolled || (currentPage !== 'home' && currentPage !== 'me' && currentPage !== 'creator-studio' && currentPage !== 'privacy' && currentPage !== 'terms' && currentPage !== 'cookie' && currentPage !== 'leaderboard' && currentPage !== 'creator-tools' && currentPage !== 'guidelines' && currentPage !== 'contact') ? 'glass-header py-3 md:py-4' : 'py-5 md:py-8'}`}>
-      <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between">
-        <div onClick={() => { setCurrentPage('home'); setSelectedCreator(null); setSelectedApp(null); window.scrollTo(0, 0); }} className="cursor-pointer">
-          <Logo />
-        </div>
+  const renderHeader = () => {
+    const avatarUrl = profile?.avatar_url || authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture;
+    const displayName = profile?.display_name || authUser?.user_metadata?.full_name || authUser?.email || 'Maker';
+    const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
-        <div className="hidden md:flex items-center gap-12">
-          <button
-            onClick={() => { setCurrentPage('discover'); setSelectedCreator(null); setSelectedApp(null); }}
-            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative group ${currentPage === 'discover' && !selectedCreator ? 'text-gray-900' : 'text-gray-400 hover:text-gray-900'}`}
-          >
-            Discover
-            <span className={`absolute -bottom-2 left-0 h-0.5 bg-blue-500 transition-all duration-500 ${currentPage === 'discover' && !selectedCreator ? 'w-full' : 'w-0 group-hover:w-full'}`} />
-          </button>
-          <button
-            onClick={() => { setCurrentPage('learn'); setSelectedCreator(null); setSelectedApp(null); }}
-            className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative group ${currentPage === 'learn' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-900'}`}
-          >
-            Learn
-            <span className={`absolute -bottom-2 left-0 h-0.5 bg-blue-500 transition-all duration-500 ${currentPage === 'learn' ? 'w-full' : 'w-0 group-hover:w-full'}`} />
-          </button>
-        </div>
+    return (
+      <nav className={`fixed top-0 border-transparent left-0 right-0 z-50 transition-all duration-500 ${isScrolled || (currentPage !== 'home' && currentPage !== 'me' && currentPage !== 'creator-studio' && currentPage !== 'privacy' && currentPage !== 'terms' && currentPage !== 'cookie' && currentPage !== 'leaderboard' && currentPage !== 'creator-tools' && currentPage !== 'guidelines' && currentPage !== 'contact') ? 'glass-header py-3 md:py-4' : 'py-5 md:py-8'}`}>
+        <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between">
+          <div onClick={() => { setCurrentPage('home'); setSelectedCreator(null); setSelectedApp(null); window.scrollTo(0, 0); }} className="cursor-pointer">
+            <Logo />
+          </div>
 
-        <div className="flex items-center gap-4 md:gap-6">
-          {currentUser ? (
-            <div className="flex items-center gap-3 md:gap-4">
-              <button
-                onClick={() => { setCurrentPage('creator-studio'); setSelectedCreator(null); setSelectedApp(null); }}
-                className={`text-[10px] font-black uppercase tracking-widest px-3 md:px-4 py-1.5 md:py-2 rounded-xl border transition-all ${currentPage === 'creator-studio' ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-400 border-gray-100 hover:text-gray-900'} hidden sm:block`}
-              >
-                Studio
-              </button>
-              <button
-                onClick={() => { setCurrentPage('me'); setSelectedCreator(null); setSelectedApp(null); }}
-                className="relative aura-clip group"
-              >
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-gray-100 p-0.5 bg-white relative z-10">
-                  <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full rounded-full object-cover" />
-                </div>
-                <div className="aura-halo" style={{ background: currentUser.auraColor, opacity: 0.2, inset: '-4px' }} />
-              </button>
-            </div>
-          ) : (
+          <div className="hidden md:flex items-center gap-12">
             <button
-              onClick={() => setIsAuthOpen(true)}
-              className="hidden sm:block text-[11px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-gray-900 font-bold"
+              onClick={() => { setCurrentPage('discover'); setSelectedCreator(null); setSelectedApp(null); }}
+              className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative group ${currentPage === 'discover' && !selectedCreator ? 'text-gray-900' : 'text-gray-400 hover:text-gray-900'}`}
             >
-              Sign In
+              Discover
+              <span className={`absolute -bottom-2 left-0 h-0.5 bg-blue-500 transition-all duration-500 ${currentPage === 'discover' && !selectedCreator ? 'w-full' : 'w-0 group-hover:w-full'}`} />
             </button>
-          )}
-          <button
-            onClick={handleOpenLaunchpad}
-            className="vibe-pill text-white text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] py-2 md:py-3 px-6 md:px-8 rounded-full shadow-2xl shadow-blue-500/20 active:scale-95 transition-all bg-blue-500"
-          >
-            <span className="md:inline hidden">Start Your Jam</span>
-            <span className="md:hidden">Launch</span>
-          </button>
+            <button
+              onClick={() => { setCurrentPage('learn'); setSelectedCreator(null); setSelectedApp(null); }}
+              className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative group ${currentPage === 'learn' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-900'}`}
+            >
+              Learn
+              <span className={`absolute -bottom-2 left-0 h-0.5 bg-blue-500 transition-all duration-500 ${currentPage === 'learn' ? 'w-full' : 'w-0 group-hover:w-full'}`} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-4 md:gap-6">
+            {authUser ? (
+              <div className="flex items-center gap-3 md:gap-4">
+                <button
+                  onClick={() => { setCurrentPage('creator-studio'); setSelectedCreator(null); setSelectedApp(null); }}
+                  className={`text-[10px] font-black uppercase tracking-widest px-3 md:px-4 py-1.5 md:py-2 rounded-xl border transition-all ${currentPage === 'creator-studio' ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-400 border-gray-100 hover:text-gray-900'} hidden sm:block`}
+                >
+                  Studio
+                </button>
+                <div className="relative group/user">
+                  <button
+                    onClick={() => { setCurrentPage('me'); setSelectedCreator(null); setSelectedApp(null); }}
+                    className="relative aura-clip group"
+                  >
+                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-gray-100 p-0.5 bg-white relative z-10 overflow-hidden flex items-center justify-center">
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt={displayName} className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        <span className="text-xs font-black text-gray-400">{initials}</span>
+                      )}
+                    </div>
+                    <div className="aura-halo" style={{ background: '#C7D6EA', opacity: 0.2, inset: '-4px' }} />
+                  </button>
+
+                  {/* Simple Dropdown for Logout */}
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-50 py-2 opacity-0 invisible group-hover/user:opacity-100 group-hover/user:visible transition-all">
+                    <button
+                      onClick={() => { setCurrentPage('me'); setSelectedCreator(null); setSelectedApp(null); }}
+                      className="w-full px-5 py-2.5 text-left text-[11px] font-bold text-gray-700 hover:bg-gray-50"
+                    >
+                      View Profile
+                    </button>
+                    <div className="h-px bg-gray-50 mx-2 my-1" />
+                    <button
+                      onClick={async () => {
+                        await signOut();
+                        setCurrentPage('home');
+                      }}
+                      className="w-full px-5 py-2.5 text-left text-[11px] font-bold text-red-500 hover:bg-red-50"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAuthOpen(true)}
+                className="hidden sm:block text-[11px] font-black uppercase tracking-[0.2em] text-gray-400 hover:text-gray-900 font-bold"
+              >
+                Sign In
+              </button>
+            )}
+            <button
+              onClick={handleOpenLaunchpad}
+              className="vibe-pill text-white text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] py-2 md:py-3 px-6 md:px-8 rounded-full shadow-2xl shadow-blue-500/20 active:scale-95 transition-all bg-blue-500"
+            >
+              <span className="md:inline hidden">Start Your Jam</span>
+              <span className="md:hidden">Launch</span>
+            </button>
+          </div>
         </div>
-      </div>
-    </nav>
-  );
+      </nav>
+    );
+  };
 
   const renderHomePageV4 = () => (
     <div className="homepage-v4 overflow-x-hidden">
@@ -564,51 +726,58 @@ const AppContent: React.FC = () => {
       <section className="homepage-v4-segment bg-white">
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <DiscoveryFeed
-            apps={MOCK_APPS}
+            apps={discoveryApps}
             onSelect={setSelectedApp}
             onCreatorClick={(creator) => handleOpenCreator(creator)}
-            customTitle="Top Jams Shipping Today"
+            customTitle="Top Jams Shipping This Week"
           />
         </div>
       </section>
 
-      <RevenueCarousel onSelect={setSelectedApp} />
+      <RevenueCarousel apps={discoveryApps} onSelect={setSelectedApp} />
 
-      <section className="homepage-v4-segment bg-white">
-        <div className="max-w-7xl mx-auto px-4 md:px-6">
-          <div className="premium-card rounded-[32px] md:rounded-[50px] p-8 md:p-24 overflow-hidden border-gray-100 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.03)]">
-            <div className="flex flex-col lg:flex-row items-center gap-12 md:gap-20 relative z-10">
-              <div className="flex-1 space-y-6 md:space-y-10 text-center lg:text-left">
-                <span className="inline-block px-4 md:px-5 py-2 rounded-full bg-blue-50/50 text-blue-500 text-[9px] md:text-[10px] font-black uppercase tracking-[0.3em] border border-blue-100/20">
-                  Founding Creator Spotlight
-                </span>
-                <h2 className="text-4xl md:text-7xl font-black text-gray-900 leading-[1.1] tracking-tighter">
-                  Crafting <span className="text-blue-500/80">Digital Poetry</span> with Elena Voss.
-                </h2>
-                <p className="text-gray-400 text-base md:text-xl leading-relaxed font-medium">
-                  Elena is the founder of Opal, a productivity tool that focuses on the soul of the work rather than just the checkboxes. Her philosophy on "Premium Restraint" has influenced an entire generation of indie makers.
-                </p>
-                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 md:gap-8 pt-4">
-                  <button className="vibe-pill text-white text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] py-4 md:py-5 px-8 md:px-10 rounded-full shadow-2xl shadow-blue-500/10 active:scale-95 transition-all bg-gray-900">Read Interview</button>
-                  <button
-                    onClick={() => {
-                      const elenaApp = MOCK_APPS.find(a => a.creator.name === 'Elena Voss');
-                      if (elenaApp) handleOpenCreator(elenaApp.creator, undefined, true);
-                    }}
-                    className="text-gray-400 text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] hover:text-gray-900 transition-colors font-bold">View Profile →</button>
+      {discoveryApps.length > 5 && (
+        <section className="homepage-v4-segment bg-white">
+          <div className="max-w-7xl mx-auto px-4 md:px-6">
+            <div className="premium-card rounded-[32px] md:rounded-[50px] p-8 md:p-24 overflow-hidden border-gray-100 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.03)]">
+              <div className="flex flex-col lg:flex-row items-center gap-12 md:gap-20 relative z-10">
+                <div className="flex-1 space-y-6 md:space-y-10 text-center lg:text-left">
+                  <span className="inline-block px-4 md:px-5 py-2 rounded-full bg-blue-50/50 text-blue-500 text-[9px] md:text-[10px] font-black uppercase tracking-[0.3em] border border-blue-100/20">
+                    Featured Jam
+                  </span>
+                  <h2 className="text-4xl md:text-7xl font-black text-gray-900 leading-[1.1] tracking-tighter">
+                    {discoveryApps[0]?.name} <span className="text-blue-500/80">is Live.</span>
+                  </h2>
+                  <p className="text-gray-400 text-base md:text-xl leading-relaxed font-medium">
+                    {discoveryApps[0]?.description}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 md:gap-8 pt-4">
+                    <button
+                      onClick={() => setSelectedApp(discoveryApps[0])}
+                      className="vibe-pill text-white text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] py-4 md:py-5 px-8 md:px-10 rounded-full shadow-2xl shadow-blue-500/10 active:scale-95 transition-all bg-gray-900"
+                    >
+                      View Jam
+                    </button>
+                    <button
+                      onClick={() => handleOpenCreator(discoveryApps[0].creator)}
+                      className="text-gray-400 text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] hover:text-gray-900 transition-colors font-bold"
+                    >
+                      View Maker Profile →
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex-1 w-full relative group">
-                <div className="relative aspect-[4/5] md:aspect-[4/5] rounded-[24px] md:rounded-[40px] overflow-hidden border-[1px] border-black/5 shadow-2xl">
-                  <img src="https://picsum.photos/seed/elena-spotlight/800/1000" className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 transition-all duration-700" alt="Elena Spotlight" />
+                <div className="flex-1 w-full relative group">
+                  <div className="relative aspect-[4/5] md:aspect-[4/5] rounded-[24px] md:rounded-[40px] overflow-hidden border-[1px] border-black/5 shadow-2xl">
+                    <img src={discoveryApps[0]?.screenshot} className="w-full h-full object-cover transition-all duration-700" alt="Spotlight" />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      <VibeCheckV4 />
+      {FEATURE_FLAGS.VITE_LAUNCH_MODE !== 'week1' && <VibeCheckV4 />}
       <FooterV4 onNavigate={(page) => { setCurrentPage(page); window.scrollTo(0, 0); }} onNavigateSubmitApp={handleOpenLaunchpad} />
     </div>
   );
@@ -679,10 +848,11 @@ const AppContent: React.FC = () => {
               handle: currentUser.handle,
               avatar: currentUser.avatar,
               auraColor: currentUser.auraColor,
-              creatorSince: 'Jan 2026'
+              creatorSince: currentUser.joinedDate
             }}
             onBack={() => setCurrentPage('home')}
             onStartJam={() => setIsLaunchpadOpen(true)}
+            refreshTrigger={dashboardRefreshTrigger}
           />
         )}
 
@@ -714,6 +884,13 @@ const AppContent: React.FC = () => {
       {isLaunchpadOpen && (
         <Launchpad
           onClose={() => setIsLaunchpadOpen(false)}
+          onOpenJam={(jam) => {
+            // Convert JamPublished (Launchpad type) to AppProject (App type)
+            // JamPublished is very similar to AppProject, but we should safely cast or map
+            // Actually Launchpad.tsx constructs previewJam as JamPublished which matches usage
+            setSelectedApp(jam as any);
+          }}
+          onPublishSuccess={() => setDashboardRefreshTrigger(p => p + 1)}
         />
       )}
 
