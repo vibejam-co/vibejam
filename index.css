@@ -1,5 +1,6 @@
-<<<<<<< HEAD
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: #000000;
@@ -25,8 +26,3 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-=======
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
->>>>>>> c13cbec (feat: resolve Jam launch issues and restore discovery feed)
