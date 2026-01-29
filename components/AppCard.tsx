@@ -33,6 +33,7 @@ const AppCard: React.FC<AppCardProps> = ({ project, onClick, onCreatorClick }) =
           background: `radial-gradient(circle at top right, ${project.creator.color}08 0%, transparent 70%)`
         }}
       />
+
       <div className="p-2">
         <div className="relative aspect-[16/10] rounded-[34px] overflow-hidden bg-gray-50 border border-gray-50">
           <img 
@@ -41,6 +42,7 @@ const AppCard: React.FC<AppCardProps> = ({ project, onClick, onCreatorClick }) =
             className="w-full h-full object-cover transition-transform duration-[1200ms] group-hover:scale-[1.03]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+          
           <div className="absolute top-5 left-5">
              <div className="px-4 py-2 rounded-2xl bg-white/90 backdrop-blur-xl border border-white/50 shadow-sm flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -49,6 +51,7 @@ const AppCard: React.FC<AppCardProps> = ({ project, onClick, onCreatorClick }) =
           </div>
         </div>
       </div>
+
       <div className="px-8 py-8 md:pb-10">
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-5">
@@ -79,9 +82,11 @@ const AppCard: React.FC<AppCardProps> = ({ project, onClick, onCreatorClick }) =
             <span className="text-[11px] font-black text-gray-500 mt-1.5">{project.stats.upvotes}</span>
           </button>
         </div>
+        
         <p className="text-gray-500 text-base leading-relaxed line-clamp-2 font-medium">
           {project.description}
         </p>
+
         <div className="mt-10 pt-8 border-t border-gray-50 flex items-center justify-between">
           <div 
             onClick={handleCreatorClick}
