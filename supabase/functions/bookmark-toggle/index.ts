@@ -13,38 +13,30 @@ Deno.serve(async (req) => {
             Deno.env.get('SUPABASE_ANON_KEY') ?? '',
             { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
         )
-        const { data: { user }, error: authError } = await authClient.auth.getUser()
-        if (authError || !user) throw new Error('Unauthorized')
+        const { data: { user } } = await authClient.auth.getUser()
+        if (!user) throw new Error('Unauthorized')
 
+        const { jamId } = await req.json()
+        
         const adminClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        const { jamId } = await req.json().catch(() => ({}))
-        if (!jamId) throw new Error('jamId required')
-
         const { data: existing } = await adminClient
-            .from('jam_upvotes')
+            .from('bookmarks')
             .select('*')
             .eq('user_id', user.id)
             .eq('jam_id', jamId)
             .single()
 
-        let isUpvoted = false
         if (existing) {
-            await adminClient.from('jam_upvotes').delete().eq('user_id', user.id).eq('jam_id', jamId)
+            await adminClient.from('bookmarks').delete().eq('user_id', user.id).eq('jam_id', jamId)
         } else {
-            await adminClient.from('jam_upvotes').insert({ user_id: user.id, jam_id: jamId })
-            isUpvoted = true
+            await adminClient.from('bookmarks').insert({ user_id: user.id, jam_id: jamId })
         }
 
-        const { count } = await adminClient
-            .from('jam_upvotes')
-            .select('*', { count: 'exact', head: true })
-            .eq('jam_id', jamId)
-
-        return standardResponse({ ok: true, isUpvoted, upvotes: count })
+        return standardResponse({ ok: true, isBookmarked: !existing })
     } catch (error) {
         return standardResponse(normalizeError(error), 400)
     }
