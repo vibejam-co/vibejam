@@ -1,228 +1,287 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VibeJam v12.2 — Vibrant Clarity</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --aura-genesis: #E6C89A;
-            --aura-editorial: #C7D6EA;
-            --aura-impact: #A9D6C2;
-            --aura-craft: #C8C2D8;
-            --section-pad-y: 56px;
-            --radius-xl: 40px;
-            --shadow-soft: 0 18px 60px rgba(0,0,0,.08);
-            --border-soft: 1px solid rgba(15, 23, 42, 0.06);
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VibeJam v12.2 — Vibrant Clarity</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --aura-genesis: #E6C89A;
+      --aura-editorial: #C7D6EA;
+      --aura-impact: #A9D6C2;
+      --aura-craft: #C8C2D8;
+      --section-pad-y: 56px;
+      --radius-xl: 40px;
+      --shadow-soft: 0 18px 60px rgba(0, 0, 0, .08);
+      --border-soft: 1px solid rgba(15, 23, 42, 0.06);
 
-            /* Hover Card Invariants */
-            --vj-hover-z: 9999;
-            --vj-hover-card-w: 280px;
-            --vj-hover-card-radius: 16px;
-            --vj-hover-bg: #ffffff;
-            --vj-hover-fg: #0b0f1a;
-            --vj-hover-muted: rgba(11, 15, 26, 0.56);
-            --vj-hover-border: rgba(11, 15, 26, 0.08);
-            --vj-hover-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-            --vj-hover-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-            --vj-hover-in-ms: 140ms;
-            --vj-hover-out-ms: 120ms;
-            --vj-hover-scale-from: 0.985;
-            --vj-hover-avatar: 44px;
-            --vj-hover-gap: 12px;
-            --vj-aura-max-blur: 14px;
-            --vj-aura-max-opacity: 0.20;
-        }
+      /* Hover Card Invariants */
+      --vj-hover-z: 9999;
+      --vj-hover-card-w: 280px;
+      --vj-hover-card-radius: 16px;
+      --vj-hover-bg: #ffffff;
+      --vj-hover-fg: #0b0f1a;
+      --vj-hover-muted: rgba(11, 15, 26, 0.56);
+      --vj-hover-border: rgba(11, 15, 26, 0.08);
+      --vj-hover-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+      --vj-hover-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+      --vj-hover-in-ms: 140ms;
+      --vj-hover-out-ms: 120ms;
+      --vj-hover-scale-from: 0.985;
+      --vj-hover-avatar: 44px;
+      --vj-hover-gap: 12px;
+      --vj-aura-max-blur: 14px;
+      --vj-aura-max-opacity: 0.20;
+    }
 
-        /* 0) Global Invariant: Layout Stability */
-        html { text-rendering: geometricPrecision; scroll-behavior: smooth; }
-        body { 
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          background-color: #FFFFFF;
-          color: #1a1a1a;
-          overflow-x: hidden;
-          font-synthesis: none;
-        }
+    /* 0) Global Invariant: Layout Stability */
+    html {
+      text-rendering: geometricPrecision;
+      scroll-behavior: smooth;
+    }
 
-        /* 1) Aura Safety Contract & Patch: Universal Safe Avatar Shell */
-        .aura-clip, .avatar-shell {
-          position: relative;
-          border-radius: 9999px !important;
-          overflow: hidden !important; 
-          isolation: isolate;
-          background: transparent !important;
-          transform: translateZ(0);
-        }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #FFFFFF;
+      color: #1a1a1a;
+      overflow-x: hidden;
+      font-synthesis: none;
+    }
 
-        .aura-layer, .aura-glow, .aura-halo, .vj-aura {
-          position: absolute;
-          inset: -18%;
-          border-radius: inherit;
-          pointer-events: none !important;
-          user-select: none !important;
-          z-index: 0;
-          contain: paint;
-          filter: blur(14px);
-          opacity: 0.35;
-          transform: translateZ(0);
-          background-color: transparent !important;
-          box-shadow: none !important;
-        }
+    /* 1) Aura Safety Contract & Patch: Universal Safe Avatar Shell */
+    .aura-clip,
+    .avatar-shell {
+      position: relative;
+      border-radius: 9999px !important;
+      overflow: hidden !important;
+      isolation: isolate;
+      background: transparent !important;
+      transform: translateZ(0);
+    }
 
-        /* Micro-shine sweep — Tier-Differentiated & Session-Guarded */
-        @keyframes vj-seal-shine-sweep {
-          0%   { transform: translateX(-120%) rotate(14deg); opacity: 0; }
-          18%  { opacity: 0; }
-          38%  { opacity: var(--vj-shine-peak, 0.18); }
-          62%  { opacity: var(--vj-shine-peak, 0.18); }
-          82%  { opacity: 0; }
-          100% { transform: translateX(120%) rotate(14deg); opacity: 0; }
-        }
+    .aura-layer,
+    .aura-glow,
+    .aura-halo,
+    .vj-aura {
+      position: absolute;
+      inset: -18%;
+      border-radius: inherit;
+      pointer-events: none !important;
+      user-select: none !important;
+      z-index: 0;
+      contain: paint;
+      filter: blur(14px);
+      opacity: 0.35;
+      transform: translateZ(0);
+      background-color: transparent !important;
+      box-shadow: none !important;
+    }
 
-        /* Tier 10 “Settle” — physical tighten then release */
-        @keyframes vj-seal-settle {
-          0%   { transform: translateZ(0) scale(1); }
-          40%  { transform: translateZ(0) scale(0.988); }
-          100% { transform: translateZ(0) scale(1); }
-        }
+    /* Micro-shine sweep — Tier-Differentiated & Session-Guarded */
+    @keyframes vj-seal-shine-sweep {
+      0% {
+        transform: translateX(-120%) rotate(14deg);
+        opacity: 0;
+      }
 
-        .vj-seal-shine {
-          position: absolute;
-          inset: 0;
-          border-radius: inherit;
-          pointer-events: none;
-          overflow: hidden;
-          contain: paint;
-          z-index: 5;
-        }
+      18% {
+        opacity: 0;
+      }
 
-        .vj-seal-shine::before {
-          content: "";
-          position: absolute;
-          top: -40%;
-          bottom: -40%;
-          width: var(--vj-shine-width, 45%);
-          left: -60%;
-          opacity: 0;
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255,255,255,0.0) 25%,
-            rgba(255,255,255,0.55) 50%,
-            rgba(255,255,255,0.0) 75%,
-            transparent 100%
-          );
-          transform: translateX(-120%) rotate(14deg);
-          filter: blur(0.2px);
-        }
+      38% {
+        opacity: var(--vj-shine-peak, 0.18);
+      }
 
-        .vj-seal-shine[data-shine="on"]::before {
-          animation: vj-seal-shine-sweep var(--vj-shine-ms, 600ms) cubic-bezier(0.2, 0.8, 0.2, 1) 1 forwards;
-        }
+      62% {
+        opacity: var(--vj-shine-peak, 0.18);
+      }
 
-        .vj-seal-body[data-settle="on"] {
-          animation: vj-seal-settle 240ms cubic-bezier(0.2, 0.9, 0.2, 1) 1 forwards;
-        }
+      82% {
+        opacity: 0;
+      }
 
-        /* Tier modifiers */
-        .vj-seal-shine[data-tier="10"] {
-          --vj-shine-width: 52%;
-          --vj-shine-peak: 0.16;
-          --vj-shine-ms: 600ms;
-        }
-        .vj-seal-shine[data-tier="10"]::before {
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255,255,255,0.0) 28%,
-            rgba(255,255,255,0.62) 50%,
-            rgba(255,255,255,0.0) 72%,
-            transparent 100%
-          );
-          filter: blur(0.35px);
-        }
+      100% {
+        transform: translateX(120%) rotate(14deg);
+        opacity: 0;
+      }
+    }
 
-        .vj-seal-shine[data-tier="9"] {
-          --vj-shine-width: 44%;
-          --vj-shine-peak: 0.19;
-          --vj-shine-ms: 560ms;
-        }
-        .vj-seal-shine[data-tier="9"]::before {
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255,255,255,0.0) 22%,
-            rgba(255,255,255,0.58) 50%,
-            rgba(255,255,255,0.0) 78%,
-            transparent 100%
-          );
-          filter: blur(0.15px);
-        }
+    /* Tier 10 “Settle” — physical tighten then release */
+    @keyframes vj-seal-settle {
+      0% {
+        transform: translateZ(0) scale(1);
+      }
 
-        /* 2) Hover Card Styling (Invariants) */
-        [data-vj-hover-card] {
-          position: fixed;
-          z-index: var(--vj-hover-z);
-          width: var(--vj-hover-card-w);
-          background: var(--vj-hover-bg);
-          border: 1px solid var(--vj-hover-border);
-          border-radius: var(--vj-hover-card-radius);
-          box-shadow: var(--vj-hover-shadow);
-          contain: layout paint style;
-          isolation: isolate;
-          pointer-events: auto;
-          overflow: hidden;
-          opacity: 0;
-          transform: scale(var(--vj-hover-scale-from));
-          transition: opacity var(--vj-hover-out-ms) var(--vj-hover-ease), transform var(--vj-hover-out-ms) var(--vj-hover-ease);
-        }
+      40% {
+        transform: translateZ(0) scale(0.988);
+      }
 
-        [data-vj-hover-card][data-state="open"] {
-          opacity: 1;
-          transform: scale(1);
-          transition: opacity var(--vj-hover-in-ms) var(--vj-hover-ease), transform var(--vj-hover-in-ms) var(--vj-hover-ease);
-        }
+      100% {
+        transform: translateZ(0) scale(1);
+      }
+    }
 
-        /* Reduced motion = no shine/settle */
-        @media (prefers-reduced-motion: reduce) {
-          .aura-layer, .vj-aura, .vj-seal-shine[data-shine="on"]::before, .vj-seal-body[data-settle="on"] {
-            transition: none !important;
-            animation: none !important;
-            transform: none !important;
-            opacity: 0 !important;
-          }
-        }
+    .vj-seal-shine {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      overflow: hidden;
+      contain: paint;
+      z-index: 5;
+    }
 
-        .homepage-v4-segment { padding: var(--section-pad-y) 0; }
-        .vibe-ambient-bg { position: fixed; inset: 0; z-index: -1; background: radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.03) 0%, transparent 40%), radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.03) 0%, transparent 40%), #FFFFFF; }
-        .glass-header { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); border-bottom: 0.5px solid rgba(0,0,0,0.05); }
-        .premium-card { background: #FFFFFF; border: var(--border-soft); box-shadow: 0 4px 20px -2px rgba(0,0,0,0.02); transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1); overflow: hidden; position: relative; }
-        .embla { overflow: hidden; touch-action: pan-y; }
-        .embla__container { display: flex; user-select: none; margin-left: -1rem; }
-        .embla__slide { flex: 0 0 100%; min-width: 0; padding-left: 1rem; }
-    </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "embla-carousel-react": "https://esm.sh/embla-carousel-react@8.5.2?external=react",
-    "@google/genai": "https://esm.sh/@google/genai@1.3.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "next/": "https://esm.sh/next@^16.1.4/"
-  }
-}
-</script>
+    .vj-seal-shine::before {
+      content: "";
+      position: absolute;
+      top: -40%;
+      bottom: -40%;
+      width: var(--vj-shine-width, 45%);
+      left: -60%;
+      opacity: 0;
+      background: linear-gradient(90deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.0) 25%,
+          rgba(255, 255, 255, 0.55) 50%,
+          rgba(255, 255, 255, 0.0) 75%,
+          transparent 100%);
+      transform: translateX(-120%) rotate(14deg);
+      filter: blur(0.2px);
+    }
+
+    .vj-seal-shine[data-shine="on"]::before {
+      animation: vj-seal-shine-sweep var(--vj-shine-ms, 600ms) cubic-bezier(0.2, 0.8, 0.2, 1) 1 forwards;
+    }
+
+    .vj-seal-body[data-settle="on"] {
+      animation: vj-seal-settle 240ms cubic-bezier(0.2, 0.9, 0.2, 1) 1 forwards;
+    }
+
+    /* Tier modifiers */
+    .vj-seal-shine[data-tier="10"] {
+      --vj-shine-width: 52%;
+      --vj-shine-peak: 0.16;
+      --vj-shine-ms: 600ms;
+    }
+
+    .vj-seal-shine[data-tier="10"]::before {
+      background: linear-gradient(90deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.0) 28%,
+          rgba(255, 255, 255, 0.62) 50%,
+          rgba(255, 255, 255, 0.0) 72%,
+          transparent 100%);
+      filter: blur(0.35px);
+    }
+
+    .vj-seal-shine[data-tier="9"] {
+      --vj-shine-width: 44%;
+      --vj-shine-peak: 0.19;
+      --vj-shine-ms: 560ms;
+    }
+
+    .vj-seal-shine[data-tier="9"]::before {
+      background: linear-gradient(90deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.0) 22%,
+          rgba(255, 255, 255, 0.58) 50%,
+          rgba(255, 255, 255, 0.0) 78%,
+          transparent 100%);
+      filter: blur(0.15px);
+    }
+
+    /* 2) Hover Card Styling (Invariants) */
+    [data-vj-hover-card] {
+      position: fixed;
+      z-index: var(--vj-hover-z);
+      width: var(--vj-hover-card-w);
+      background: var(--vj-hover-bg);
+      border: 1px solid var(--vj-hover-border);
+      border-radius: var(--vj-hover-card-radius);
+      box-shadow: var(--vj-hover-shadow);
+      contain: layout paint style;
+      isolation: isolate;
+      pointer-events: auto;
+      overflow: hidden;
+      opacity: 0;
+      transform: scale(var(--vj-hover-scale-from));
+      transition: opacity var(--vj-hover-out-ms) var(--vj-hover-ease), transform var(--vj-hover-out-ms) var(--vj-hover-ease);
+    }
+
+    [data-vj-hover-card][data-state="open"] {
+      opacity: 1;
+      transform: scale(1);
+      transition: opacity var(--vj-hover-in-ms) var(--vj-hover-ease), transform var(--vj-hover-in-ms) var(--vj-hover-ease);
+    }
+
+    /* Reduced motion = no shine/settle */
+    @media (prefers-reduced-motion: reduce) {
+
+      .aura-layer,
+      .vj-aura,
+      .vj-seal-shine[data-shine="on"]::before,
+      .vj-seal-body[data-settle="on"] {
+        transition: none !important;
+        animation: none !important;
+        transform: none !important;
+        opacity: 0 !important;
+      }
+    }
+
+    .homepage-v4-segment {
+      padding: var(--section-pad-y) 0;
+    }
+
+    .vibe-ambient-bg {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: radial-gradient(circle at 0% 0%, rgba(59, 130, 246, 0.03) 0%, transparent 40%), radial-gradient(circle at 100% 100%, rgba(139, 92, 246, 0.03) 0%, transparent 40%), #FFFFFF;
+    }
+
+    .glass-header {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 0.5px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .premium-card {
+      background: #FFFFFF;
+      border: var(--border-soft);
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.02);
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .embla {
+      overflow: hidden;
+      touch-action: pan-y;
+    }
+
+    .embla__container {
+      display: flex;
+      user-select: none;
+      margin-left: -1rem;
+    }
+
+    .embla__slide {
+      flex: 0 0 100%;
+      min-width: 0;
+      padding-left: 1rem;
+    }
+  </style>
 </head>
+
 <body class="antialiased">
-    <div class="vibe-ambient-bg"></div>
-    <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
+  <div class="vibe-ambient-bg"></div>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
 </body>
+
 </html>
