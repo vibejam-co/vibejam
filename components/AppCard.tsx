@@ -65,6 +65,12 @@ const AppCard: React.FC<AppCardProps> = ({ project, onClick, onCreatorClick }) =
               <h3 className="font-bold text-2xl text-gray-900 tracking-tight leading-none mb-2 group-hover:text-blue-600 transition-colors">{project.name}</h3>
               <div className="flex items-center gap-3">
                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{project.category}</span>
+                 {project.proofUrl && (
+                   <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-50 via-white to-emerald-50 text-[8px] font-black text-emerald-700 border border-emerald-100 uppercase tracking-widest inline-flex items-center gap-1">
+                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                     Verified
+                   </span>
+                 )}
                  {parseFloat(project.stats.revenue.replace(/[^0-9.]/g, '')) > 0 && (
                    <>
                     <span className="w-1 h-1 rounded-full bg-gray-200" />
@@ -86,6 +92,16 @@ const AppCard: React.FC<AppCardProps> = ({ project, onClick, onCreatorClick }) =
         <p className="text-gray-500 text-base leading-relaxed line-clamp-2 font-medium">
           {project.description}
         </p>
+
+        {project.stack?.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {project.stack.slice(0, 3).map((t) => (
+              <span key={t} className="px-2.5 py-1 rounded-lg bg-gray-50 text-[9px] font-black text-gray-600 border border-gray-100 uppercase tracking-widest">
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
 
         <div className="mt-10 pt-8 border-t border-gray-50 flex items-center justify-between">
           <div 

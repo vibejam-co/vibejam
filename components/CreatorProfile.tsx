@@ -42,6 +42,8 @@ const CreatorProfile: React.FC<CreatorProfileProps> = ({ creator: initialCreator
   const [showRipple, setShowRipple] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [viewingList, setViewingList] = useState<'followers' | 'following' | null>(null);
+  const [listUsers, setListUsers] = useState<any[]>([]);
+  const [listLoading, setListLoading] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const { count: bookmarkCount } = useBookmarks();
 
@@ -82,13 +84,14 @@ const CreatorProfile: React.FC<CreatorProfileProps> = ({ creator: initialCreator
         name: j.name,
         description: j.tagline,
         category: j.category,
+        proofUrl: j.socials?.proof_url || j.socials?.proofUrl,
         screenshot: j.cover_image_url || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop',
         mediaType: 'image',
         thumbnailUrl: j.cover_image_url,
         stats: { revenue: '$0', isRevenuePublic: true, growth: '0%', rank: 0, upvotes: 0, daysLive: 0 },
         creator: profileData,
-        stack: [],
-        vibeTools: []
+        stack: j.tech_stack || [],
+        vibeTools: j.vibe_tools || []
       }));
       setProducts(mappedJams);
 
@@ -112,14 +115,27 @@ const CreatorProfile: React.FC<CreatorProfileProps> = ({ creator: initialCreator
 
         // Check if I am following this user
         if (user && !isMe) {
-          const { count } = await supabase.from('follows').select('*', { count: 'exact', head: true })
-            .eq('follower_id', user.id).eq('following_id', dbProfile.id);
-          setIsFollowing(!!count);
+          const res = await backend.getFollowStatus({ targetId: dbProfile.id });
+          setIsFollowing(!!res?.isFollowing);
         }
       }
     };
     loadRealData();
   }, [profileData.handle, user, isMe]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadList = async () => {
+      if (!viewingList) return;
+      setListLoading(true);
+      const res = await backend.listFollows({ handle: profileData.handle, kind: viewingList });
+      if (cancelled) return;
+      setListUsers(res.items || []);
+      setListLoading(false);
+    };
+    loadList();
+    return () => { cancelled = true; };
+  }, [viewingList, profileData.handle]);
 
   const handleEditSave = async () => {
     if (!user) return;
@@ -326,19 +342,14 @@ const CreatorProfile: React.FC<CreatorProfileProps> = ({ creator: initialCreator
               {!isMe && (
                 <button
                   onClick={async () => {
-                    // Toggle follow logic (optimistic)
-                    setIsFollowing(!isFollowing);
-                    // Call backend...
                     if (!user) return;
                     try {
-                      const targetId = (await supabase.from('profiles').select('id').eq('handle', profileData.handle.replace('@', '')).single()).data?.id;
-                      if (!targetId) return;
-                      if (!isFollowing) {
-                        await supabase.from('follows').insert({ follower_id: user.id, following_id: targetId });
-                        setStats(s => ({ ...s, followers: s.followers + 1 }));
-                      } else {
-                        await supabase.from('follows').delete().match({ follower_id: user.id, following_id: targetId });
-                        setStats(s => ({ ...s, followers: s.followers - 1 }));
+                      const res = await backend.toggleFollow({ handle: profileData.handle });
+                      if (res?.ok) {
+                        setIsFollowing(!!res.isFollowing);
+                        if (typeof res.followersCount === 'number') {
+                          setStats(s => ({ ...s, followers: res.followersCount || 0 }));
+                        }
                       }
                     } catch (e) { console.error(e); }
                   }}
@@ -349,9 +360,9 @@ const CreatorProfile: React.FC<CreatorProfileProps> = ({ creator: initialCreator
               )}
 
               <div className="flex items-center gap-12">
-                <MetricItem label="Followers" value={stats.followers.toString()} />
+                <MetricItem label="Followers" value={stats.followers.toString()} onClick={() => setViewingList('followers')} />
                 <div className="w-px h-6 bg-gray-100" />
-                <MetricItem label="Following" value={stats.following.toString()} />
+                <MetricItem label="Following" value={stats.following.toString()} onClick={() => setViewingList('following')} />
                 <div className="w-px h-6 bg-gray-100" />
                 <MetricItem label="Bookmarks" value={stats.bookmarks.toString()} onClick={() => setShowBookmarks(true)} />
               </div>
@@ -399,6 +410,35 @@ const CreatorProfile: React.FC<CreatorProfileProps> = ({ creator: initialCreator
           onDiscover={() => {
             setShowBookmarks(false);
             onClose();
+          }}
+        />
+      )}
+
+      {viewingList && (
+        <SocialListPanel
+          title={viewingList === 'followers' ? 'Followers' : 'Following'}
+          count={viewingList === 'followers' ? stats.followers.toString() : stats.following.toString()}
+          users={listUsers}
+          onClose={() => setViewingList(null)}
+          onSelectUser={(user) => {
+            setViewingList(null);
+            onClose();
+          }}
+          loading={listLoading}
+          isLoggedIn={!!user}
+          onToggleFollow={async (u) => {
+            if (!user) return;
+            const res = await backend.toggleFollow({ handle: u.handle });
+            if (res?.ok) {
+              setListUsers(prev => prev.map(p => p.id === u.id ? { ...p, isFollowing: res.isFollowing } : p));
+              if (viewingList === 'followers' && typeof res.followersCount === 'number') {
+                setStats(s => ({ ...s, followers: res.followersCount || 0 }));
+              }
+              if (viewingList === 'following' && !res.isFollowing) {
+                setListUsers(prev => prev.filter(p => p.id !== u.id));
+                setStats(s => ({ ...s, following: Math.max(0, s.following - 1) }));
+              }
+            }
           }}
         />
       )}

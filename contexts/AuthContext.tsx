@@ -149,35 +149,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('%c[Auth] Initializing authentication (REAL mode)...', 'color: #3ecf8e; font-weight: bold;');
 
     const initializeAuth = async () => {
-      // 1. Check for tokens in URL (Implicit Flow) - Manual Handling
-      const hash = window.location.hash;
-      if (hash && hash.includes('access_token')) {
-        console.log('[Auth] Detected tokens in URL, attempting manual session set...');
-        try {
-          const params = new URLSearchParams(hash.substring(1));
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
-
-          if (accessToken && refreshToken) {
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (error) throw error;
-            if (data.session) {
-              await handleAuthState(data.session, 'MANUAL_URL_Hydration');
-              window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
-              return;
-            }
-          }
-        } catch (e) {
-          console.error('[Auth] Manual session set failed:', e);
-        }
-      }
-
-      // 2. Standard session check
+      // Standard session check + validate token
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (currentSession) {
+          const { error: userError } = await supabase.auth.getUser();
+          if (userError) {
+            console.warn('[Auth] Invalid session detected, signing out...', userError.message);
+            await supabase.auth.signOut();
+            await handleAuthState(null, 'INVALID_SESSION');
+            return;
+          }
+        }
         await handleAuthState(currentSession, 'INITIAL_SESSION');
       } catch (e) {
         console.error('[Auth] Session check failed:', e);

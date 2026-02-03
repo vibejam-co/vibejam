@@ -7,6 +7,7 @@ import AppCard from './AppCard';
 import { useAuth } from '../contexts/AuthContext';
 import { useBookmarks } from '../lib/useBookmarks';
 import { supabase } from '../lib/supabaseClient';
+import { backend } from '../lib/backend';
 
 interface UserDashboardProps {
   onBack: () => void;
@@ -18,6 +19,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
   const { user: authUser, profile, loading: authLoading, signOut, refreshProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'bookmarks'>('overview');
   const [viewingList, setViewingList] = useState<'followers' | 'following' | null>(null);
+  const [listUsers, setListUsers] = useState<any[]>([]);
+  const [listLoading, setListLoading] = useState(false);
   const { bookmarks, count: bookmarkCount } = useBookmarks() as any;
 
   // Edit State
@@ -33,6 +36,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
     upvotes: 0,
     comments: 0
   });
+  const [notifSettings, setNotifSettings] = useState<{ notify_follow: boolean; notify_comment: boolean; notify_reply: boolean } | null>(null);
+  const [notifLoading, setNotifLoading] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -74,6 +79,35 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
 
     fetchStats();
   }, [authUser, bookmarkCount]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSettings = async () => {
+      if (!authUser) return;
+      setNotifLoading(true);
+      const res = await backend.getNotificationSettings();
+      if (!cancelled) {
+        setNotifSettings(res.settings || { notify_follow: true, notify_comment: true, notify_reply: true });
+        setNotifLoading(false);
+      }
+    };
+    loadSettings();
+    return () => { cancelled = true; };
+  }, [authUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadList = async () => {
+      if (!authUser || !viewingList) return;
+      setListLoading(true);
+      const res = await backend.listFollows({ targetId: authUser.id, kind: viewingList });
+      if (cancelled) return;
+      setListUsers(res.items || []);
+      setListLoading(false);
+    };
+    loadList();
+    return () => { cancelled = true; };
+  }, [authUser, viewingList]);
 
   const handleEditSave = async () => {
     if (!authUser) return;
@@ -305,6 +339,41 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
                 )}
               </div>
             </section>
+
+            <section className="mb-20">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-black text-gray-900 tracking-tight">Notifications</h3>
+                  <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest mt-1">Control what pings you</p>
+                </div>
+                {notifLoading && <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Loading…</span>}
+              </div>
+              {notifSettings && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { key: 'notify_follow', label: 'Follows' },
+                    { key: 'notify_comment', label: 'Comments' },
+                    { key: 'notify_reply', label: 'Replies' }
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      onClick={async () => {
+                        if (!notifSettings) return;
+                        const next = { ...notifSettings, [item.key]: !notifSettings[item.key as keyof typeof notifSettings] } as any;
+                        setNotifSettings(next);
+                        await backend.updateNotificationSettings(next);
+                      }}
+                      className={`flex items-center justify-between px-4 py-3 rounded-2xl border text-[11px] font-black uppercase tracking-widest transition-all ${notifSettings[item.key as keyof typeof notifSettings] ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'}`}
+                    >
+                      {item.label}
+                      <span className={`w-10 h-5 rounded-full p-0.5 flex items-center ${notifSettings[item.key as keyof typeof notifSettings] ? 'bg-blue-500 justify-end' : 'bg-gray-200 justify-start'}`}>
+                        <span className="w-4 h-4 rounded-full bg-white shadow" />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -372,9 +441,24 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
           <SocialListPanel
             title={viewingList === 'followers' ? 'Followers' : 'Following'}
             count={viewingList === 'followers' ? stats.followers.toString() : stats.following.toString()}
-            users={[]}
+            users={listUsers}
             onClose={() => setViewingList(null)}
             onSelectUser={() => setViewingList(null)}
+            loading={listLoading}
+            isLoggedIn={!!authUser}
+            onToggleFollow={async (user) => {
+              if (!authUser) return;
+              const res = await backend.toggleFollow({ handle: user.handle });
+              if (res?.ok) {
+                setListUsers(prev => prev.map(u => u.id === user.id ? { ...u, isFollowing: res.isFollowing } : u));
+                if (viewingList === 'following') {
+                  if (!res.isFollowing) {
+                    setListUsers(prev => prev.filter(u => u.id !== user.id));
+                    setStats(s => ({ ...s, following: Math.max(0, s.following - 1) }));
+                  }
+                }
+              }
+            }}
           />
         )}
       </div>

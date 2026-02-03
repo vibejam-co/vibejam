@@ -29,9 +29,11 @@ export interface Badge {
 // Legacy AppProject for compatibility, adapting to new schema where possible
 export interface AppProject {
   id: string;
+  slug?: string;
   name: string;
   description: string; // Mapped from tagline or description
   category: string;
+  proofUrl?: string;
   icon?: string; // Mapped from faviconUrl or derived
   screenshot: string; // Mapped from heroImageUrl
   mediaType: 'image' | 'video';

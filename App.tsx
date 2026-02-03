@@ -1,9 +1,8 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import Logo from './components/Logo';
 import AppCard from './components/AppCard';
-import AppView from './components/AppView';
 import Launchpad from './components/Launchpad';
 import DiscoveryPage from './components/DiscoveryPage';
 import DiscoveryFeed from './components/DiscoveryFeed';
@@ -18,10 +17,15 @@ import CreatorToolsPage from './pages/CreatorToolsPage';
 import GuidelinesPage from './pages/GuidelinesPage';
 import ContactPage from './pages/ContactPage';
 import { backend } from './lib/backend';
-import { jamLocalStore } from './lib/jamLocalStore';
+import { getJamSlug, mapJamToAppProject } from './lib/jamMapping';
 import { FEATURE_FLAGS } from './constants';
 import { AppProject } from './types';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { supabase } from './lib/supabaseClient';
+import JamPageV2 from './components/jam/JamPageV2';
+import CreatorPageV2 from './components/creator/CreatorPageV2';
+
+const USE_CREATOR_V2 = true;
 
 const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { signInWithGoogle } = useAuth();
@@ -408,96 +412,199 @@ const FooterV4: React.FC<{ onNavigate?: (page: any) => void; onNavigateSubmitApp
   </footer>
 );
 
-// Helper to map JamDoc to AppProject
-const mapJamToAppProject = (jam: any): AppProject => ({
-  id: jam.id,
-  name: jam.name,
-  description: jam.description || jam.tagline || '',
-  category: jam.category,
-  icon: jam.media?.faviconUrl || '✨',
-  screenshot: jam.media?.heroImageUrl || '',
-  mediaType: 'image',
-  thumbnailUrl: jam.media?.heroImageUrl || '',
-  stats: {
-    revenue: jam.mrrBucket || '$0',
-    isRevenuePublic: jam.mrrVisibility === 'public',
-    growth: '+0%',
-    rank: jam.rank?.scoreTrending || 99,
-    upvotes: jam.stats?.upvotes || 0,
-    daysLive: jam.publishedAt ? Math.floor((Date.now() - new Date(jam.publishedAt).getTime()) / (1000 * 60 * 60 * 24)) : 0,
-    views: jam.stats?.views || 0,
-    bookmarks: jam.stats?.bookmarks || 0
-  },
-  creator: {
-    name: jam.creator_id ? 'Maker' : 'Maker', // We might need to fetch profile separately or use what's in JamDoc if expanded
-    avatar: '', // JamDoc might not have creator details if not expanded. backend.getJam calls jam-get which DOES expand creator.
-    type: jam.teamType === 'team' ? 'Team' : 'Solo Founder',
-    handle: '',
-    color: '#3b82f6'
-  },
-  stack: jam.techStack || [],
-  vibeTools: jam.vibeTools || [],
-  websiteUrl: jam.websiteUrl,
-  status: jam.status
-});
+const resolveJamPageVersion = (search: string): 'v1' | 'v2' => {
+  const params = new URLSearchParams(search);
+  const v = params.get('v');
+  if (v === '1') return 'v1' as const;
+  return 'v2';
+};
+
+const buildSearchWithVersion = (search: string, version: 'v1' | 'v2') => {
+  const params = new URLSearchParams(search);
+  if (version === 'v2') {
+    params.set('v', '2');
+  } else {
+    params.delete('v');
+  }
+  const query = params.toString();
+  return query ? `?${query}` : '';
+};
+
+const buildSearchWithoutVersion = (search: string) => {
+  const params = new URLSearchParams(search);
+  params.delete('v');
+  const query = params.toString();
+  return query ? `?${query}` : '';
+};
 
 const AppContent: React.FC = () => {
   const { user: authUser, profile, loading: authLoading, signOut } = useAuth();
+  const debugEnabled = typeof window !== 'undefined' && window.location.search.includes('debug=1');
+  const [debugAuth, setDebugAuth] = useState<any | null>(null);
   const [selectedApp, setSelectedApp] = useState<AppProject | null>(null);
   const [selectedCreator, setSelectedCreator] = useState<AppProject['creator'] | null>(null);
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(false);
+  const [editingJam, setEditingJam] = useState<any | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [currentPage, setCurrentPage] = useState<'home' | 'discover' | 'learn' | 'me' | 'creator-studio' | 'privacy' | 'terms' | 'cookie' | 'leaderboard' | 'creator-tools' | 'guidelines' | 'contact'>('home');
+  const [jamRouteSlug, setJamRouteSlug] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState<'home' | 'discover' | 'learn' | 'me' | 'creator-studio' | 'privacy' | 'terms' | 'cookie' | 'leaderboard' | 'creator-tools' | 'guidelines' | 'contact' | 'jam'>('home');
   const [isFirstTimeEarnDemo, setIsFirstTimeEarnDemo] = useState(false);
   const [returnToJam, setReturnToJam] = useState<AppProject | null>(null);
   const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
   const [discoveryApps, setDiscoveryApps] = useState<AppProject[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [toasts, setToasts] = useState<{ id: string; message: string }[]>([]);
+  const initialPageRef = useRef(currentPage);
+
+  useEffect(() => {
+    if (!debugEnabled || !supabase) return;
+    let mounted = true;
+
+    const loadAuthDebug = async () => {
+      try {
+        const sessionRes = await supabase.auth.getSession();
+        const userRes = await supabase.auth.getUser();
+        if (!mounted) return;
+        const session = sessionRes?.data?.session;
+        setDebugAuth({
+          sessionPresent: Boolean(session),
+          accessTokenPresent: Boolean(session?.access_token),
+          refreshTokenPresent: Boolean(session?.refresh_token),
+          expiresAt: session?.expires_at || null,
+          userId: session?.user?.id || null,
+          getSessionError: sessionRes?.error?.message || null,
+          getUserError: userRes?.error?.message || null
+        });
+      } catch (e: any) {
+        if (!mounted) return;
+        setDebugAuth({ error: e?.message || 'UNKNOWN_ERROR' });
+      }
+    };
+
+    loadAuthDebug();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => loadAuthDebug());
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [debugEnabled]);
+
+  const updateHistoryForPage = useCallback((page: typeof currentPage, mode: 'push' | 'replace' = 'replace') => {
+    if (typeof window === 'undefined') return;
+    const search = buildSearchWithoutVersion(window.location.search);
+    const url = `/${search}`;
+    const state = { page };
+    if (mode === 'push') {
+      window.history.pushState(state, '', url);
+    } else {
+      window.history.replaceState(state, '', url);
+    }
+  }, []);
+
+  const applyJamState = useCallback((project: AppProject | null, version: 'v1' | 'v2', replaceHistory: boolean, slugOverride?: string | null) => {
+    setSelectedCreator(null);
+    setSelectedApp(project);
+    setCurrentPage('jam');
+    const slug = slugOverride ?? (project ? getJamSlug(project) : null);
+    setJamRouteSlug(slug);
+
+    if (typeof window !== 'undefined') {
+      if (slug) {
+        const search = buildSearchWithVersion(window.location.search, version);
+        const url = `/jam/${slug}${search}`;
+        const state = { page: 'jam', jamId: project?.id, slug, version };
+        if (replaceHistory) {
+          window.history.replaceState(state, '', url);
+        } else {
+          window.history.pushState(state, '', url);
+        }
+      }
+    }
+  }, []);
+
+  const openJam = useCallback((project: AppProject, options?: { replaceHistory?: boolean; versionOverride?: 'v1' | 'v2' }) => {
+    const version = options?.versionOverride ?? resolveJamPageVersion(window.location.search);
+    if (currentPage !== 'jam') {
+      updateHistoryForPage(currentPage, 'replace');
+    }
+    applyJamState(project, version, options?.replaceHistory ?? false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+  }, [applyJamState, currentPage, updateHistoryForPage]);
+
+  const closeJam = useCallback(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/jam/')) {
+      if (window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      const search = buildSearchWithoutVersion(window.location.search);
+      window.history.replaceState({ page: 'home' }, '', `/${search}`);
+    }
+    setSelectedApp(null);
+    setCurrentPage('home');
+    setJamRouteSlug(null);
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+  }, []);
+
+  const goToCreatorStudio = useCallback(() => {
+    setSelectedApp(null);
+    setJamRouteSlug(null);
+    setCurrentPage('creator-studio');
+    updateHistoryForPage('creator-studio', 'replace');
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+  }, [updateHistoryForPage]);
 
   // Deep Link Handling
   useEffect(() => {
-    const handleDeepLink = async () => {
+    if (typeof window === 'undefined') return;
+    const path = window.location.pathname;
+    if (path.startsWith('/jam/')) {
+      const slug = path.split('/jam/')[1];
+      if (slug) {
+        const version = resolveJamPageVersion(window.location.search);
+        applyJamState(null, version, true, slug);
+        return;
+      }
+    }
+    updateHistoryForPage(initialPageRef.current, 'replace');
+  }, [applyJamState, updateHistoryForPage]);
+
+  useEffect(() => {
+    if (currentPage === 'jam') return;
+    updateHistoryForPage(currentPage, 'replace');
+  }, [currentPage, updateHistoryForPage]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
       const path = window.location.pathname;
       if (path.startsWith('/jam/')) {
         const slug = path.split('/jam/')[1];
         if (slug) {
-          // Extract ID from slug (format: name-id or just id)
-          // Just try the whole slug as ID first, or split by hyphen if standard format
-          let jamId = slug;
-          if (slug.includes('-')) {
-            const parts = slug.split('-');
-            jamId = parts[parts.length - 1];
-          }
-
-          try {
-            const { jam, ok } = await backend.getJam(jamId);
-            if (ok && jam) {
-              // We need to map JamDoc to AppProject. 
-              // Note: backend.getJam returns expanded creator profile usually? 
-              // Actually jam-get raw return includes creator join. 
-              // We'll trust the mapping holds or improve it.
-              const project = mapJamToAppProject(jam);
-              // Improve creator mapping if available in jam object (depends on backend expansion)
-              if ((jam as any).creator) {
-                const c = (jam as any).creator;
-                project.creator = {
-                  name: c.display_name || 'Maker',
-                  avatar: c.avatar_url || '',
-                  handle: c.handle || '',
-                  type: project.creator.type,
-                  color: '#3b82f6'
-                };
-              }
-              setSelectedApp(project);
-            }
-          } catch (e) {
-            console.warn("Deep link failed", e);
-          }
+          const version = resolveJamPageVersion(window.location.search);
+          applyJamState(null, version, true, slug);
         }
+        return;
       }
+      setSelectedApp(null);
+      setJamRouteSlug(null);
+      const fallback = (window.history.state?.page as typeof currentPage) || 'home';
+      setCurrentPage(fallback);
+      window.scrollTo(0, 0);
     };
-    handleDeepLink();
-  }, []);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [applyJamState]);
 
   // Poll real discovery feed
   useEffect(() => {
@@ -507,9 +614,11 @@ const AppContent: React.FC = () => {
         if (!res.error && res.data) {
           const mapped = res.data.map(item => ({
             id: item.id,
+            slug: item.slug || item.id,
             name: item.name,
             description: item.tagline || '',
             category: item.category,
+            proofUrl: item.socials?.proof_url || item.socials?.proofUrl,
             icon: '✨',
             screenshot: item.cover_image_url || '',
             thumbnailUrl: item.cover_image_url || '',
@@ -531,8 +640,8 @@ const AppContent: React.FC = () => {
               type: 'Solo Founder',
               color: '#3b82f6'
             },
-            stack: [],
-            vibeTools: [],
+            stack: item.tech_stack || item.techStack || [],
+            vibeTools: item.vibe_tools || item.vibeTools || [],
             websiteUrl: '',
             status: 'published'
           } as AppProject));
@@ -562,19 +671,103 @@ const AppContent: React.FC = () => {
   }, [authUser, profile]);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadUnread = async () => {
+      if (!authUser) {
+        setUnreadCount(0);
+        return;
+      }
+      const res = await backend.getUnreadNotificationCount();
+      if (!cancelled && res.ok) setUnreadCount(res.count);
+    };
+    loadUnread();
+    return () => { cancelled = true; };
+  }, [authUser]);
+
+  const openNotification = async (item: any) => {
+    try {
+      if (item?.jam_id) {
+        const { jam, ok } = await backend.getJam(item.jam_id);
+        if (ok && jam) {
+          const project = mapJamToAppProject(jam);
+          if ((jam as any).creator) {
+            const c = (jam as any).creator;
+            project.creator = {
+              name: c.display_name || 'Maker',
+              avatar: c.avatar_url || '',
+              handle: c.handle || '',
+              type: project.creator.type,
+              color: '#3b82f6'
+            };
+          }
+          openJam(project);
+          return;
+        }
+      }
+      if (item?.actor?.handle) {
+        setSelectedCreator({
+          handle: `@${item.actor.handle}`,
+          name: item.actor.display_name || 'Maker',
+          avatar: item.actor.avatar_url || '',
+          type: 'Solo Founder'
+        } as any);
+        setCurrentPage('discover');
+      }
+    } catch (e) {
+      console.warn('Open notification failed', e);
+    }
+  };
+
+  const pushToast = (message: string) => {
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    setToasts(prev => [...prev, { id, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
+
+  useEffect(() => {
+    if (!authUser || !supabase) return;
+    const channel = supabase.channel(`vj-notifications-${authUser.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `recipient_id=eq.${authUser.id}`
+      }, (payload: any) => {
+        const n = payload.new;
+        setUnreadCount(prev => prev + 1);
+        if (notificationsOpen) {
+          backend.listNotifications(50).then(res => {
+            if (res.ok) setNotifications(res.items || []);
+          });
+        }
+        const actor = (n as any)?.data?.actor_name;
+        const message = n.type === 'follow'
+          ? 'New follower'
+          : n.type === 'reply'
+            ? 'New reply'
+            : 'New comment';
+        pushToast(actor ? `${actor} · ${message}` : message);
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authUser, notificationsOpen]);
+
+  useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 40);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-
+  // Scroll Lock Management
   useEffect(() => {
-    if (selectedApp || isLaunchpadOpen || selectedCreator || isAuthOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'auto';
-    }
-  }, [selectedApp, isLaunchpadOpen, selectedCreator, isAuthOpen]);
+    const isModalActive = (selectedCreator && !USE_CREATOR_V2) || isLaunchpadOpen || isAuthOpen;
+    document.body.style.overflow = isModalActive ? 'hidden' : 'auto';
+  }, [selectedCreator, isLaunchpadOpen, isAuthOpen]);
+
 
   const handleOpenCreator = (creator: AppProject['creator'], fromJam?: AppProject, demoEarn: boolean = false) => {
     if (fromJam) {
@@ -591,7 +784,7 @@ const AppContent: React.FC = () => {
     setSelectedCreator(null);
     setIsFirstTimeEarnDemo(false);
     if (returnToJam) {
-      setSelectedApp(returnToJam);
+      openJam(returnToJam, { replaceHistory: true });
       setReturnToJam(null);
     }
   };
@@ -603,6 +796,15 @@ const AppContent: React.FC = () => {
       setIsAuthOpen(true);
     }
   }, [currentUser]);
+
+  const handleEditJam = (jam: any) => {
+    if (!currentUser) {
+      setIsAuthOpen(true);
+      return;
+    }
+    setEditingJam(jam);
+    setIsLaunchpadOpen(true);
+  };
 
   const renderHeader = () => {
     const avatarUrl = profile?.avatar_url || authUser?.user_metadata?.avatar_url || authUser?.user_metadata?.picture;
@@ -642,6 +844,88 @@ const AppContent: React.FC = () => {
                 >
                   Studio
                 </button>
+                <div className="relative">
+                  <button
+                    onClick={async () => {
+                      if (!authUser) return;
+                      const next = !notificationsOpen;
+                      setNotificationsOpen(next);
+                      if (next) {
+                        setNotificationsLoading(true);
+                        const res = await backend.listNotifications(50);
+                        setNotifications(res.items || []);
+                        setNotificationsLoading(false);
+                        await backend.markNotificationsRead();
+                        const refreshed = await backend.getUnreadNotificationCount();
+                        if (refreshed.ok) setUnreadCount(refreshed.count);
+                      }
+                    }}
+                    className="relative w-9 h-9 md:w-10 md:h-10 rounded-full border border-gray-100 bg-white flex items-center justify-center hover:border-gray-200 transition-all"
+                    aria-label="Notifications"
+                  >
+                    <svg className="w-4 h-4 md:w-5 md:h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0" />
+                    </svg>
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-500 text-white text-[9px] font-black flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notificationsOpen && (
+                    <div className="absolute top-full right-0 mt-3 w-[320px] bg-white rounded-2xl shadow-xl border border-gray-50 overflow-hidden z-50">
+                      <div className="flex items-center justify-between px-4 h-12 border-b border-gray-50">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Notifications</span>
+                        <button
+                          onClick={() => setNotificationsOpen(false)}
+                          className="text-[10px] font-black text-gray-300 uppercase tracking-widest hover:text-gray-900"
+                        >
+                          Close
+                        </button>
+                      </div>
+                      <div className="max-h-[360px] overflow-y-auto">
+                        {notificationsLoading ? (
+                          <div className="p-6 text-[10px] font-black text-gray-300 uppercase tracking-widest">Loading…</div>
+                        ) : notifications.length > 0 ? (
+                          notifications.map((n: any) => (
+                            <button
+                              key={n.id}
+                              onClick={() => { setNotificationsOpen(false); openNotification(n); }}
+                              className="w-full text-left px-4 py-3 border-b border-gray-50 hover:bg-gray-50/60 transition-all"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="w-8 h-8 rounded-full border border-gray-100 overflow-hidden bg-white shrink-0">
+                                  {n.actor?.avatar_url ? (
+                                    <img src={n.actor.avatar_url} alt={n.actor.display_name || 'User'} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-gray-400">VJ</div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-bold text-gray-900 truncate">
+                                    {n.actor?.display_name || 'Someone'}{' '}
+                                    <span className="text-gray-400 font-medium">
+                                      {n.type === 'follow' ? 'followed you' : n.type === 'reply' ? 'replied to your signal' : 'commented on your jam'}
+                                    </span>
+                                  </p>
+                                  <p className="text-[10px] text-gray-300 font-bold uppercase tracking-widest mt-1">
+                                    {new Date(n.created_at).toLocaleDateString()}
+                                  </p>
+                                </div>
+                                {!n.read_at && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-500 mt-2" />
+                                )}
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="p-6 text-center text-[10px] font-black text-gray-300 uppercase tracking-widest">No notifications yet</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="relative group/user">
                   <button
                     onClick={() => { setCurrentPage('me'); setSelectedCreator(null); setSelectedApp(null); }}
@@ -727,7 +1011,7 @@ const AppContent: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 md:px-6">
           <DiscoveryFeed
             apps={discoveryApps}
-            onSelect={setSelectedApp}
+            onSelect={openJam}
             onCreatorClick={(creator) => handleOpenCreator(creator)}
             customTitle="Top Jams Shipping This Week"
           />
@@ -753,7 +1037,7 @@ const AppContent: React.FC = () => {
                   </p>
                   <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 md:gap-8 pt-4">
                     <button
-                      onClick={() => setSelectedApp(discoveryApps[0])}
+                      onClick={() => openJam(discoveryApps[0])}
                       className="vibe-pill text-white text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] py-4 md:py-5 px-8 md:px-10 rounded-full shadow-2xl shadow-blue-500/10 active:scale-95 transition-all bg-gray-900"
                     >
                       View Jam
@@ -782,115 +1066,138 @@ const AppContent: React.FC = () => {
     </div>
   );
 
+  const isV2PageActive = currentPage === 'jam' || (selectedCreator && USE_CREATOR_V2);
+  const jamRenderVersion = typeof window !== 'undefined'
+    ? resolveJamPageVersion(window.location.search)
+    : 'v2';
+
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
-      {renderHeader()}
+      {!isV2PageActive && renderHeader()}
 
       <div className="flex-1 relative">
-        {currentPage === 'home' && !selectedCreator && renderHomePageV4()}
-        {currentPage === 'privacy' && !selectedCreator && (
-          <PrivacyPage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
+        {!isV2PageActive && (
+          <>
+            {currentPage === 'home' && !selectedCreator && renderHomePageV4()}
+            {currentPage === 'privacy' && !selectedCreator && (
+              <PrivacyPage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
+            )}
+            {currentPage === 'terms' && !selectedCreator && (
+              <TermsPage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
+            )}
+            {currentPage === 'cookie' && !selectedCreator && (
+              <CookiePage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
+            )}
+            {currentPage === 'leaderboard' && !selectedCreator && (
+              <LeaderboardPage
+                onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }}
+                onSelectCreator={(creator) => handleOpenCreator(creator)}
+              />
+            )}
+            {currentPage === 'creator-tools' && !selectedCreator && (
+              <CreatorToolsPage
+                onStartJam={handleOpenLaunchpad}
+                onBrowseJams={() => { setCurrentPage('discover'); window.scrollTo(0, 0); }}
+              />
+            )}
+            {currentPage === 'guidelines' && !selectedCreator && (
+              <GuidelinesPage
+                onStartJam={handleOpenLaunchpad}
+                onBrowseJams={() => { setCurrentPage('discover'); window.scrollTo(0, 0); }}
+              />
+            )}
+            {currentPage === 'contact' && !selectedCreator && (
+              <ContactPage
+                onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }}
+              />
+            )}
+            {currentPage === 'discover' && !selectedCreator && (
+              <DiscoveryPage
+                onSelectApp={openJam}
+                onSelectCreator={(creator) => handleOpenCreator(creator)}
+                onNavigateLeaderboard={() => setCurrentPage('leaderboard')}
+              />
+            )}
+            {currentPage === 'learn' && !selectedCreator && (
+              <div className="pt-48 text-center text-gray-400 h-[70vh] flex flex-col items-center justify-center px-6">
+                <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.5em] mb-6">COMING SOON</span>
+                <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter">Learn is being drafted.</h2>
+                <p className="mt-4 text-base md:text-xl font-medium text-gray-400 max-w-md">Founders, builders, and growth hackers — your editorial hub is coming.</p>
+              </div>
+            )}
+            {currentPage === 'me' && currentUser && !selectedCreator && (
+              <UserDashboard
+                onBack={() => setCurrentPage('home')}
+                onSelectApp={openJam}
+                onSelectCreator={(creator) => handleOpenCreator(creator)}
+              />
+            )}
+            {currentPage === 'creator-studio' && currentUser && !selectedCreator && (
+              <CreatorDashboard
+                user={{
+                  name: currentUser.name,
+                  handle: currentUser.handle,
+                  avatar: currentUser.avatar,
+                  auraColor: currentUser.auraColor,
+                  creatorSince: currentUser.joinedDate
+                }}
+                onBack={() => setCurrentPage('home')}
+                onStartJam={() => setIsLaunchpadOpen(true)}
+                onEditJam={handleEditJam}
+                refreshTrigger={dashboardRefreshTrigger}
+              />
+            )}
+          </>
         )}
-        {currentPage === 'terms' && !selectedCreator && (
-          <TermsPage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
-        )}
-        {currentPage === 'cookie' && !selectedCreator && (
-          <CookiePage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
-        )}
-        {currentPage === 'leaderboard' && !selectedCreator && (
-          <LeaderboardPage
-            onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }}
-            onSelectCreator={(creator) => handleOpenCreator(creator)}
-          />
-        )}
-        {currentPage === 'creator-tools' && !selectedCreator && (
-          <CreatorToolsPage
-            onStartJam={handleOpenLaunchpad}
-            onBrowseJams={() => { setCurrentPage('discover'); window.scrollTo(0, 0); }}
-          />
-        )}
-        {currentPage === 'guidelines' && !selectedCreator && (
-          <GuidelinesPage
-            onStartJam={handleOpenLaunchpad}
-            onBrowseJams={() => { setCurrentPage('discover'); window.scrollTo(0, 0); }}
-          />
-        )}
-        {currentPage === 'contact' && !selectedCreator && (
-          <ContactPage
-            onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }}
-          />
-        )}
-        {currentPage === 'discover' && !selectedCreator && (
-          <DiscoveryPage
-            onSelectApp={setSelectedApp}
-            onSelectCreator={(creator) => handleOpenCreator(creator)}
-            onNavigateLeaderboard={() => setCurrentPage('leaderboard')}
-          />
-        )}
-        {currentPage === 'learn' && !selectedCreator && (
-          <div className="pt-48 text-center text-gray-400 h-[70vh] flex flex-col items-center justify-center px-6">
-            <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.5em] mb-6">COMING SOON</span>
-            <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter">Learn is being drafted.</h2>
-            <p className="mt-4 text-base md:text-xl font-medium text-gray-400 max-w-md">Founders, builders, and growth hackers — your editorial hub is coming.</p>
-          </div>
-        )}
-        {currentPage === 'me' && currentUser && !selectedCreator && (
-          <UserDashboard
-            onBack={() => setCurrentPage('home')}
-            onSelectApp={setSelectedApp}
-            onSelectCreator={(creator) => handleOpenCreator(creator)}
-          />
-        )}
-        {currentPage === 'creator-studio' && currentUser && !selectedCreator && (
-          <CreatorDashboard
-            user={{
-              name: currentUser.name,
-              handle: currentUser.handle,
-              avatar: currentUser.avatar,
-              auraColor: currentUser.auraColor,
-              creatorSince: currentUser.joinedDate
-            }}
-            onBack={() => setCurrentPage('home')}
-            onStartJam={() => setIsLaunchpadOpen(true)}
-            refreshTrigger={dashboardRefreshTrigger}
-          />
-        )}
-
-        {/* Mount Indicator */}
-        <div className="fixed bottom-2 right-2 text-[8px] font-black uppercase text-gray-200 pointer-events-none select-none z-[9999]">VJ: OK</div>
       </div>
 
-      {selectedCreator && (
+      {selectedCreator && !USE_CREATOR_V2 && (
         <CreatorProfile
           creator={selectedCreator}
           onClose={handleCloseCreator}
-          onSelectApp={setSelectedApp}
+          onSelectApp={openJam}
           isFirstTimeEarn={isFirstTimeEarnDemo}
         />
       )}
 
-      {selectedApp && (
-        <AppView
-          project={selectedApp}
-          onClose={() => setSelectedApp(null)}
-          onCreatorClick={(creator) => handleOpenCreator(creator, selectedApp)}
+      {selectedCreator && USE_CREATOR_V2 && (
+        <CreatorPageV2
+          creator={selectedCreator}
           isLoggedIn={!!currentUser}
+          isMe={profile?.handle === selectedCreator.handle.replace('@', '')}
+          onClose={handleCloseCreator}
+          onSelectApp={openJam}
+          onStudioClick={() => { handleCloseCreator(); setCurrentPage('creator-studio'); }}
+          isFirstTimeEarn={isFirstTimeEarnDemo}
+        />
+      )}
+
+      {currentPage === 'jam' && !selectedCreator && (
+        <JamPageV2
+          project={selectedApp}
+          jamSlug={jamRouteSlug}
+          renderVersion={jamRenderVersion}
+          onClose={closeJam}
+          isLoggedIn={!!currentUser}
+          currentUserHandle={currentUser?.handle}
           onAuthTrigger={() => setIsAuthOpen(true)}
-          onManageJam={() => { setSelectedApp(null); setCurrentPage('creator-studio'); }}
-          isOwner={currentUser?.handle === selectedApp.creator.handle}
+          onManageJam={goToCreatorStudio}
+          onCreatorClick={(creator, project) => handleOpenCreator(creator, project)}
+          isOwner={selectedApp ? currentUser?.handle === selectedApp.creator.handle : undefined}
         />
       )}
 
       {isLaunchpadOpen && (
         <Launchpad
-          onClose={() => setIsLaunchpadOpen(false)}
+          onClose={() => { setIsLaunchpadOpen(false); setEditingJam(null); }}
           onOpenJam={(jam) => {
             // Convert JamPublished (Launchpad type) to AppProject (App type)
             // JamPublished is very similar to AppProject, but we should safely cast or map
             // Actually Launchpad.tsx constructs previewJam as JamPublished which matches usage
-            setSelectedApp(jam as any);
+            openJam(jam as any);
           }}
           onPublishSuccess={() => setDashboardRefreshTrigger(p => p + 1)}
+          initialJam={editingJam}
         />
       )}
 
@@ -899,7 +1206,28 @@ const AppContent: React.FC = () => {
         onClose={() => setIsAuthOpen(false)}
       />
 
-      {(currentPage !== 'home' || selectedCreator) && <div className="mt-auto"><FooterV4 onNavigate={(page) => { setCurrentPage(page); window.scrollTo(0, 0); }} onNavigateSubmitApp={handleOpenLaunchpad} /></div>}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2">
+          {toasts.map(t => (
+            <div key={t.id} className="px-4 py-3 rounded-2xl bg-gray-900 text-white text-[11px] font-black uppercase tracking-widest shadow-xl">
+              {t.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {debugEnabled && (
+        <div className="fixed bottom-6 left-6 z-[9999] max-w-[320px] rounded-2xl border border-gray-200 bg-white/90 backdrop-blur p-4 shadow-xl text-[10px] font-mono text-gray-700">
+          <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Auth Debug</div>
+          <pre className="whitespace-pre-wrap break-words">{JSON.stringify(debugAuth, null, 2)}</pre>
+        </div>
+      )}
+
+      {!isV2PageActive && (currentPage !== 'home' || selectedCreator) && (
+        <div className="mt-auto">
+          <FooterV4 onNavigate={(page) => { setCurrentPage(page); window.scrollTo(0, 0); }} onNavigateSubmitApp={handleOpenLaunchpad} />
+        </div>
+      )}
     </div>
   );
 };

@@ -21,9 +21,12 @@ interface SocialListPanelProps {
   users: SocialUser[];
   onClose: () => void;
   onSelectUser: (user: any) => void;
+  onToggleFollow?: (user: SocialUser) => void;
+  isLoggedIn?: boolean;
+  loading?: boolean;
 }
 
-const SocialListPanel: React.FC<SocialListPanelProps> = ({ title, count, users, onClose, onSelectUser }) => {
+const SocialListPanel: React.FC<SocialListPanelProps> = ({ title, count, users, onClose, onSelectUser, onToggleFollow, isLoggedIn = false, loading = false }) => {
   const [hoveredUser, setHoveredUser] = useState<SocialUser | null>(null);
   const [cardPos, setCardPos] = useState({ top: 0, left: 0 });
   const hoverTimeout = useRef<number | null>(null);
@@ -62,7 +65,12 @@ const SocialListPanel: React.FC<SocialListPanelProps> = ({ title, count, users, 
         </header>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-2 scrollbar-hide" data-vj-hover-root>
-          {users.length > 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <p className="text-sm font-bold text-gray-900 mb-1">Loading…</p>
+              <p className="text-xs font-medium text-gray-400 max-w-[200px] leading-relaxed">Fetching {title.toLowerCase()} list.</p>
+            </div>
+          ) : users.length > 0 ? (
             users.map((user) => (
               <div 
                 key={user.id} 
@@ -90,7 +98,11 @@ const SocialListPanel: React.FC<SocialListPanelProps> = ({ title, count, users, 
                   <p className="text-xs font-medium text-gray-400 leading-tight truncate">{user.handle}</p>
                 </div>
 
-                <button className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${user.isFollowing ? 'border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-100 hover:bg-red-50/30' : 'bg-gray-900 text-white shadow-sm hover:scale-105 active:scale-95'}`}>
+                <button
+                  onClick={() => onToggleFollow?.(user)}
+                  disabled={!isLoggedIn || !onToggleFollow}
+                  className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${user.isFollowing ? 'border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-100 hover:bg-red-50/30' : 'bg-gray-900 text-white shadow-sm hover:scale-105 active:scale-95'} ${(!isLoggedIn || !onToggleFollow) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
                   {user.isFollowing ? 'Following' : 'Follow'}
                 </button>
               </div>

@@ -115,10 +115,9 @@ Deno.serve(async (req) => {
         // 4. Publishing Logic
         if (updates.status === 'published') {
             updates.published_at = updates.published_at || new Date().toISOString();
-            updates.is_listed = (updates.is_listed !== undefined) ? updates.is_listed : true;
-            if (updates.is_listed) {
-                updates.listed_at = updates.published_at;
-            }
+            // Always list published jams by default for Discover visibility
+            updates.is_listed = true;
+            updates.listed_at = updates.published_at;
             if (!updates.slug && updates.name) {
                 // Generate a simple slug if missing
                 updates.slug = `${updates.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${(jamId || crypto.randomUUID()).slice(0, 8)}`;

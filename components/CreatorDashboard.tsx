@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AppProject } from '../types';
 import Badge from './Badge';
 import { supabase } from '../lib/supabaseClient';
+import { backend } from '../lib/backend';
 import { useAuth } from '../contexts/AuthContext';
 
 interface CreatorDashboardProps {
@@ -15,13 +16,15 @@ interface CreatorDashboardProps {
   };
   onBack: () => void;
   onStartJam: () => void;
+  onEditJam: (jam: any) => void;
   refreshTrigger?: number;
 }
 
-const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ user, onBack, onStartJam, refreshTrigger = 0 }) => {
+const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ user, onBack, onStartJam, onEditJam, refreshTrigger = 0 }) => {
   const { user: authUser } = useAuth();
   const [ownedJams, setOwnedJams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionJamId, setActionJamId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authUser) return;
@@ -32,8 +35,10 @@ const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ user, onBack, onSta
         const { data, error } = await supabase
           .from('jams')
           .select('*')
-          .eq('owner_id', authUser.id);
+          .eq('creator_id', authUser.id)
+          .order('created_at', { ascending: false });
 
+        if (error) throw error;
         if (data) setOwnedJams(data);
       } catch (e) {
         console.error("[Creator] Error fetching jams:", e);
@@ -44,6 +49,34 @@ const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ user, onBack, onSta
 
     fetchMyJams();
   }, [authUser, refreshTrigger]);
+
+  const refresh = async () => {
+    if (!authUser) return;
+    try {
+      const { data, error } = await supabase
+        .from('jams')
+        .select('*')
+        .eq('creator_id', authUser.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      if (data) setOwnedJams(data);
+    } catch (e) {
+      console.error("[Creator] Error refreshing jams:", e);
+    }
+  };
+
+  const handleUnpublish = async (jamId: string, hide: boolean) => {
+    try {
+      setActionJamId(jamId);
+      const res = await backend.unpublishJam({ jamId, hide });
+      if (!res.ok) throw new Error(res.error || 'UNPUBLISH_FAILED');
+      await refresh();
+    } catch (e) {
+      console.error('[Creator] Unpublish failed', e);
+    } finally {
+      setActionJamId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white pt-32 pb-40 animate-in fade-in duration-500">
@@ -101,9 +134,42 @@ const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ user, onBack, onSta
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-4 mb-3">
                         <h4 className="text-2xl font-black text-gray-900 tracking-tight leading-none">{jam.name}</h4>
-                        <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-600 text-[9px] font-black uppercase tracking-widest border border-green-100/50">Live</span>
+                        {jam.is_hidden ? (
+                          <span className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 text-[9px] font-black uppercase tracking-widest border border-gray-200">Hidden</span>
+                        ) : jam.status === 'published' ? (
+                          <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-600 text-[9px] font-black uppercase tracking-widest border border-green-100/50">Live</span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 text-[9px] font-black uppercase tracking-widest border border-yellow-100/50">Draft</span>
+                        )}
                       </div>
                       <p className="text-gray-500 font-medium mb-6">{jam.tagline || 'No tagline set.'}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => onEditJam(jam)}
+                        className="px-4 py-2 rounded-xl bg-white border border-gray-100 text-[9px] font-black uppercase tracking-widest text-gray-700 hover:text-gray-900 hover:border-gray-200 transition-all"
+                      >
+                        Edit
+                      </button>
+                      {jam.status === 'published' && (
+                        <button
+                          onClick={() => handleUnpublish(jam.id, false)}
+                          disabled={actionJamId === jam.id}
+                          className="px-4 py-2 rounded-xl bg-white border border-gray-100 text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-700 hover:border-gray-200 transition-all disabled:opacity-40"
+                        >
+                          Unpublish
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          const ok = confirm('This will hide the Jam from discovery and your public profile. Continue?');
+                          if (ok) handleUnpublish(jam.id, true);
+                        }}
+                        disabled={actionJamId === jam.id}
+                        className="px-4 py-2 rounded-xl bg-red-50 border border-red-100 text-[9px] font-black uppercase tracking-widest text-red-500 hover:text-red-600 hover:border-red-200 transition-all disabled:opacity-40"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 </div>

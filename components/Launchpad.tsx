@@ -5,12 +5,14 @@ import { jamLocalStore, slugify, JamPublished } from '../lib/jamLocalStore';
 import StartJamPreviewOverlay from './StartJamPreviewOverlay';
 import { useAuth } from '../contexts/AuthContext';
 import { backend } from '../lib/backend';
+import { supabase } from '../lib/supabaseClient';
 import { JamStatus, JamMedia } from '../types';
 
 interface LaunchpadProps {
   onClose: () => void;
   onOpenJam?: (jam: JamPublished) => void;
   onPublishSuccess?: () => void;
+  initialJam?: any;
 }
 
 interface JamDraft {
@@ -26,6 +28,7 @@ interface JamDraft {
   isRevenuePublic: boolean;
   makerType: 'Solo Founder' | 'Team' | 'Not Specified';
   sourceUrl: string;
+  proofUrl: string;
 }
 
 const ALLOWED_CATEGORIES = [
@@ -70,8 +73,8 @@ const ALLOWED_REVENUE_RANGES = [
   "$1M+"
 ];
 
-const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSuccess }) => {
-  const { user, profile } = useAuth();
+const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSuccess, initialJam }) => {
+  const { user, profile, signInWithGoogle } = useAuth();
   const [step, setStep] = useState(0);
   const [urlInput, setUrlInput] = useState('');
   const [isScraping, setIsScraping] = useState(false);
@@ -81,7 +84,10 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
   const [publishedJam, setPublishedJam] = useState<JamPublished | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [heroImageUrl, setHeroImageUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   // Ref for aborting handled via component unmount logic if needed, but keeping simple for CF call
+
+  const isEditing = !!initialJam?.id;
 
   const [formData, setFormData] = useState<JamDraft>(() => {
     const saved = localStorage.getItem('vj_draft_jam');
@@ -97,11 +103,34 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
       mrr: 'Prefer not to say',
       isRevenuePublic: true,
       makerType: 'Not Specified',
-      sourceUrl: ''
+      sourceUrl: '',
+      proofUrl: ''
     };
   });
 
   useEffect(() => {
+    if (isEditing && initialJam) {
+      const media = initialJam.media || {};
+      const mediaUrl = media.heroImageUrl || initialJam.media_url || initialJam.mediaUrl || '';
+      setFormData(prev => ({
+        ...prev,
+        id: initialJam.id || prev.id,
+        name: initialJam.name || '',
+        description: initialJam.tagline || initialJam.description || '',
+        category: initialJam.category || 'SaaS',
+        mediaUrl,
+        stack: initialJam.tech_stack || initialJam.techStack || [],
+        vibeTools: initialJam.vibe_tools || initialJam.vibeTools || [],
+        mrr: initialJam.mrr_bucket || initialJam.mrrBucket || 'Prefer not to say',
+        isRevenuePublic: (initialJam.mrr_visibility || initialJam.mrrVisibility) === 'public',
+        makerType: (initialJam.team_type === 'team' || initialJam.teamType === 'team') ? 'Team' : 'Solo Founder',
+        sourceUrl: initialJam.website_url || initialJam.websiteUrl || '',
+        proofUrl: initialJam.socials?.proof_url || initialJam.socials?.proofUrl || ''
+      }));
+      setHeroImageUrl(mediaUrl);
+      setStep(1);
+      return;
+    }
     // 1. Try to hydrate from Backend (Supabase or Local Fallback)
     const loadDraft = async () => {
       try {
@@ -130,10 +159,12 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
       }
     };
     loadDraft();
-  }, []);
+  }, [isEditing, initialJam]);
 
   useEffect(() => {
-    localStorage.setItem('vj_draft_jam', JSON.stringify(formData));
+    if (!isEditing) {
+      localStorage.setItem('vj_draft_jam', JSON.stringify(formData));
+    }
   }, [formData]);
 
   // Dirty tracking to prevent overwrite
@@ -239,6 +270,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
       mrr_bucket: formData.mrr,
       mrr_visibility: formData.isRevenuePublic ? 'public' : 'hidden',
       website_url: formData.sourceUrl,
+      socials: formData.proofUrl ? { proof_url: formData.proofUrl } : undefined,
       media: {
         heroImageUrl: formData.mediaUrl,
         imageUrls: [],
@@ -248,8 +280,16 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
         screenshotUrl: undefined
       }
     };
+    if (isEditing && (initialJam?.published_at || initialJam?.publishedAt)) {
+      patchPayload.published_at = initialJam.published_at || initialJam.publishedAt;
+    }
 
     try {
+      if (!user) {
+        setError("Please sign in to publish your Jam.");
+        await signInWithGoogle();
+        return;
+      }
       const result = await backend.publishJam({
         jamId: formData.id,
         patch: patchPayload
@@ -263,11 +303,17 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
         if (result.error === 'BACKEND_OFFLINE') {
           throw new Error("Connection lost. Check your internet.");
         }
+        if (result.error && /invalid jwt|unauthorized|no_session|session_refresh_failed/i.test(result.error)) {
+          await supabase.auth.signOut();
+          throw new Error("Session expired. Please sign in again and retry.");
+        }
         throw new Error(result.error || 'PUBLISH_FAILED');
       }
 
       const finalJam = result.data;
 
+      const resolvedMrr = finalJam.mrrBucket || finalJam.mrr_bucket || formData.mrr;
+      const resolvedVisibility = finalJam.mrrVisibility || finalJam.mrr_visibility || (formData.isRevenuePublic ? 'public' : 'hidden');
       const previewJam: JamPublished = {
         id: finalJam.id,
         slug: (finalJam as any).slug || `${slugify(formData.name)}-${finalJam.id}`,
@@ -275,15 +321,16 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
         publishedAt: Date.now(),
         name: finalJam.name,
         description: finalJam.description || '',
-        websiteUrl: finalJam.websiteUrl,
+        websiteUrl: finalJam.websiteUrl || finalJam.website_url || formData.sourceUrl,
         category: finalJam.category,
+        proofUrl: formData.proofUrl,
         mediaType: 'image',
         screenshot: finalJam.media?.heroImageUrl || '',
         thumbnailUrl: finalJam.media?.heroImageUrl || '',
         icon: finalJam.media?.faviconUrl || '✨',
         stats: {
-          revenue: finalJam.mrrBucket || '$0',
-          isRevenuePublic: finalJam.mrrVisibility === 'public',
+          revenue: resolvedMrr || '$0',
+          isRevenuePublic: resolvedVisibility === 'public',
           growth: '+0%', rank: 99, upvotes: 0, daysLive: 0, views: 0, bookmarks: 0
         },
         creator: {
@@ -294,13 +341,15 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
           color: '#3b82f6',
           badges: []
         },
-        stack: finalJam.techStack || [],
-        vibeTools: finalJam.vibeTools || []
+        stack: finalJam.techStack || finalJam.tech_stack || formData.stack || [],
+        vibeTools: finalJam.vibeTools || finalJam.vibe_tools || formData.vibeTools || []
       } as any;
 
       setPublishedJam(previewJam);
       setPreviewOpen(true);
-      localStorage.removeItem('vj_draft_jam');
+      if (!isEditing) {
+        localStorage.removeItem('vj_draft_jam');
+      }
       onPublishSuccess?.();
 
     } catch (e: any) {
@@ -320,12 +369,12 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
         <div className="relative w-full max-w-5xl h-full md:h-auto md:max-h-[85vh] bg-white md:rounded-[48px] shadow-2xl border border-gray-100 overflow-hidden flex flex-col md:flex-row animate-in zoom-in-95 slide-in-from-bottom-8 duration-500">
 
           <div className="flex-1 overflow-y-auto p-8 md:p-16 scrollbar-hide">
-            <button onClick={() => step === 0 ? onClose() : setStep(s => s - 1)} className="mb-8 text-gray-400 hover:text-gray-900 flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest transition-colors">
+            <button onClick={() => (step === 0 || (isEditing && step === 1)) ? onClose() : setStep(s => s - 1)} className="mb-8 text-gray-400 hover:text-gray-900 flex items-center gap-2 font-bold text-[10px] uppercase tracking-widest transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
               {step === 0 ? 'Cancel' : 'Back'}
             </button>
 
-            {step === 0 && (
+            {!isEditing && step === 0 && (
               <div className="max-w-md animate-in slide-in-from-left-4 duration-500">
                 <h2 className="text-4xl font-bold text-gray-900 tracking-tighter mb-4">Start your Jam.</h2>
                 <p className="text-gray-500 mb-8 font-medium">Launch your build to the community.</p>
@@ -355,7 +404,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
             {step === 1 && (
               <div className="max-w-md animate-in slide-in-from-right-4 duration-500">
                 <span className="text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mb-4 block">STEP 01</span>
-                <h2 className="text-3xl font-bold text-gray-900 mb-8">Details.</h2>
+                <h2 className="text-3xl font-bold text-gray-900 mb-8">{isEditing ? 'Edit details.' : 'Details.'}</h2>
                 <div className="space-y-6">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Name</label>
@@ -372,14 +421,85 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
                     </select>
                   </div>
 
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Proof (GitHub or Loom)</label>
+                    <input
+                      type="url"
+                      placeholder="https://github.com/… or https://loom.com/…"
+                      className="w-full text-sm text-gray-900 placeholder:text-gray-300 border-b border-gray-100 focus:border-blue-500 pb-2 outline-none bg-transparent"
+                      value={formData.proofUrl}
+                      onChange={e => updateField('proofUrl', e.target.value)}
+                    />
+                  </div>
+
                   {/* Image Upload Section */}
                   <div className="space-y-3 pt-4">
                     <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">App Image</label>
                     <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-gray-800 transition-all">
+                          Upload Image
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              if (file.size > 500 * 1024) {
+                                setError('Image too large. Max size is 500KB.');
+                                return;
+                              }
+                              try {
+                                setIsUploadingImage(true);
+                                setError(null);
+                                const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+                                const contentType = file.type || 'image/png';
+                                const signRes = await backend.signMediaUpload({
+                                  bucket: 'jam-media',
+                                  kind: 'jam_hero',
+                                  jamId: formData.id,
+                                  contentType,
+                                  ext
+                                });
+                                if (!signRes.ok || !signRes.path || !signRes.token) {
+                                  throw new Error(signRes.error || 'UPLOAD_SIGN_FAILED');
+                                }
+
+                                const { error: uploadError } = await supabase.storage
+                                  .from('jam-media')
+                                  .uploadToSignedUrl(signRes.path, signRes.token, file, {
+                                    contentType,
+                                    upsert: true
+                                  });
+                                if (uploadError) throw uploadError;
+
+                                const finalize = await backend.finalizeMediaUpload({
+                                  bucket: 'jam-media',
+                                  path: signRes.path || '',
+                                  jamId: formData.id,
+                                  slot: 'hero'
+                                });
+
+                                const finalUrl = finalize.url || signRes.publicUrl || '';
+                                if (!finalUrl) throw new Error('UPLOAD_FINALIZE_FAILED');
+
+                                setHeroImageUrl(finalUrl);
+                                updateField('mediaUrl', finalUrl);
+                              } catch (err: any) {
+                                setError(err?.message || 'Image upload failed');
+                              } finally {
+                                setIsUploadingImage(false);
+                              }
+                            }}
+                          />
+                        </label>
+                        {isUploadingImage && <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Uploading…</span>}
+                      </div>
                       <input
                         type="url"
                         placeholder="https://example.com/screenshot.png"
-                        className="w-full text-sm border-b border-gray-100 focus:border-blue-500 pb-2 outline-none bg-transparent"
+                        className="w-full text-sm text-gray-900 placeholder:text-gray-300 border-b border-gray-100 focus:border-blue-500 pb-2 outline-none bg-transparent"
                         value={heroImageUrl}
                         onChange={(e) => {
                           setHeroImageUrl(e.target.value);
@@ -462,7 +582,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
                   disabled={isPublishing}
                   className="mt-12 w-full py-4 rounded-2xl bg-blue-500 text-white font-black text-xs tracking-widest uppercase shadow-xl shadow-blue-500/20 hover:bg-blue-600 active:scale-[0.98] transition-all disabled:opacity-50"
                 >
-                  {isPublishing ? 'Publishing...' : 'Launch Jam →'}
+                  {isPublishing ? (isEditing ? 'Updating...' : 'Publishing...') : (isEditing ? 'Update Jam →' : 'Launch Jam →')}
                 </button>
               </div>
             )}

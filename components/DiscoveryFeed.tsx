@@ -91,6 +91,12 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
                 <span className="px-2 py-0.5 rounded-md bg-gray-50 text-[9px] font-black text-gray-400 border border-gray-100 uppercase tracking-widest">
                   {app.category}
                 </span>
+                {app.proofUrl && (
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-[9px] font-black text-emerald-700 border border-emerald-100 uppercase tracking-widest inline-flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Verified
+                  </span>
+                )}
               </div>
               <p className="text-sm text-gray-400 truncate mb-3 font-medium leading-tight">{app.description}</p>
 
@@ -102,6 +108,12 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
                     </span>
                   ))}
                 </div>
+
+                {app.stack?.slice(0, 2).map((tool) => (
+                  <span key={tool} className="px-2 py-1 rounded-lg bg-gray-50 text-[9px] font-black text-gray-500 border border-gray-100 uppercase tracking-wider">
+                    {tool}
+                  </span>
+                ))}
 
                 <div
                   onClick={(e) => { e.stopPropagation(); onCreatorClick?.(app.creator); }}

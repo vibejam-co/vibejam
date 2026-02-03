@@ -104,36 +104,54 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
   React.useEffect(() => {
     const fetchFeed = async () => {
       try {
-        const { jams } = await backend.listPublishedJams({ sort: 'trending' });
+        setLoading(true);
+        const { jams } = await backend.listPublishedJams({
+          sort: mode,
+          category: activeCategory !== 'All' ? activeCategory : undefined,
+          limit: 60,
+          offset: 0
+        });
         if (jams.length === 0) {
           setApps([]);
         } else {
-          const mapped = jams.map(j => ({
+          const mapped = jams.map(j => {
+            const publishedAt = (j as any).published_at || (j as any).publishedAt || null;
+            const publishedMs = publishedAt ? new Date(publishedAt).getTime() : 0;
+            const daysLive = publishedMs ? Math.max(0, Math.floor((Date.now() - publishedMs) / (1000 * 60 * 60 * 24))) : 0;
+            const teamType = (j as any).teamType || (j as any).team_type;
+            const mrrBucket = (j as any).mrrBucket || (j as any).mrr_bucket || '$0';
+            const mrrVisibility = (j as any).mrrVisibility || (j as any).mrr_visibility || 'hidden';
+            const vibeTools = (j as any).vibeTools || (j as any).vibe_tools || [];
+            const techStack = (j as any).techStack || (j as any).tech_stack || [];
+            const proofUrl = (j as any).socials?.proof_url || (j as any).socials?.proofUrl;
+            return ({
             id: j.id,
             name: j.name,
             description: j.description || j.tagline,
             category: j.category,
+            proofUrl,
             icon: '✨', // placeholder
             thumbnailUrl: j.media?.heroImageUrl || '',
             screenshot: j.media?.heroImageUrl || '',
             mediaType: 'image' as const,
             creator: {
-              name: 'Maker',
-              handle: '@maker',
-              avatar: '',
-              type: j.teamType === 'team' ? 'Team' : 'Solo Founder'
+              name: j.creator?.display_name || 'Maker',
+              handle: j.creator?.handle || '@maker',
+              avatar: j.creator?.avatar_url || '',
+              type: teamType === 'team' ? 'Team' : 'Solo Founder',
+              badges: j.creator?.trust_flags ? [{ type: 'founding_creator', label: 'Founding Creator' }] : []
             },
             stats: {
-              revenue: j.mrrBucket || '$0',
-              isRevenuePublic: j.mrrVisibility === 'public',
+              revenue: mrrBucket,
+              isRevenuePublic: mrrVisibility === 'public',
               upvotes: j.stats?.upvotes || 0,
-              daysLive: 0,
+              daysLive,
               views: j.stats?.views || 0,
-              growth: '+0%', rank: 0, bookmarks: 0
+              growth: '+0%', rank: 0, bookmarks: j.stats?.bookmarks || 0
             },
-            vibeTools: j.vibeTools || [],
-            stack: j.techStack || []
-          }));
+            vibeTools,
+            stack: techStack
+          })});
           setApps(mapped as any);
         }
       } catch (e) {
@@ -144,29 +162,20 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
       }
     };
     fetchFeed();
-  }, []);
+  }, [mode, activeCategory]);
+
 
   const filteredApps = useMemo(() => {
     let result = [...apps];
 
-    if (activeCategory !== 'All') {
-      result = result.filter(app => app.category === activeCategory);
-    }
     if (searchQuery) {
       result = result.filter(app =>
         app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         app.description.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-    if (mode === 'revenue') {
-      result.sort((a, b) => parseFloat(b.stats.revenue.replace(/[^0-9.]/g, '')) - parseFloat(a.stats.revenue.replace(/[^0-9.]/g, '')));
-    } else if (mode === 'new') {
-      result.sort((a, b) => a.stats.daysLive - b.stats.daysLive);
-    } else {
-      result.sort((a, b) => b.stats.upvotes - a.stats.upvotes);
-    }
     return result;
-  }, [activeCategory, mode, searchQuery, apps]);
+  }, [searchQuery, apps]);
 
   const revenueLeaders = useMemo(() => {
     const source = apps;
@@ -267,14 +276,20 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
                         <img src={app.thumbnailUrl || app.screenshot} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt={app.name} />
                       </div>
                       <div className="flex-1 min-w-0 pr-2 md:pr-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-sm md:text-lg font-bold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
-                            {app.name}
-                          </h3>
-                          <span className="px-1.5 py-0.5 rounded-md bg-gray-100 text-[8px] font-black text-gray-400 border border-gray-100 uppercase tracking-widest whitespace-nowrap hidden sm:inline-block">
-                            {app.category}
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-sm md:text-lg font-bold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                          {app.name}
+                        </h3>
+                        {app.proofUrl && (
+                          <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-50 via-white to-emerald-50 text-[8px] font-black text-emerald-700 border border-emerald-100 uppercase tracking-widest whitespace-nowrap inline-flex items-center gap-1 shadow-[0_4px_10px_rgba(16,185,129,0.12)]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Verified Build
                           </span>
-                        </div>
+                        )}
+                        <span className="px-1.5 py-0.5 rounded-md bg-gray-100 text-[8px] font-black text-gray-400 border border-gray-100 uppercase tracking-widest whitespace-nowrap hidden sm:inline-block">
+                          {app.category}
+                        </span>
+                      </div>
                         <p className="text-xs md:text-sm text-gray-400 truncate mb-2 md:mb-3 font-medium leading-tight">{app.description}</p>
                         <div className="flex flex-wrap gap-2 items-center">
                           <div className="flex gap-1">
@@ -284,6 +299,11 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
                               </span>
                             ))}
                           </div>
+                          {app.stack.slice(0, 2).map(tool => (
+                            <span key={tool} className="px-2 py-0.5 md:py-1 rounded-lg bg-gray-50 text-[9px] font-black text-gray-500 border border-gray-100 uppercase tracking-wider">
+                              {tool}
+                            </span>
+                          ))}
                           <div
                             onClick={(e) => { e.stopPropagation(); onSelectCreator(app.creator); }}
                             className="flex items-center gap-1.5 px-2 py-0.5 md:py-1 rounded-lg hover:bg-white transition-all group/creator ml-1 min-w-0"
@@ -296,11 +316,16 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
                         </div>
                       </div>
                       <div className="flex items-center gap-3 md:gap-10 shrink-0">
-                        <div className="flex flex-col items-end min-w-[50px] md:min-w-[80px]">
+                        <div className="flex flex-col items-end min-w-[70px] md:min-w-[100px]">
                           <span className={`text-[11px] md:text-sm font-black ${app.stats.isRevenuePublic ? 'text-green-500' : 'text-gray-200'}`}>
                             {app.stats.isRevenuePublic ? app.stats.revenue : '—'}
                           </span>
                           <span className="text-[8px] md:text-[9px] text-gray-300 uppercase tracking-widest font-black">MRR</span>
+                          <div className="mt-2 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-gray-300">
+                            <span>{app.stats.daysLive}d</span>
+                            <span className="w-1 h-1 rounded-full bg-gray-200" />
+                            <span>{app.stats.views || 0} views</span>
+                          </div>
                         </div>
                         <button
                           className="flex flex-col items-center justify-center w-10 h-12 md:w-14 md:h-16 rounded-xl md:rounded-2xl bg-white border border-gray-100 shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/20 active:scale-95 group/upvote"
@@ -308,6 +333,7 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
                         >
                           <svg className="w-3 h-3 md:w-4 md:h-4 text-gray-300 group-hover/upvote:text-blue-500 transition-colors" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4l-8 8h16l-8-8z" /></svg>
                           <span className="text-[10px] md:text-xs font-black text-gray-600 mt-1">{app.stats.upvotes}</span>
+                          <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest mt-1">Upvotes</span>
                         </button>
                       </div>
                     </div>
