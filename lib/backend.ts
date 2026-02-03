@@ -800,6 +800,13 @@ export const backend = {
         }
     },
 
+    /**
+     * Remix a theme using AI based on a vibe prompt.
+     */
+    remixTheme: async (params: { jamId: string, prompt: string, baseTheme: any }): Promise<any> => {
+        return safeInvoke<any>('theme-remix', params);
+    },
+
     // ============ PHASE 7: MEDIA STORAGE PLUMBING ============
 
     /**

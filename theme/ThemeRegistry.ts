@@ -7,18 +7,18 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     palette: 'light',
     surfaceStyle: 'glass',
     typographyStyle: 'system',
-    mood: 'atmospheric',
-    accentIntensity: 'low',
-    backgroundTreatment: 'plain'
+    mood: 'calm',
+    accentIntensity: 'medium', // Bumped for better usability
+    backgroundTreatment: 'gradient'
   }),
   midnight: validateThemeConfig({
     version: 1,
     palette: 'dark',
-    surfaceStyle: 'raw',
-    typographyStyle: 'system',
+    surfaceStyle: 'flat',
+    typographyStyle: 'editorial',
     mood: 'serious',
-    accentIntensity: 'low',
-    backgroundTreatment: 'plain'
+    accentIntensity: 'medium',
+    backgroundTreatment: 'texture'
   }),
   playful: validateThemeConfig({
     version: 1,
@@ -26,26 +26,26 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     surfaceStyle: 'soft',
     typographyStyle: 'playful',
     mood: 'joyful',
-    accentIntensity: 'medium',
-    backgroundTreatment: 'plain'
+    accentIntensity: 'high',
+    backgroundTreatment: 'gradient'
   }),
   brutalist: validateThemeConfig({
     version: 1,
     palette: 'light',
     surfaceStyle: 'raw',
-    typographyStyle: 'editorial',
+    typographyStyle: 'system',
     mood: 'brutal',
-    accentIntensity: 'medium',
+    accentIntensity: 'high',
     backgroundTreatment: 'plain'
   }),
   experimental: validateThemeConfig({
     version: 1,
-    palette: 'light',
-    surfaceStyle: 'soft',
-    typographyStyle: 'system',
+    palette: 'dark',
+    surfaceStyle: 'glass',
+    typographyStyle: 'editorial',
     mood: 'atmospheric',
-    accentIntensity: 'medium',
-    backgroundTreatment: 'plain'
+    accentIntensity: 'high', // High intensity specifically for experimental
+    backgroundTreatment: 'texture'
   })
 };
 

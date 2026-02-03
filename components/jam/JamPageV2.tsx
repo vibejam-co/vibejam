@@ -8,6 +8,10 @@ import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1,
 import { resolveTheme } from '../../theme/ThemeResolver';
 import { resolveThemeClasses } from '../../theme/ThemeClasses';
 import { THEME_REGISTRY } from '../../theme/ThemeRegistry';
+import ThemeRemixDrawer from '../creator/ThemeRemixDrawer';
+import { ThemeRemixResult, validateRemix } from '../../theme/ThemeRemix';
+import { ThemeConfigV1 } from '../../theme/ThemeConfig';
+import { ThemeClasses } from '../../theme/ThemeClasses';
 
 interface JamPageV2Props {
   project?: AppProject | null;
@@ -40,6 +44,11 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isControlOpen, setIsControlOpen] = useState(false);
+
+  // AI Remix State
+  const [isRemixDrawerOpen, setIsRemixDrawerOpen] = useState(false);
+  const [isRemixing, setIsRemixing] = useState(false);
+  const [ephemeralRemix, setEphemeralRemix] = useState<ThemeRemixResult | null>(null);
 
   const routeSlug = useMemo(() => {
     if (jamSlug) return jamSlug;
@@ -112,20 +121,50 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const jamThemeId = (loadedProject as any)?.theme_id || null;
   const [activeThemeId, setActiveThemeId] = useState<string | null>(searchTheme);
 
-  const resolvedTheme = resolveTheme({
-    urlTheme: activeThemeId,
-    jamTheme: jamThemeId,
-    userTheme: userThemeId
-  });
+  const resolvedTheme: ThemeConfigV1 = useMemo(() => {
+    if (ephemeralRemix) return ephemeralRemix.config;
+    return resolveTheme({
+      urlTheme: activeThemeId,
+      jamTheme: jamThemeId,
+      userTheme: userThemeId
+    });
+  }, [ephemeralRemix, activeThemeId, jamThemeId, userThemeId]);
 
   const resolvedThemeName = (() => {
+    if (ephemeralRemix) return 'ai-remix';
     if (activeThemeId && THEME_REGISTRY[activeThemeId]) return activeThemeId;
     if (jamThemeId && THEME_REGISTRY[jamThemeId]) return jamThemeId;
     if (userThemeId && THEME_REGISTRY[userThemeId]) return userThemeId;
     return 'default';
   })();
 
-  const resolvedThemeClasses = resolveThemeClasses(resolvedTheme);
+  const themeClasses: ThemeClasses = useMemo(() => {
+    if (ephemeralRemix) return ephemeralRemix.classes;
+    return resolveThemeClasses(resolvedTheme);
+  }, [ephemeralRemix, resolvedTheme]);
+
+  const handleRemix = async (prompt: string) => {
+    if (!loadedProject?.id) return null;
+    setIsRemixing(true);
+    try {
+      const result = await backend.remixTheme({
+        jamId: loadedProject.id,
+        prompt,
+        baseTheme: resolvedTheme
+      });
+
+      if (result) {
+        const validated = validateRemix(result);
+        setEphemeralRemix(validated);
+        return validated;
+      }
+    } catch (e) {
+      console.error('Remix failed:', e);
+    } finally {
+      setIsRemixing(false);
+    }
+    return null;
+  };
 
   const showDevLabel = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
 
@@ -152,8 +191,27 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   };
 
   return (
-    <div className={`relative ${resolvedThemeClasses.page}`}>
-      <LayoutRenderer config={activeConfig} truth={truth} theme={resolvedThemeClasses} />
+    <div className={`relative ${themeClasses.page}`}>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Back to home"
+        title="Back to home"
+        className={`fixed top-4 left-4 z-[150] inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${themeClasses.surface} ${themeClasses.body}`}
+      >
+        <span aria-hidden="true">←</span>
+        Home
+      </button>
+
+      <LayoutRenderer config={activeConfig} truth={truth} theme={themeClasses} />
+
+      <ThemeRemixDrawer
+        isOpen={isRemixDrawerOpen}
+        onClose={() => setIsRemixDrawerOpen(false)}
+        isProcessing={isRemixing}
+        onRemix={handleRemix}
+        lastRemix={ephemeralRemix || undefined}
+      />
 
       {showDevLabel && (
         <>
@@ -197,6 +255,24 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
                   </button>
                 ))}
               </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100">
+                <button
+                  onClick={() => setIsRemixDrawerOpen(true)}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-gray-900 py-2.5 text-[11px] font-black uppercase tracking-widest text-white shadow-lg shadow-gray-900/20 hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  <span className="text-sm">✨</span>
+                  AI Remix Vibe
+                </button>
+                {ephemeralRemix && (
+                  <button
+                    onClick={() => setEphemeralRemix(null)}
+                    className="w-full mt-2 text-[10px] font-bold text-gray-400 hover:text-gray-600 transition-colors uppercase tracking-widest"
+                  >
+                    Reset Theme
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -205,6 +281,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           </div>
           <div className="fixed bottom-7 right-4 text-[10px] font-semibold uppercase tracking-widest text-gray-300">
             Theme: {resolvedThemeName} · v{resolvedTheme.version}
+          </div>
+          <div className="fixed bottom-10 right-4 text-[10px] font-semibold uppercase tracking-widest text-gray-300">
+            Page: Jam
           </div>
         </>
       )}

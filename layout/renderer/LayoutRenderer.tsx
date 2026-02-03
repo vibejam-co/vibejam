@@ -1,6 +1,6 @@
 import React from 'react';
 import { LayoutConfigV1 } from '../LayoutConfig';
-import { ThemeClasses } from '../ThemeClasses';
+import { ThemeClasses } from '../../theme/ThemeClasses';
 import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
 
@@ -59,7 +59,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme })
   const looseSpacing = config.spacingDensity === 'loose' ? 'mt-8 md:mt-12' : 'mt-6';
 
   return (
-    <div className="min-h-screen">
+    <div className={theme.page}>
       <div className={grid.container}>
         {config.emphasis.hero && (
           <div className={heroPlacement.wrapper}>
