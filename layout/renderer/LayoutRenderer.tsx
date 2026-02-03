@@ -1,13 +1,13 @@
 import React from 'react';
 import { LayoutConfigV1 } from '../LayoutConfig';
-import { ResolvedTheme } from '../ThemeResolver';
+import { ThemeClasses } from '../ThemeClasses';
 import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
 
 interface LayoutRendererProps {
   config: LayoutConfigV1;
   truth: TruthBlocks;
-  theme: ResolvedTheme;
+  theme: ThemeClasses;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {

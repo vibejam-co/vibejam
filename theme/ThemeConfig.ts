@@ -20,37 +20,6 @@ export const DEFAULT_THEME_CONFIG: ThemeConfigV1 = {
   backgroundTreatment: 'plain'
 };
 
-export const THEME_PRESETS: Record<string, ThemeConfigV1> = {
-  frosted: {
-    ...DEFAULT_THEME_CONFIG,
-    surfaceStyle: 'glass',
-    mood: 'atmospheric'
-  },
-  midnight: {
-    ...DEFAULT_THEME_CONFIG,
-    palette: 'dark',
-    surfaceStyle: 'raw',
-    mood: 'serious'
-  },
-  brutalist: {
-    ...DEFAULT_THEME_CONFIG,
-    surfaceStyle: 'raw',
-    typographyStyle: 'editorial',
-    mood: 'brutal'
-  },
-  playful: {
-    ...DEFAULT_THEME_CONFIG,
-    typographyStyle: 'playful',
-    mood: 'joyful'
-  },
-  experimental: {
-    ...DEFAULT_THEME_CONFIG,
-    surfaceStyle: 'soft',
-    mood: 'atmospheric',
-    accentIntensity: 'medium'
-  }
-};
-
 export function validateThemeConfig(
   input: Partial<ThemeConfigV1> | null | undefined
 ): ThemeConfigV1 {
@@ -62,10 +31,8 @@ export function validateThemeConfig(
     return DEFAULT_THEME_CONFIG;
   }
 
-  const merged: ThemeConfigV1 = {
+  return {
     ...DEFAULT_THEME_CONFIG,
     ...input
   };
-
-  return merged;
 }

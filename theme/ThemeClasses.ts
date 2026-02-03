@@ -1,6 +1,6 @@
 import { ThemeConfigV1 } from './ThemeConfig';
 
-export type ResolvedTheme = {
+export type ThemeClasses = {
   page: string;
   surface: string;
   card: string;
@@ -9,16 +9,10 @@ export type ResolvedTheme = {
   accent: string;
 };
 
-export const resolveTheme = (theme: ThemeConfigV1): ResolvedTheme => {
-  const pageBase = theme.palette === 'dark'
-    ? 'bg-gray-950 text-white'
-    : 'bg-white text-gray-900';
-
-  const background = theme.backgroundTreatment === 'gradient'
-    ? 'bg-gradient-to-b from-white to-gray-50'
-    : theme.backgroundTreatment === 'texture'
-      ? 'bg-white'
-      : '';
+export const resolveThemeClasses = (theme: ThemeConfigV1): ThemeClasses => {
+  const page = theme.palette === 'dark'
+    ? 'min-h-screen bg-gray-950 text-white'
+    : 'min-h-screen bg-white text-gray-900';
 
   const surface = theme.surfaceStyle === 'glass'
     ? 'bg-white/60 backdrop-blur-xl'
@@ -54,12 +48,5 @@ export const resolveTheme = (theme: ThemeConfigV1): ResolvedTheme => {
       ? 'text-emerald-500'
       : 'text-emerald-400';
 
-  return {
-    page: `min-h-screen ${pageBase} ${background}`.trim(),
-    surface,
-    card,
-    title,
-    body,
-    accent
-  };
+  return { page, surface, card, title, body, accent };
 };

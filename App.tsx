@@ -1192,6 +1192,8 @@ const AppContent: React.FC = () => {
           onManageJam={goToCreatorStudio}
           onCreatorClick={(creator) => openProfile(creator.handle)}
           isOwner={selectedApp ? currentUser?.handle === selectedApp.creator.handle : undefined}
+          userThemeId={(profile as any)?.theme_id || (profile as any)?.themeId || null}
+          userThemeConfig={(profile as any)?.theme_config || (profile as any)?.themeConfig || null}
         />
       )}
 
