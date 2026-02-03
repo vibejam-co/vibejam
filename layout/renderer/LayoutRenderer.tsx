@@ -1,184 +1,180 @@
 import React from 'react';
-import { LayoutBlockSpec, LayoutSpecV1 } from '../spec';
+import { LayoutConfigV1 } from '../LayoutConfig';
+import { ThemeConfigV1 } from '../ThemeConfig';
 import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
 
 interface LayoutRendererProps {
-  spec: LayoutSpecV1;
+  config: LayoutConfigV1;
   truth: TruthBlocks;
+  theme: ThemeConfigV1;
 }
 
-const BlockHero: React.FC<{ block: TruthBlocks['Hero']; variant?: string }> = ({ block }) => {
-  const { title, description, imageUrl, category, daysLive } = block.props;
+export const resolveGrid = (config: LayoutConfigV1) => {
+  const densityMap: Record<LayoutConfigV1['spacingDensity'], string> = {
+    compact: 'gap-5 md:gap-8',
+    comfortable: 'gap-8 md:gap-12',
+    loose: 'gap-10 md:gap-16'
+  };
+
+  const maxWidth = config.grid === 'asymmetric' ? 'max-w-6xl' : 'max-w-5xl';
+
+  return {
+    container: `grid grid-cols-12 ${densityMap[config.spacingDensity]} ${maxWidth} mx-auto px-4 md:px-8 pt-16 pb-24`
+  };
+};
+
+export const resolveHeroPlacement = (config: LayoutConfigV1) => {
+  if (config.heroPlacement === 'center') return { wrapper: 'col-span-12 text-center' };
+  if (config.heroPlacement === 'offset') return { wrapper: 'col-span-12 lg:col-span-10 lg:col-start-2 text-left' };
+  return { wrapper: 'col-span-12 text-left' };
+};
+
+export const resolveTimelinePlacement = (config: LayoutConfigV1) => {
+  const wide = config.grid === 'asymmetric' ? 'lg:col-span-9' : 'lg:col-span-8';
+  if (config.timelinePlacement === 'center') return `col-span-12 ${wide} lg:col-start-3`;
+  if (config.timelinePlacement === 'right') return `col-span-12 ${wide} lg:col-start-4`;
+  return `col-span-12 ${wide}`;
+};
+
+export const resolveTitleScale = (config: LayoutConfigV1) => {
+  if (config.typographyScale === 'oversized') {
+    return 'text-[clamp(4rem,11vw,9rem)] md:text-[clamp(8rem,14vw,18rem)] leading-[0.85] tracking-tight';
+  }
+  if (config.typographyScale === 'large') return 'text-4xl md:text-6xl';
+  return 'text-3xl md:text-5xl';
+};
+
+const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme }) => {
+  const grid = resolveGrid(config);
+  const heroPlacement = resolveHeroPlacement(config);
+  const timelinePlacement = resolveTimelinePlacement(config);
+  const titleScale = resolveTitleScale(config);
+  const identityPlacement = config.grid === 'asymmetric'
+    ? 'col-span-12 lg:col-span-3 lg:col-start-10'
+    : 'col-span-12 lg:col-span-4';
+  const identityOffset = config.grid === 'asymmetric' ? 'lg:mt-16' : '';
+  const heroOffsetLayout = config.grid === 'asymmetric' ? 'lg:grid-cols-[repeat(12,minmax(0,1fr))]' : '';
+  const proofArtifact = config.emphasis.proof ? 'border border-dashed border-emerald-200 px-3 py-2 rounded-full translate-x-1' : '';
+  const looseSpacing = config.spacingDensity === 'loose' ? 'mt-8 md:mt-12' : 'mt-6';
+  const showDevLabel = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+
+  const paletteClass = theme.palette === 'dark'
+    ? 'bg-gray-950 text-white'
+    : 'bg-white text-gray-900';
+  const surfaceClass = theme.surfaceStyle === 'soft'
+    ? 'bg-white/95'
+    : theme.surfaceStyle === 'glass'
+      ? 'bg-white/80'
+      : theme.surfaceStyle === 'ink'
+        ? 'bg-gray-900'
+        : '';
+  const typographyClass = theme.typographyStyle === 'editorial'
+    ? 'font-serif'
+    : theme.typographyStyle === 'brutal'
+      ? 'uppercase tracking-tight'
+      : theme.typographyStyle === 'playful'
+        ? 'tracking-wide'
+        : '';
+  const backgroundClass = theme.backgroundTreatment === 'gradient'
+    ? 'bg-gradient-to-b from-white to-gray-50'
+    : theme.backgroundTreatment === 'texture'
+      ? 'bg-white'
+      : '';
+
   return (
-    <div className="relative">
-      <h1 className="text-[12vw] md:text-[8vw] font-black tracking-tighter leading-[0.85] text-gray-900 uppercase">
-        {title}
-      </h1>
-      {description && (
-        <p className="mt-6 text-lg md:text-xl font-semibold text-gray-700 max-w-2xl">
-          {description}
-        </p>
-      )}
-      {imageUrl && (
-        <div className="mt-8 overflow-hidden rounded-[32px] shadow-2xl">
-          <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+    <div className={`min-h-screen ${paletteClass} ${backgroundClass} ${typographyClass}`.trim()}>
+      <div className={grid.container}>
+        {config.emphasis.hero && (
+          <div className={heroPlacement.wrapper}>
+            {config.heroPlacement === 'offset' ? (
+              <div className={`grid grid-cols-12 gap-8 items-start ${heroOffsetLayout}`}>
+                <div className="col-span-12 lg:col-span-5 lg:row-span-2">
+                  {config.emphasis.title && (
+                    <h1 className={`${titleScale} font-black`}>
+                      {truth.Hero.props.title}
+                    </h1>
+                  )}
+                  {truth.Hero.props.description && (
+                    <p className="mt-6 text-base md:text-lg text-gray-600 max-w-3xl">
+                      {truth.Hero.props.description}
+                    </p>
+                  )}
+                </div>
+                {truth.Hero.props.imageUrl && (
+                  <div className="col-span-12 lg:col-span-7 lg:col-start-6 lg:row-start-2">
+                    <div className={`overflow-hidden rounded-2xl border border-gray-100 ${surfaceClass}`}>
+                      <img src={truth.Hero.props.imageUrl} alt={truth.Hero.props.title} className="w-full h-full object-cover" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {config.emphasis.title && (
+                  <h1 className={`${titleScale} font-bold tracking-tight`}>
+                    {truth.Hero.props.title}
+                  </h1>
+                )}
+                {truth.Hero.props.description && (
+                  <p className="mt-4 text-base md:text-lg text-gray-600 max-w-3xl">
+                    {truth.Hero.props.description}
+                  </p>
+                )}
+                {truth.Hero.props.imageUrl && (
+                  <div className={`${looseSpacing} overflow-hidden rounded-2xl border border-gray-100 ${surfaceClass}`}>
+                    <img src={truth.Hero.props.imageUrl} alt={truth.Hero.props.title} className="w-full h-full object-cover" />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        <div className={timelinePlacement}>
+          <TimelineV2 milestones={truth.Timeline.props.milestones} onDiscussionClick={() => undefined} />
+        </div>
+
+        <div className={`${identityPlacement} ${identityOffset} space-y-5`}>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100">
+              {truth.Identity.props.avatarUrl && (
+                <img src={truth.Identity.props.avatarUrl} alt={truth.Identity.props.name} className="w-full h-full object-cover" />
+              )}
+            </div>
+            <div>
+              <div className="text-base font-semibold">{truth.Identity.props.name}</div>
+              {truth.Identity.props.handle && (
+                <div className="text-xs font-mono text-gray-400">{truth.Identity.props.handle}</div>
+              )}
+            </div>
+          </div>
+
+          {(config.emphasis.proof || truth.Metrics.props.growth || truth.Metrics.props.revenue) && (
+            <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+              {config.emphasis.proof && truth.Proof.props.proofUrl && (
+                <a href={truth.Proof.props.proofUrl} target="_blank" rel="noreferrer" className={`font-semibold uppercase tracking-widest text-emerald-700 ${proofArtifact}`}>
+                  Source Verified
+                </a>
+              )}
+              <span className="font-mono">Growth: {truth.Metrics.props.growth || '0%'}</span>
+              <span className="font-mono">Revenue: {truth.Metrics.props.revenue || '-'}</span>
+            </div>
+          )}
+
+          {truth.Links.props.websiteUrl && (
+            <a href={truth.Links.props.websiteUrl} target="_blank" rel="noreferrer" className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400 hover:text-gray-900">
+              Visit Website ↗
+            </a>
+          )}
+        </div>
+      </div>
+
+      {showDevLabel && (
+        <div className="fixed bottom-4 right-4 text-[10px] font-semibold uppercase tracking-widest text-gray-300">
+          Theme: {theme.mood}/{theme.surfaceStyle} · v{theme.version}
         </div>
       )}
-      <div className="mt-6 flex items-center gap-3 text-xs font-mono uppercase tracking-widest text-gray-400">
-        {category && <span>{category}</span>}
-        {typeof daysLive === 'number' && daysLive > 0 && <span>Day {daysLive}</span>}
-      </div>
-    </div>
-  );
-};
-
-const BlockIdentity: React.FC<{ block: TruthBlocks['Identity']; variant?: string }> = ({ block }) => {
-  const { name, handle, avatarUrl } = block.props;
-  return (
-    <div className="flex items-center gap-4">
-      <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gray-100">
-        {avatarUrl && <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />}
-      </div>
-      <div>
-        <div className="font-bold text-lg text-gray-900">{name}</div>
-        {handle && <div className="text-xs font-mono text-gray-400">{handle}</div>}
-      </div>
-    </div>
-  );
-};
-
-const BlockProof: React.FC<{ block: TruthBlocks['Proof']; variant?: string }> = ({ block }) => {
-  if (!block.props.proofUrl) return null;
-  return (
-    <a href={block.props.proofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-700">
-      Source Verified
-    </a>
-  );
-};
-
-const BlockMetrics: React.FC<{ block: TruthBlocks['Metrics']; variant?: string }> = ({ block }) => {
-  const { growth, revenue } = block.props;
-  return (
-    <div className="flex flex-wrap gap-3">
-      <div className="px-4 py-3 rounded-2xl border border-gray-100">
-        <div className="text-[9px] font-black uppercase text-gray-300">Growth</div>
-        <div className="text-sm font-bold text-blue-600 font-mono">{growth || '0%'}</div>
-      </div>
-      <div className="px-4 py-3 rounded-2xl border border-gray-100">
-        <div className="text-[9px] font-black uppercase text-gray-300">Revenue</div>
-        <div className="text-sm font-bold text-emerald-600 font-mono">{revenue || '-'}</div>
-      </div>
-    </div>
-  );
-};
-
-const BlockLinks: React.FC<{ block: TruthBlocks['Links']; variant?: string }> = ({ block }) => {
-  if (!block.props.websiteUrl) return null;
-  return (
-    <a href={block.props.websiteUrl} target="_blank" rel="noreferrer" className="text-xs font-black uppercase tracking-[0.3em] text-gray-300 hover:text-gray-900">
-      Visit Website ↗
-    </a>
-  );
-};
-
-const BlockTimeline: React.FC<{ block: TruthBlocks['Timeline']; variant?: string }> = ({ block }) => {
-  return (
-    <TimelineV2 milestones={block.props.milestones} onDiscussionClick={() => undefined} />
-  );
-};
-
-const BlockSignals: React.FC<{ block: TruthBlocks['Signals']; variant?: string }> = () => {
-  return null;
-};
-
-const BlockActions: React.FC<{ block: TruthBlocks['Actions']; variant?: string }> = () => {
-  return (
-    <div className="bg-gray-900/90 backdrop-blur-xl text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-4">
-      <span className="text-xs font-mono font-bold tracking-widest uppercase">Add to collection</span>
-      <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-        </svg>
-      </div>
-    </div>
-  );
-};
-
-const blockMap: Record<string, React.FC<any>> = {
-  Hero: BlockHero,
-  Identity: BlockIdentity,
-  Proof: BlockProof,
-  Metrics: BlockMetrics,
-  Links: BlockLinks,
-  Timeline: BlockTimeline,
-  Signals: BlockSignals,
-  Actions: BlockActions
-};
-
-const renderBlock = (spec: LayoutBlockSpec, truth: TruthBlocks) => {
-  const Component = blockMap[spec.type];
-  if (!Component) return null;
-  const block = truth[spec.type as keyof TruthBlocks] as any;
-  if (!block) return null;
-  return (
-    <div key={spec.id} style={spec.style}>
-      <Component block={block} variant={spec.variant} />
-    </div>
-  );
-};
-
-const LayoutRenderer: React.FC<LayoutRendererProps> = ({ spec, truth }) => {
-  const gridStyle: React.CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: `repeat(${spec.layout.grid.columns}, minmax(0, 1fr))`,
-    gridAutoRows: spec.layout.grid.rows ? undefined : 'min-content',
-    gap: spec.layout.grid.gap || '24px',
-    alignItems: spec.layout.grid.align || 'start',
-    justifyItems: spec.layout.grid.justify || 'start',
-    padding: spec.layout.grid.padding || '48px',
-    maxWidth: spec.layout.grid.maxWidth || '1400px',
-    margin: '0 auto',
-    width: '100%'
-  };
-
-  const resolveRegionPosition = (regionType: string) => {
-    if (regionType === 'fixed') return 'fixed' as const;
-    if (regionType === 'overlay') return 'absolute' as const;
-    return 'relative' as const;
-  };
-
-  return (
-    <div
-      className="min-h-screen"
-      style={{
-        minHeight: spec.canvas.minHeight || '100vh',
-        overflowX: spec.canvas.overflowX || 'hidden',
-        overflowY: spec.canvas.overflowY || 'visible',
-        background: spec.theme.background || 'white',
-        color: spec.theme.textColor || '#111827'
-      }}
-    >
-      <div className="relative" style={gridStyle}>
-        {spec.layout.regions.map(region => (
-          <div
-            key={region.id}
-            style={{
-              gridArea: region.gridArea,
-              position: resolveRegionPosition(region.type),
-              zIndex: region.zIndex,
-              top: region.position?.top,
-              right: region.position?.right,
-              bottom: region.position?.bottom,
-              left: region.position?.left
-            }}
-          >
-            {spec.blocks
-              .filter(block => block.regionId === region.id)
-              .map(block => renderBlock(block, truth))}
-          </div>
-        ))}
-      </div>
     </div>
   );
 };

@@ -6,7 +6,6 @@ import AppCard from './components/AppCard';
 import Launchpad from './components/Launchpad';
 import DiscoveryPage from './components/DiscoveryPage';
 import DiscoveryFeed from './components/DiscoveryFeed';
-import CreatorProfile from './components/CreatorProfile';
 import UserDashboard from './components/UserDashboard';
 import CreatorDashboard from './components/CreatorDashboard';
 import PrivacyPage from './pages/PrivacyPage';
@@ -23,9 +22,7 @@ import { AppProject } from './types';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabaseClient';
 import JamPageV2 from './components/jam/JamPageV2';
-import CreatorPageV2 from './components/creator/CreatorPageV2';
-
-const USE_CREATOR_V2 = true;
+import ProfilePageV2 from './components/profile/ProfilePageV2';
 
 const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { signInWithGoogle } = useAuth();
@@ -442,15 +439,13 @@ const AppContent: React.FC = () => {
   const debugEnabled = typeof window !== 'undefined' && window.location.search.includes('debug=1');
   const [debugAuth, setDebugAuth] = useState<any | null>(null);
   const [selectedApp, setSelectedApp] = useState<AppProject | null>(null);
-  const [selectedCreator, setSelectedCreator] = useState<AppProject['creator'] | null>(null);
+  const [profileHandle, setProfileHandle] = useState<string | null>(null);
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(false);
   const [editingJam, setEditingJam] = useState<any | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [jamRouteSlug, setJamRouteSlug] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState<'home' | 'discover' | 'learn' | 'me' | 'creator-studio' | 'privacy' | 'terms' | 'cookie' | 'leaderboard' | 'creator-tools' | 'guidelines' | 'contact' | 'jam'>('home');
-  const [isFirstTimeEarnDemo, setIsFirstTimeEarnDemo] = useState(false);
-  const [returnToJam, setReturnToJam] = useState<AppProject | null>(null);
+  const [currentPage, setCurrentPage] = useState<'home' | 'discover' | 'learn' | 'me' | 'creator-studio' | 'privacy' | 'terms' | 'cookie' | 'leaderboard' | 'creator-tools' | 'guidelines' | 'contact' | 'jam' | 'profile'>('home');
   const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
   const [discoveryApps, setDiscoveryApps] = useState<AppProject[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -506,7 +501,7 @@ const AppContent: React.FC = () => {
   }, []);
 
   const applyJamState = useCallback((project: AppProject | null, version: 'v1' | 'v2', replaceHistory: boolean, slugOverride?: string | null) => {
-    setSelectedCreator(null);
+    setProfileHandle(null);
     setSelectedApp(project);
     setCurrentPage('jam');
     const slug = slugOverride ?? (project ? getJamSlug(project) : null);
@@ -549,6 +544,7 @@ const AppContent: React.FC = () => {
     setSelectedApp(null);
     setCurrentPage('home');
     setJamRouteSlug(null);
+    setProfileHandle(null);
     if (typeof window !== 'undefined') {
       window.scrollTo(0, 0);
     }
@@ -557,6 +553,7 @@ const AppContent: React.FC = () => {
   const goToCreatorStudio = useCallback(() => {
     setSelectedApp(null);
     setJamRouteSlug(null);
+    setProfileHandle(null);
     setCurrentPage('creator-studio');
     updateHistoryForPage('creator-studio', 'replace');
     if (typeof window !== 'undefined') {
@@ -576,11 +573,21 @@ const AppContent: React.FC = () => {
         return;
       }
     }
+    if (path.startsWith('/@')) {
+      const handle = path.slice(2);
+      if (handle) {
+        setProfileHandle(handle);
+        setSelectedApp(null);
+        setJamRouteSlug(null);
+        setCurrentPage('profile');
+        return;
+      }
+    }
     updateHistoryForPage(initialPageRef.current, 'replace');
   }, [applyJamState, updateHistoryForPage]);
 
   useEffect(() => {
-    if (currentPage === 'jam') return;
+    if (currentPage === 'jam' || currentPage === 'profile') return;
     updateHistoryForPage(currentPage, 'replace');
   }, [currentPage, updateHistoryForPage]);
 
@@ -596,8 +603,19 @@ const AppContent: React.FC = () => {
         }
         return;
       }
+      if (path.startsWith('/@')) {
+        const handle = path.slice(2);
+        if (handle) {
+          setProfileHandle(handle);
+          setSelectedApp(null);
+          setJamRouteSlug(null);
+          setCurrentPage('profile');
+        }
+        return;
+      }
       setSelectedApp(null);
       setJamRouteSlug(null);
+      setProfileHandle(null);
       const fallback = (window.history.state?.page as typeof currentPage) || 'home';
       setCurrentPage(fallback);
       window.scrollTo(0, 0);
@@ -705,13 +723,7 @@ const AppContent: React.FC = () => {
         }
       }
       if (item?.actor?.handle) {
-        setSelectedCreator({
-          handle: `@${item.actor.handle}`,
-          name: item.actor.display_name || 'Maker',
-          avatar: item.actor.avatar_url || '',
-          type: 'Solo Founder'
-        } as any);
-        setCurrentPage('discover');
+        openProfile(`@${item.actor.handle}`, { replaceHistory: true });
       }
     } catch (e) {
       console.warn('Open notification failed', e);
@@ -764,30 +776,44 @@ const AppContent: React.FC = () => {
 
   // Scroll Lock Management
   useEffect(() => {
-    const isModalActive = (selectedCreator && !USE_CREATOR_V2) || isLaunchpadOpen || isAuthOpen;
+    const isModalActive = isLaunchpadOpen || isAuthOpen;
     document.body.style.overflow = isModalActive ? 'hidden' : 'auto';
-  }, [selectedCreator, isLaunchpadOpen, isAuthOpen]);
+  }, [isLaunchpadOpen, isAuthOpen]);
 
-
-  const handleOpenCreator = (creator: AppProject['creator'], fromJam?: AppProject, demoEarn: boolean = false) => {
-    if (fromJam) {
-      setReturnToJam(fromJam);
-      setSelectedApp(null);
-    } else {
-      setReturnToJam(null);
+  const openProfile = useCallback((handle: string, options?: { replaceHistory?: boolean }) => {
+    const cleanHandle = handle.replace('@', '');
+    setProfileHandle(cleanHandle);
+    setSelectedApp(null);
+    setJamRouteSlug(null);
+    setCurrentPage('profile');
+    if (typeof window !== 'undefined') {
+      const search = buildSearchWithoutVersion(window.location.search);
+      const url = `/@${cleanHandle}${search}`;
+      const state = { page: 'profile', handle: cleanHandle };
+      if (options?.replaceHistory) {
+        window.history.replaceState(state, '', url);
+      } else {
+        window.history.pushState(state, '', url);
+      }
+      window.scrollTo(0, 0);
     }
-    setSelectedCreator(creator);
-    setIsFirstTimeEarnDemo(demoEarn);
-  };
+  }, []);
 
-  const handleCloseCreator = () => {
-    setSelectedCreator(null);
-    setIsFirstTimeEarnDemo(false);
-    if (returnToJam) {
-      openJam(returnToJam, { replaceHistory: true });
-      setReturnToJam(null);
+  const closeProfile = useCallback(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/@')) {
+      if (window.history.length > 1) {
+        window.history.back();
+        return;
+      }
+      const search = buildSearchWithoutVersion(window.location.search);
+      window.history.replaceState({ page: 'home' }, '', `/${search}`);
     }
-  };
+    setProfileHandle(null);
+    setCurrentPage('home');
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+  }, []);
 
   const handleOpenLaunchpad = useCallback(() => {
     if (currentUser) {
@@ -814,20 +840,20 @@ const AppContent: React.FC = () => {
     return (
       <nav className={`fixed top-0 border-transparent left-0 right-0 z-50 transition-all duration-500 ${isScrolled || (currentPage !== 'home' && currentPage !== 'me' && currentPage !== 'creator-studio' && currentPage !== 'privacy' && currentPage !== 'terms' && currentPage !== 'cookie' && currentPage !== 'leaderboard' && currentPage !== 'creator-tools' && currentPage !== 'guidelines' && currentPage !== 'contact') ? 'glass-header py-3 md:py-4' : 'py-5 md:py-8'}`}>
         <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between">
-          <div onClick={() => { setCurrentPage('home'); setSelectedCreator(null); setSelectedApp(null); window.scrollTo(0, 0); }} className="cursor-pointer">
+          <div onClick={() => { setCurrentPage('home'); setSelectedApp(null); window.scrollTo(0, 0); }} className="cursor-pointer">
             <Logo />
           </div>
 
           <div className="hidden md:flex items-center gap-12">
             <button
-              onClick={() => { setCurrentPage('discover'); setSelectedCreator(null); setSelectedApp(null); }}
-              className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative group ${currentPage === 'discover' && !selectedCreator ? 'text-gray-900' : 'text-gray-400 hover:text-gray-900'}`}
+              onClick={() => { setCurrentPage('discover'); setSelectedApp(null); }}
+              className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative group ${currentPage === 'discover' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-900'}`}
             >
               Discover
-              <span className={`absolute -bottom-2 left-0 h-0.5 bg-blue-500 transition-all duration-500 ${currentPage === 'discover' && !selectedCreator ? 'w-full' : 'w-0 group-hover:w-full'}`} />
+              <span className={`absolute -bottom-2 left-0 h-0.5 bg-blue-500 transition-all duration-500 ${currentPage === 'discover' ? 'w-full' : 'w-0 group-hover:w-full'}`} />
             </button>
             <button
-              onClick={() => { setCurrentPage('learn'); setSelectedCreator(null); setSelectedApp(null); }}
+              onClick={() => { setCurrentPage('learn'); setSelectedApp(null); }}
               className={`text-[11px] font-black uppercase tracking-[0.2em] transition-all relative group ${currentPage === 'learn' ? 'text-gray-900' : 'text-gray-400 hover:text-gray-900'}`}
             >
               Learn
@@ -839,7 +865,7 @@ const AppContent: React.FC = () => {
             {authUser ? (
               <div className="flex items-center gap-3 md:gap-4">
                 <button
-                  onClick={() => { setCurrentPage('creator-studio'); setSelectedCreator(null); setSelectedApp(null); }}
+                  onClick={() => { setCurrentPage('creator-studio'); setSelectedApp(null); }}
                   className={`text-[10px] font-black uppercase tracking-widest px-3 md:px-4 py-1.5 md:py-2 rounded-xl border transition-all ${currentPage === 'creator-studio' ? 'bg-gray-900 text-white border-gray-900' : 'text-gray-400 border-gray-100 hover:text-gray-900'} hidden sm:block`}
                 >
                   Studio
@@ -928,7 +954,7 @@ const AppContent: React.FC = () => {
                 </div>
                 <div className="relative group/user">
                   <button
-                    onClick={() => { setCurrentPage('me'); setSelectedCreator(null); setSelectedApp(null); }}
+                    onClick={() => { setCurrentPage('me'); setSelectedApp(null); }}
                     className="relative aura-clip group"
                   >
                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full border border-gray-100 p-0.5 bg-white relative z-10 overflow-hidden flex items-center justify-center">
@@ -944,7 +970,7 @@ const AppContent: React.FC = () => {
                   {/* Simple Dropdown for Logout */}
                   <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-50 py-2 opacity-0 invisible group-hover/user:opacity-100 group-hover/user:visible transition-all">
                     <button
-                      onClick={() => { setCurrentPage('me'); setSelectedCreator(null); setSelectedApp(null); }}
+                      onClick={() => { setCurrentPage('me'); setSelectedApp(null); }}
                       className="w-full px-5 py-2.5 text-left text-[11px] font-bold text-gray-700 hover:bg-gray-50"
                     >
                       View Profile
@@ -1012,7 +1038,7 @@ const AppContent: React.FC = () => {
           <DiscoveryFeed
             apps={discoveryApps}
             onSelect={openJam}
-            onCreatorClick={(creator) => handleOpenCreator(creator)}
+            onCreatorClick={(creator) => openProfile(creator.handle)}
             customTitle="Top Jams Shipping This Week"
           />
         </div>
@@ -1043,7 +1069,7 @@ const AppContent: React.FC = () => {
                       View Jam
                     </button>
                     <button
-                      onClick={() => handleOpenCreator(discoveryApps[0].creator)}
+                      onClick={() => openProfile(discoveryApps[0].creator.handle)}
                       className="text-gray-400 text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] hover:text-gray-900 transition-colors font-bold"
                     >
                       View Maker Profile →
@@ -1066,11 +1092,7 @@ const AppContent: React.FC = () => {
     </div>
   );
 
-  const isV2PageActive = currentPage === 'jam' || (selectedCreator && USE_CREATOR_V2);
-  const jamRenderVersion = typeof window !== 'undefined'
-    ? resolveJamPageVersion(window.location.search)
-    : 'v2';
-
+  const isV2PageActive = currentPage === 'jam' || currentPage === 'profile';
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       {!isV2PageActive && renderHeader()}
@@ -1078,61 +1100,61 @@ const AppContent: React.FC = () => {
       <div className="flex-1 relative">
         {!isV2PageActive && (
           <>
-            {currentPage === 'home' && !selectedCreator && renderHomePageV4()}
-            {currentPage === 'privacy' && !selectedCreator && (
+            {currentPage === 'home' && renderHomePageV4()}
+            {currentPage === 'privacy' && (
               <PrivacyPage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
             )}
-            {currentPage === 'terms' && !selectedCreator && (
+            {currentPage === 'terms' && (
               <TermsPage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
             )}
-            {currentPage === 'cookie' && !selectedCreator && (
+            {currentPage === 'cookie' && (
               <CookiePage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
             )}
-            {currentPage === 'leaderboard' && !selectedCreator && (
+            {currentPage === 'leaderboard' && (
               <LeaderboardPage
                 onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }}
-                onSelectCreator={(creator) => handleOpenCreator(creator)}
+                onSelectCreator={(creator) => openProfile(creator.handle)}
               />
             )}
-            {currentPage === 'creator-tools' && !selectedCreator && (
+            {currentPage === 'creator-tools' && (
               <CreatorToolsPage
                 onStartJam={handleOpenLaunchpad}
                 onBrowseJams={() => { setCurrentPage('discover'); window.scrollTo(0, 0); }}
               />
             )}
-            {currentPage === 'guidelines' && !selectedCreator && (
+            {currentPage === 'guidelines' && (
               <GuidelinesPage
                 onStartJam={handleOpenLaunchpad}
                 onBrowseJams={() => { setCurrentPage('discover'); window.scrollTo(0, 0); }}
               />
             )}
-            {currentPage === 'contact' && !selectedCreator && (
+            {currentPage === 'contact' && (
               <ContactPage
                 onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }}
               />
             )}
-            {currentPage === 'discover' && !selectedCreator && (
+            {currentPage === 'discover' && (
               <DiscoveryPage
                 onSelectApp={openJam}
-                onSelectCreator={(creator) => handleOpenCreator(creator)}
+                onSelectCreator={(creator) => openProfile(creator.handle)}
                 onNavigateLeaderboard={() => setCurrentPage('leaderboard')}
               />
             )}
-            {currentPage === 'learn' && !selectedCreator && (
+            {currentPage === 'learn' && (
               <div className="pt-48 text-center text-gray-400 h-[70vh] flex flex-col items-center justify-center px-6">
                 <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.5em] mb-6">COMING SOON</span>
                 <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter">Learn is being drafted.</h2>
                 <p className="mt-4 text-base md:text-xl font-medium text-gray-400 max-w-md">Founders, builders, and growth hackers — your editorial hub is coming.</p>
               </div>
             )}
-            {currentPage === 'me' && currentUser && !selectedCreator && (
+            {currentPage === 'me' && currentUser && (
               <UserDashboard
                 onBack={() => setCurrentPage('home')}
                 onSelectApp={openJam}
-                onSelectCreator={(creator) => handleOpenCreator(creator)}
+                onSelectCreator={(creator) => openProfile(creator.handle)}
               />
             )}
-            {currentPage === 'creator-studio' && currentUser && !selectedCreator && (
+            {currentPage === 'creator-studio' && currentUser && (
               <CreatorDashboard
                 user={{
                   name: currentUser.name,
@@ -1151,38 +1173,24 @@ const AppContent: React.FC = () => {
         )}
       </div>
 
-      {selectedCreator && !USE_CREATOR_V2 && (
-        <CreatorProfile
-          creator={selectedCreator}
-          onClose={handleCloseCreator}
-          onSelectApp={openJam}
-          isFirstTimeEarn={isFirstTimeEarnDemo}
+      {currentPage === 'profile' && profileHandle && (
+        <ProfilePageV2
+          handle={profileHandle}
+          onClose={closeProfile}
+          onSelectJam={openJam}
         />
       )}
 
-      {selectedCreator && USE_CREATOR_V2 && (
-        <CreatorPageV2
-          creator={selectedCreator}
-          isLoggedIn={!!currentUser}
-          isMe={profile?.handle === selectedCreator.handle.replace('@', '')}
-          onClose={handleCloseCreator}
-          onSelectApp={openJam}
-          onStudioClick={() => { handleCloseCreator(); setCurrentPage('creator-studio'); }}
-          isFirstTimeEarn={isFirstTimeEarnDemo}
-        />
-      )}
-
-      {currentPage === 'jam' && !selectedCreator && (
+      {currentPage === 'jam' && (
         <JamPageV2
           project={selectedApp}
           jamSlug={jamRouteSlug}
-          renderVersion={jamRenderVersion}
           onClose={closeJam}
           isLoggedIn={!!currentUser}
           currentUserHandle={currentUser?.handle}
           onAuthTrigger={() => setIsAuthOpen(true)}
           onManageJam={goToCreatorStudio}
-          onCreatorClick={(creator, project) => handleOpenCreator(creator, project)}
+          onCreatorClick={(creator) => openProfile(creator.handle)}
           isOwner={selectedApp ? currentUser?.handle === selectedApp.creator.handle : undefined}
         />
       )}
@@ -1223,7 +1231,7 @@ const AppContent: React.FC = () => {
         </div>
       )}
 
-      {!isV2PageActive && (currentPage !== 'home' || selectedCreator) && (
+      {!isV2PageActive && currentPage !== 'home' && (
         <div className="mt-auto">
           <FooterV4 onNavigate={(page) => { setCurrentPage(page); window.scrollTo(0, 0); }} onNavigateSubmitApp={handleOpenLaunchpad} />
         </div>

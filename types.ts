@@ -67,6 +67,7 @@ export interface AppProject {
   status?: JamStatus;
 }
 
+
 export enum VibeColor {
   Blue = '#3b82f6',
   Red = '#f43f5e',
