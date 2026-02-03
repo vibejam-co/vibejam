@@ -1,13 +1,13 @@
 import React from 'react';
 import { LayoutConfigV1 } from '../LayoutConfig';
-import { ThemeConfigV1 } from '../ThemeConfig';
+import { ResolvedTheme } from '../ThemeResolver';
 import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
 
 interface LayoutRendererProps {
   config: LayoutConfigV1;
   truth: TruthBlocks;
-  theme: ThemeConfigV1;
+  theme: ResolvedTheme;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -57,33 +57,9 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme })
   const heroOffsetLayout = config.grid === 'asymmetric' ? 'lg:grid-cols-[repeat(12,minmax(0,1fr))]' : '';
   const proofArtifact = config.emphasis.proof ? 'border border-dashed border-emerald-200 px-3 py-2 rounded-full translate-x-1' : '';
   const looseSpacing = config.spacingDensity === 'loose' ? 'mt-8 md:mt-12' : 'mt-6';
-  const showDevLabel = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
-
-  const paletteClass = theme.palette === 'dark'
-    ? 'bg-gray-950 text-white'
-    : 'bg-white text-gray-900';
-  const surfaceClass = theme.surfaceStyle === 'soft'
-    ? 'bg-white/95'
-    : theme.surfaceStyle === 'glass'
-      ? 'bg-white/80'
-      : theme.surfaceStyle === 'ink'
-        ? 'bg-gray-900'
-        : '';
-  const typographyClass = theme.typographyStyle === 'editorial'
-    ? 'font-serif'
-    : theme.typographyStyle === 'brutal'
-      ? 'uppercase tracking-tight'
-      : theme.typographyStyle === 'playful'
-        ? 'tracking-wide'
-        : '';
-  const backgroundClass = theme.backgroundTreatment === 'gradient'
-    ? 'bg-gradient-to-b from-white to-gray-50'
-    : theme.backgroundTreatment === 'texture'
-      ? 'bg-white'
-      : '';
 
   return (
-    <div className={`min-h-screen ${paletteClass} ${backgroundClass} ${typographyClass}`.trim()}>
+    <div className="min-h-screen">
       <div className={grid.container}>
         {config.emphasis.hero && (
           <div className={heroPlacement.wrapper}>
@@ -91,19 +67,19 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme })
               <div className={`grid grid-cols-12 gap-8 items-start ${heroOffsetLayout}`}>
                 <div className="col-span-12 lg:col-span-5 lg:row-span-2">
                   {config.emphasis.title && (
-                    <h1 className={`${titleScale} font-black`}>
+                    <h1 className={`${titleScale} font-black ${theme.title}`}>
                       {truth.Hero.props.title}
                     </h1>
                   )}
                   {truth.Hero.props.description && (
-                    <p className="mt-6 text-base md:text-lg text-gray-600 max-w-3xl">
+                    <p className={`mt-6 text-base md:text-lg opacity-70 max-w-3xl ${theme.body}`}>
                       {truth.Hero.props.description}
                     </p>
                   )}
                 </div>
                 {truth.Hero.props.imageUrl && (
                   <div className="col-span-12 lg:col-span-7 lg:col-start-6 lg:row-start-2">
-                    <div className={`overflow-hidden rounded-2xl border border-gray-100 ${surfaceClass}`}>
+                    <div className={`overflow-hidden border border-gray-100 ${theme.card} ${theme.surface}`}>
                       <img src={truth.Hero.props.imageUrl} alt={truth.Hero.props.title} className="w-full h-full object-cover" />
                     </div>
                   </div>
@@ -112,17 +88,17 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme })
             ) : (
               <>
                 {config.emphasis.title && (
-                  <h1 className={`${titleScale} font-bold tracking-tight`}>
+                  <h1 className={`${titleScale} font-bold tracking-tight ${theme.title}`}>
                     {truth.Hero.props.title}
                   </h1>
                 )}
                 {truth.Hero.props.description && (
-                  <p className="mt-4 text-base md:text-lg text-gray-600 max-w-3xl">
+                  <p className={`mt-4 text-base md:text-lg text-gray-600 max-w-3xl ${theme.body}`}>
                     {truth.Hero.props.description}
                   </p>
                 )}
                 {truth.Hero.props.imageUrl && (
-                  <div className={`${looseSpacing} overflow-hidden rounded-2xl border border-gray-100 ${surfaceClass}`}>
+                  <div className={`${looseSpacing} overflow-hidden border border-gray-100 ${theme.card} ${theme.surface}`}>
                     <img src={truth.Hero.props.imageUrl} alt={truth.Hero.props.title} className="w-full h-full object-cover" />
                   </div>
                 )}
@@ -135,7 +111,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme })
           <TimelineV2 milestones={truth.Timeline.props.milestones} onDiscussionClick={() => undefined} />
         </div>
 
-        <div className={`${identityPlacement} ${identityOffset} space-y-5`}>
+        <div className={`${identityPlacement} ${identityOffset} space-y-5 ${theme.body}`}>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100">
               {truth.Identity.props.avatarUrl && (
@@ -151,9 +127,9 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme })
           </div>
 
           {(config.emphasis.proof || truth.Metrics.props.growth || truth.Metrics.props.revenue) && (
-            <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+            <div className={`flex flex-wrap gap-4 text-sm text-gray-500 ${theme.body}`}>
               {config.emphasis.proof && truth.Proof.props.proofUrl && (
-                <a href={truth.Proof.props.proofUrl} target="_blank" rel="noreferrer" className={`font-semibold uppercase tracking-widest text-emerald-700 ${proofArtifact}`}>
+                <a href={truth.Proof.props.proofUrl} target="_blank" rel="noreferrer" className={`font-semibold uppercase tracking-widest ${theme.accent} ${proofArtifact}`}>
                   Source Verified
                 </a>
               )}
@@ -169,12 +145,6 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme })
           )}
         </div>
       </div>
-
-      {showDevLabel && (
-        <div className="fixed bottom-4 right-4 text-[10px] font-semibold uppercase tracking-widest text-gray-300">
-          Theme: {theme.mood}/{theme.surfaceStyle} · v{theme.version}
-        </div>
-      )}
     </div>
   );
 };

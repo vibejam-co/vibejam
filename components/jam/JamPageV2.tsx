@@ -5,6 +5,7 @@ import { mapJamToAppProject } from '../../lib/jamMapping';
 import LayoutRenderer from '../../layout/renderer/LayoutRenderer';
 import { createTruthModel } from '../../layout/truth';
 import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1, validateLayoutConfig } from '../../layout/LayoutConfig';
+import { resolveTheme } from '../../layout/ThemeResolver';
 import { DEFAULT_THEME_CONFIG, THEME_PRESETS, ThemeConfigV1, validateThemeConfig } from '../../layout/ThemeConfig';
 
 interface JamPageV2Props {
@@ -106,7 +107,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const initialTheme = searchTheme && THEME_PRESETS[searchTheme]
     ? validateThemeConfig(THEME_PRESETS[searchTheme])
     : validateThemeConfig(DEFAULT_THEME_CONFIG);
-  const [activeTheme] = useState<ThemeConfigV1>(initialTheme);
+  const [activeTheme, setActiveTheme] = useState<ThemeConfigV1>(initialTheme);
+  const [activeThemeName, setActiveThemeName] = useState(searchTheme || 'default');
 
   const showDevLabel = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   if (layoutConfig && layoutConfig.version !== 1 && showDevLabel) {
@@ -115,11 +117,33 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const handleArchetypeChange = (archetype: LayoutArchetype) => {
     setActiveConfig(validateLayoutConfig(LAYOUT_PRESETS[archetype] || DEFAULT_LAYOUT_CONFIG));
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('layout', archetype);
+      const query = params.toString();
+      const url = `${window.location.pathname}${query ? `?${query}` : ''}`;
+      window.history.replaceState(window.history.state, '', url);
+    }
   };
 
+  const handleThemeChange = (themeName: string) => {
+    const preset = THEME_PRESETS[themeName] || DEFAULT_THEME_CONFIG;
+    setActiveTheme(validateThemeConfig(preset));
+    setActiveThemeName(themeName);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      params.set('theme', themeName);
+      const query = params.toString();
+      const url = `${window.location.pathname}${query ? `?${query}` : ''}`;
+      window.history.replaceState(window.history.state, '', url);
+    }
+  };
+
+  const resolvedTheme = resolveTheme(activeTheme);
+
   return (
-    <div className="relative min-h-screen">
-      <LayoutRenderer config={activeConfig} truth={truth} theme={activeTheme} />
+    <div className={`relative ${resolvedTheme.page}`}>
+      <LayoutRenderer config={activeConfig} truth={truth} theme={resolvedTheme} />
 
       <button
         type="button"
@@ -130,7 +154,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       </button>
 
       {isControlOpen && (
-        <div className="fixed bottom-16 right-5 z-[200] w-48 rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
+        <div className="fixed bottom-16 right-5 z-[200] w-56 rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-2">
             Archetype
           </div>
@@ -146,12 +170,32 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
               </button>
             ))}
           </div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mt-4 mb-2">
+            Theme
+          </div>
+          <div className="space-y-2">
+            {(['frosted', 'midnight', 'brutalist', 'playful', 'experimental'] as const).map((themeName) => (
+              <button
+                key={themeName}
+                type="button"
+                onClick={() => handleThemeChange(themeName)}
+                className={`w-full rounded-md px-2 py-1 text-left text-xs ${activeThemeName === themeName ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-700'}`}
+              >
+                {themeName}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {showDevLabel && (
         <div className="fixed bottom-4 right-4 text-[10px] font-semibold uppercase tracking-widest text-gray-300">
           Layout: {activeConfig.archetype} · v{activeConfig.version}
+        </div>
+      )}
+      {showDevLabel && (
+        <div className="fixed bottom-7 right-4 text-[10px] font-semibold uppercase tracking-widest text-gray-300">
+          Theme: {activeThemeName} · v{activeTheme.version}
         </div>
       )}
     </div>
