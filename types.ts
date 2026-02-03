@@ -65,6 +65,8 @@ export interface AppProject {
   // New fields for direct access if needed
   websiteUrl?: string;
   status?: JamStatus;
+  themeId?: string;
+  themeConfig?: any;
 }
 
 
@@ -151,6 +153,8 @@ export type JamDoc = {
     badges?: any[];
     trust_flags?: any;
   };
+  theme_id?: string | null;
+  theme_config?: any;
 };
 
 export type LeaderboardItem = {

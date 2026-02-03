@@ -39,7 +39,9 @@ export const mapJamToAppProject = (jam: any): AppProject => {
     stack: jam.techStack || jam.tech_stack || [],
     vibeTools: jam.vibeTools || jam.vibe_tools || [],
     websiteUrl: jam.websiteUrl || jam.website_url,
-    status: jam.status
+    status: jam.status,
+    themeId: jam.theme_id || jam.themeId || null,
+    themeConfig: jam.theme_config || jam.themeConfig || null
   });
 };
 

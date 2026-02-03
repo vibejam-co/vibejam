@@ -807,6 +807,30 @@ export const backend = {
         return safeInvoke<any>('theme-remix', params);
     },
 
+    /**
+     * Persist the active theme for a jam. Explicit save only.
+     */
+    saveJamTheme: async (params: { jamId: string; themeId?: string | null; themeConfig?: any | null }): Promise<{ ok: boolean; jam?: any; error?: string }> => {
+        if (!supabase) return { ok: false, error: 'SUPABASE_NOT_CONFIGURED' };
+        try {
+            await requireSession();
+            const { jamId, themeId, themeConfig } = params;
+            const payload = {
+                theme_id: themeId ?? null,
+                theme_config: themeConfig ?? null,
+                updated_at: new Date().toISOString()
+            };
+            const { data, error } = await withTimeout(
+                supabase.from('jams').update(payload).eq('id', jamId).select('*').single()
+            );
+            if (error) throw error;
+            return { ok: true, jam: data };
+        } catch (e) {
+            console.warn('[Backend] saveJamTheme failed:', e);
+            return { ok: false, error: normalizeError(e).code };
+        }
+    },
+
     // ============ PHASE 7: MEDIA STORAGE PLUMBING ============
 
     /**

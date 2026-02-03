@@ -35,7 +35,7 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     surfaceStyle: 'raw',
     typographyStyle: 'system',
     mood: 'brutal',
-    accentIntensity: 'low',
+    accentIntensity: 'medium',
     backgroundTreatment: 'plain'
   }),
   experimental: validateThemeConfig({

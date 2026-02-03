@@ -7,7 +7,8 @@ import { createTruthModel } from '../../layout/truth';
 import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1, validateLayoutConfig } from '../../layout/LayoutConfig';
 import { resolveTheme } from '../../theme/ThemeResolver';
 import { resolveThemeClasses } from '../../theme/ThemeClasses';
-import { THEME_REGISTRY } from '../../theme/ThemeRegistry';
+import ThemeControlDock from '../creator/ThemeControlDock';
+import { THEME_REGISTRY, getThemeById } from '../../theme/ThemeRegistry';
 import ThemeRemixDrawer from '../creator/ThemeRemixDrawer';
 import { ThemeRemixResult, validateRemix } from '../../theme/ThemeRemix';
 import { ThemeConfigV1 } from '../../theme/ThemeConfig';
@@ -25,6 +26,7 @@ interface JamPageV2Props {
   onCreatorClick?: (creator: AppProject['creator'], project: AppProject) => void;
   isOwner?: boolean;
   userThemeId?: string | null;
+  userThemeConfig?: ThemeConfigV1 | null;
 }
 
 const JamPageV2: React.FC<JamPageV2Props> = ({
@@ -38,7 +40,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   onManageJam,
   onCreatorClick,
   isOwner,
-  userThemeId
+  userThemeId,
+  userThemeConfig
 }) => {
   const [loadedProject, setLoadedProject] = useState<AppProject | null>(project ?? null);
   const [isLoading, setIsLoading] = useState(false);
@@ -49,6 +52,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const [isRemixDrawerOpen, setIsRemixDrawerOpen] = useState(false);
   const [isRemixing, setIsRemixing] = useState(false);
   const [ephemeralRemix, setEphemeralRemix] = useState<ThemeRemixResult | null>(null);
+  const [previousThemeState, setPreviousThemeState] = useState<{ themeId: string | null; remix: ThemeRemixResult | null; source: 'url' | 'control' | 'remix' | 'saved' | 'default' } | null>(null);
+  const [isSavingTheme, setIsSavingTheme] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const routeSlug = useMemo(() => {
     if (jamSlug) return jamSlug;
@@ -118,23 +124,42 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     ? new URLSearchParams(window.location.search).get('theme')
     : null;
 
-  const jamThemeId = (loadedProject as any)?.theme_id || null;
+  const jamThemeId = (loadedProject as any)?.theme_id || loadedProject?.themeId || null;
+  const jamThemeConfig = (loadedProject as any)?.theme_config || loadedProject?.themeConfig || null;
   const [activeThemeId, setActiveThemeId] = useState<string | null>(searchTheme);
+  const [themeSource, setThemeSource] = useState<'url' | 'control' | 'remix' | 'saved' | 'default'>(searchTheme ? 'url' : 'default');
+
+  useEffect(() => {
+    if (activeThemeId || ephemeralRemix) return;
+    if (jamThemeId || jamThemeConfig) {
+      setThemeSource('saved');
+      return;
+    }
+    if (userThemeId || userThemeConfig) {
+      setThemeSource('saved');
+      return;
+    }
+    setThemeSource('default');
+  }, [activeThemeId, ephemeralRemix, jamThemeId, jamThemeConfig, userThemeId, userThemeConfig]);
 
   const resolvedTheme: ThemeConfigV1 = useMemo(() => {
     if (ephemeralRemix) return ephemeralRemix.config;
     return resolveTheme({
       urlTheme: activeThemeId,
       jamTheme: jamThemeId,
-      userTheme: userThemeId
+      jamThemeConfig,
+      userTheme: userThemeId,
+      userThemeConfig: userThemeConfig || null
     });
-  }, [ephemeralRemix, activeThemeId, jamThemeId, userThemeId]);
+  }, [ephemeralRemix, activeThemeId, jamThemeId, jamThemeConfig, userThemeId, userThemeConfig]);
 
   const resolvedThemeName = (() => {
     if (ephemeralRemix) return 'ai-remix';
     if (activeThemeId && THEME_REGISTRY[activeThemeId]) return activeThemeId;
     if (jamThemeId && THEME_REGISTRY[jamThemeId]) return jamThemeId;
+    if (jamThemeConfig) return 'custom';
     if (userThemeId && THEME_REGISTRY[userThemeId]) return userThemeId;
+    if (userThemeConfig) return 'custom';
     return 'default';
   })();
 
@@ -155,7 +180,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
       if (result) {
         const validated = validateRemix(result);
+        setPreviousThemeState({ themeId: activeThemeId, remix: ephemeralRemix, source: themeSource });
         setEphemeralRemix(validated);
+        setThemeSource('remix');
         return validated;
       }
     } catch (e) {
@@ -164,6 +191,16 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       setIsRemixing(false);
     }
     return null;
+  };
+
+  const handleRejectRemix = () => {
+    setEphemeralRemix(null);
+  };
+
+  const handleAcceptRemix = () => {
+    // In a real app, this would persist the theme to the project
+    // For now, we just keep it as the active ephemeral state
+    console.log('Accepted remix:', ephemeralRemix);
   };
 
   const showDevLabel = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
@@ -183,13 +220,62 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   };
 
   const handleThemeChange = (themeName: string) => {
+    setPreviousThemeState({ themeId: activeThemeId, remix: ephemeralRemix, source: themeSource });
     setActiveThemeId(themeName);
+    setEphemeralRemix(null);
+    setThemeSource('control');
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       params.set('theme', themeName);
       const query = params.toString();
       const url = `${window.location.pathname}${query ? `?${query}` : ''}`;
       window.history.replaceState(window.history.state, '', url);
+    }
+  };
+
+  const handleUndoTheme = () => {
+    if (!previousThemeState) return;
+    setActiveThemeId(previousThemeState.themeId);
+    setEphemeralRemix(previousThemeState.remix);
+    setThemeSource(previousThemeState.source);
+    setPreviousThemeState(null);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (previousThemeState.themeId) {
+        params.set('theme', previousThemeState.themeId);
+      } else {
+        params.delete('theme');
+      }
+      const query = params.toString();
+      const url = `${window.location.pathname}${query ? `?${query}` : ''}`;
+      window.history.replaceState(window.history.state, '', url);
+    }
+  };
+
+  const handleApplyTheme = async () => {
+    if (!loadedProject?.id || !resolvedIsOwner) return;
+    if (themeSource === 'url') return;
+    if (!ephemeralRemix && !activeThemeId) {
+      setSaveError('Select a theme before applying.');
+      return;
+    }
+    setIsSavingTheme(true);
+    setSaveError(null);
+    try {
+      const payload = ephemeralRemix
+        ? { themeId: null, themeConfig: ephemeralRemix.config }
+        : { themeId: activeThemeId, themeConfig: null };
+      const result = await backend.saveJamTheme({ jamId: loadedProject.id, ...payload });
+      if (!result.ok) {
+        setSaveError('Failed to save theme.');
+        return;
+      }
+      setLoadedProject(prev => prev ? { ...prev, themeId: payload.themeId ?? undefined, themeConfig: payload.themeConfig ?? undefined } : prev);
+      setThemeSource('saved');
+    } catch (e) {
+      setSaveError('Failed to save theme.');
+    } finally {
+      setIsSavingTheme(false);
     }
   };
 
@@ -207,6 +293,20 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       </button>
 
       <LayoutRenderer config={activeConfig} truth={truth} theme={themeClasses} />
+
+      <ThemeControlDock
+        currentThemeId={resolvedThemeName}
+        activeConfig={activeConfig}
+        isOwner={isOwner}
+        isRemixing={!!ephemeralRemix}
+        onThemeSelect={(themeId) => {
+          handleThemeChange(themeId);
+          if (ephemeralRemix) setEphemeralRemix(null);
+        }}
+        onRemix={() => setIsRemixDrawerOpen(true)}
+        onUndoRemix={handleRejectRemix}
+        onKeepRemix={handleAcceptRemix}
+      />
 
       <ThemeRemixDrawer
         isOpen={isRemixDrawerOpen}
@@ -258,6 +358,32 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
                   </button>
                 ))}
               </div>
+              <div className="mt-3 text-[9px] font-semibold uppercase tracking-widest text-gray-400">
+                Status: {themeSource === 'saved' ? 'Saved' : themeSource === 'url' ? 'Preview' : 'Preview'}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleUndoTheme}
+                  disabled={!previousThemeState}
+                  className={`flex-1 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-widest ${previousThemeState ? 'bg-gray-50 text-gray-700' : 'bg-gray-100 text-gray-300 cursor-not-allowed'}`}
+                >
+                  Undo
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyTheme}
+                  disabled={!resolvedIsOwner || themeSource === 'url' || isSavingTheme}
+                  className={`flex-1 rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-widest ${(!resolvedIsOwner || themeSource === 'url' || isSavingTheme) ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-gray-900 text-white'}`}
+                >
+                  {isSavingTheme ? 'Saving' : 'Apply'}
+                </button>
+              </div>
+              {saveError && (
+                <div className="mt-2 text-[10px] font-semibold text-red-500">
+                  {saveError}
+                </div>
+              )}
 
               <div className="pt-4 mt-4 border-t border-gray-100">
                 <button
