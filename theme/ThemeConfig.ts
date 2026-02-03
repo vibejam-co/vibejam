@@ -13,11 +13,11 @@ export type ThemeConfigV1 = {
 export const DEFAULT_THEME_CONFIG: ThemeConfigV1 = {
   version: THEME_CONFIG_VERSION,
   palette: 'light',
-  surfaceStyle: 'flat',
+  surfaceStyle: 'soft',
   typographyStyle: 'system',
   mood: 'calm',
-  accentIntensity: 'low',
-  backgroundTreatment: 'plain'
+  accentIntensity: 'high',
+  backgroundTreatment: 'gradient'
 };
 
 export function validateThemeConfig(

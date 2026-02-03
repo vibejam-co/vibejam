@@ -167,6 +167,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   };
 
   const showDevLabel = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+  const missingLayoutConfig = !searchLayout && !layoutConfig;
+  const missingThemeConfig = !searchTheme && !jamThemeId && !userThemeId && !ephemeralRemix;
+  const showConfigWarning = showDevLabel && (missingLayoutConfig || missingThemeConfig);
 
   const handleArchetypeChange = (archetype: LayoutArchetype) => {
     setActiveConfig(validateLayoutConfig(LAYOUT_PRESETS[archetype] || DEFAULT_LAYOUT_CONFIG));
@@ -195,12 +198,12 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       <button
         type="button"
         onClick={onClose}
-        aria-label="Back to home"
-        title="Back to home"
+        aria-label="Back to Discover"
+        title="Back to Discover"
         className={`fixed top-4 left-4 z-[150] inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${themeClasses.surface} ${themeClasses.body}`}
       >
         <span aria-hidden="true">←</span>
-        Home
+        Back to Discover
       </button>
 
       <LayoutRenderer config={activeConfig} truth={truth} theme={themeClasses} />
@@ -286,6 +289,16 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
             Page: Jam
           </div>
         </>
+      )}
+
+      {showConfigWarning && (
+        <div
+          role="status"
+          className={`fixed top-4 right-4 z-[160] max-w-[320px] px-4 py-3 text-[10px] font-semibold uppercase tracking-widest ${themeClasses.card} ${themeClasses.body}`}
+        >
+          {missingLayoutConfig && <div>Missing LayoutConfig input</div>}
+          {missingThemeConfig && <div>Missing ThemeConfig input</div>}
+        </div>
       )}
     </div>
   );

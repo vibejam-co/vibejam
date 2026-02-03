@@ -8,25 +8,25 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     surfaceStyle: 'glass',
     typographyStyle: 'system',
     mood: 'calm',
-    accentIntensity: 'medium', // Bumped for better usability
-    backgroundTreatment: 'gradient'
+    accentIntensity: 'low',
+    backgroundTreatment: 'texture'
   }),
   midnight: validateThemeConfig({
     version: 1,
     palette: 'dark',
     surfaceStyle: 'flat',
-    typographyStyle: 'editorial',
+    typographyStyle: 'system',
     mood: 'serious',
-    accentIntensity: 'medium',
+    accentIntensity: 'high',
     backgroundTreatment: 'texture'
   }),
   playful: validateThemeConfig({
     version: 1,
     palette: 'light',
-    surfaceStyle: 'soft',
+    surfaceStyle: 'glass',
     typographyStyle: 'playful',
     mood: 'joyful',
-    accentIntensity: 'high',
+    accentIntensity: 'medium',
     backgroundTreatment: 'gradient'
   }),
   brutalist: validateThemeConfig({
@@ -35,17 +35,17 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     surfaceStyle: 'raw',
     typographyStyle: 'system',
     mood: 'brutal',
-    accentIntensity: 'high',
+    accentIntensity: 'low',
     backgroundTreatment: 'plain'
   }),
   experimental: validateThemeConfig({
     version: 1,
     palette: 'dark',
-    surfaceStyle: 'glass',
+    surfaceStyle: 'raw',
     typographyStyle: 'editorial',
     mood: 'atmospheric',
-    accentIntensity: 'high', // High intensity specifically for experimental
-    backgroundTreatment: 'texture'
+    accentIntensity: 'high',
+    backgroundTreatment: 'gradient'
   })
 };
 
