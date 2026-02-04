@@ -66,7 +66,15 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<'theme' | 'layout'>('theme');
+  const [isChanging, setIsChanging] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Performative theme switch
+  const handleThemeChange = (themeId: string) => {
+    setIsChanging(true);
+    onThemeChange(themeId);
+    setTimeout(() => setIsChanging(false), 300);
+  };
 
   // Close when clicking outside
   useEffect(() => {
@@ -167,10 +175,10 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
             {/* Content */}
             <div className="p-4">
               
-              {/* THEME SECTION — Visual swatches, not lists */}
+              {/* THEME SECTION — Audio Mixer Sliders */}
               {activeSection === 'theme' && (
-                <div className="space-y-3">
-                  {themes.map((themeId) => {
+                <div className="space-y-4">
+                  {themes.map((themeId, index) => {
                     const isActive = currentThemeId === themeId;
                     const indicator = THEME_INDICATORS[themeId] || { bg: 'bg-zinc-800', accent: 'bg-zinc-400' };
                     const expression = THEME_EXPRESSIONS[themeId];
@@ -178,48 +186,56 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                     return (
                       <button
                         key={themeId}
-                        onClick={() => onThemeChange(themeId)}
-                        className={`w-full group relative overflow-hidden rounded-2xl transition-all duration-300 ${
-                          isActive ? 'ring-2 ring-white ring-offset-2 ring-offset-black scale-[1.02]' : 'hover:scale-[1.01]'
-                        }`}
+                        onClick={() => handleThemeChange(themeId)}
+                        className={`w-full group relative overflow-hidden rounded-2xl transition-all duration-500 ${
+                          isActive 
+                            ? 'ring-[3px] ring-white/80 ring-offset-2 ring-offset-black shadow-[0_0_30px_-5px_rgba(255,255,255,0.3)] scale-[1.02]' 
+                            : 'hover:scale-[1.02] hover:shadow-lg'
+                        } ${isChanging && isActive ? 'animate-pulse' : ''}`}
+                        style={{ animationDelay: `${index * 50}ms` }}
                       >
-                        {/* Preview background */}
-                        <div className={`h-16 ${indicator.bg} transition-transform duration-500 group-hover:scale-105`} />
+                        {/* Preview background — more dramatic */}
+                        <div className={`h-20 ${indicator.bg} relative`}>
+                          {/* Active glow */}
+                          {isActive && (
+                            <div className="absolute inset-0 bg-gradient-to-t from-white/20 to-transparent" />
+                          )}
+                        </div>
                         
-                        {/* Info overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end p-3">
+                        {/* Info overlay — audio mixer style */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent flex items-end p-4">
                           <div className="flex items-center justify-between w-full">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${indicator.accent}`} />
-                              <span className="text-white font-semibold text-sm capitalize">
-                                {themeId}
-                              </span>
+                            <div className="flex items-center gap-3">
+                              {/* Bigger accent dot */}
+                              <div className={`w-3 h-3 rounded-full ${indicator.accent} shadow-lg ${isActive ? 'animate-pulse' : ''}`} />
+                              <div>
+                                <span className="text-white font-bold text-sm uppercase tracking-wider">
+                                  {themeId}
+                                </span>
+                                {expression && (
+                                  <span className="block text-white/50 text-[9px] uppercase tracking-widest mt-0.5">
+                                    {expression.materialMetaphor} · {expression.surfaceCharacter}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            {expression && (
-                              <span className="text-white/40 text-[10px] uppercase tracking-wider">
-                                {expression.materialMetaphor}
-                              </span>
+                            {/* Figma-style active pill */}
+                            {isActive && (
+                              <div className="px-2 py-1 rounded-full bg-white text-black text-[10px] font-bold uppercase tracking-wider">
+                                Active
+                              </div>
                             )}
                           </div>
                         </div>
-                        
-                        {/* Active indicator */}
-                        {isActive && (
-                          <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="black" strokeWidth="3" strokeLinecap="round">
-                              <path d="M20 6L9 17l-5-5" />
-                            </svg>
-                          </div>
-                        )}
                       </button>
                     );
                   })}
                 </div>
               )}
 
-              {/* LAYOUT SECTION — Visual archetypes */}
+              {/* LAYOUT SECTION — Figma-style Grid Blocks */}
               {activeSection === 'layout' && (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   {layouts.map((layoutId) => {
                     const isActive = currentLayoutId === layoutId;
                     
@@ -227,19 +243,33 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                       <button
                         key={layoutId}
                         onClick={() => onLayoutChange(layoutId)}
-                        className={`relative p-4 rounded-2xl border transition-all duration-300 ${
+                        className={`relative group overflow-hidden rounded-2xl border transition-all duration-300 ${
                           isActive
-                            ? 'bg-white text-black border-white shadow-lg'
-                            : 'bg-white/5 text-white/70 border-white/10 hover:bg-white/10 hover:border-white/20'
+                            ? 'bg-white text-black border-white shadow-[0_10px_40px_-10px_rgba(255,255,255,0.3)] scale-[1.02]'
+                            : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:border-white/30'
                         }`}
                       >
-                        <div className="flex flex-col items-center gap-2">
-                          <div className={isActive ? 'text-black' : 'text-white/50'}>
+                        {/* Preview canvas area */}
+                        <div className="h-24 p-4 flex items-center justify-center bg-gradient-to-br from-white/5 to-white/0">
+                          <div className={`transform transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-105'}`}>
                             {LAYOUT_ICONS[layoutId]}
                           </div>
-                          <span className="text-[10px] font-semibold uppercase tracking-wider">
+                        </div>
+                        
+                        {/* Label bar */}
+                        <div className={`px-3 py-2.5 flex items-center justify-between ${
+                          isActive ? 'border-t border-black/10' : 'border-t border-white/10'
+                        }`}>
+                          <span className="text-[10px] font-bold uppercase tracking-widest">
                             {layoutId}
                           </span>
+                          {isActive && (
+                            <div className="w-4 h-4 rounded-full bg-black flex items-center justify-center">
+                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round">
+                                <path d="M20 6L9 17l-5-5" />
+                              </svg>
+                            </div>
+                          )}
                         </div>
                       </button>
                     );
