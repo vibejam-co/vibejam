@@ -162,101 +162,112 @@ const SURFACE_EXPRESSIONS: Record<string, { light: string; dark: string }> = {
 };
 
 // CARD PHYSICS (by expression profile)
+// AGGRESSIVE DIVERGENCE: Each must feel like a DIFFERENT PRODUCT
 const CARD_EXPRESSIONS: Record<string, { light: string; dark: string }> = {
-  // GLASS: Frosted, floating, Apple-grade
+  // GLASS: Frosted, floating, Apple-grade — AIRY, TRANSLUCENT, HUGE RADIUS
   glass_rounded: {
-    light: 'bg-white/70 backdrop-blur-xl border border-white/60 rounded-[2rem] shadow-xl shadow-slate-200/30',
-    dark: 'bg-zinc-800/60 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-2xl'
+    light: 'bg-white/50 backdrop-blur-3xl border border-white/80 rounded-[2.5rem] shadow-2xl shadow-slate-300/20 p-8',
+    dark: 'bg-zinc-900/40 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] shadow-2xl shadow-black/50 p-8'
   },
-  // GLOSSY: Playful, bouncy, candy-like
+  // GLOSSY: Playful, bouncy, candy-like — SATURATED BORDERS, PLAYFUL SHADOWS
   glossy_rounded: {
-    light: 'bg-white rounded-[2.5rem] border-2 border-violet-200/50 shadow-[0_20px_60px_-15px_rgba(139,92,246,0.3)] hover:shadow-[0_30px_80px_-15px_rgba(139,92,246,0.4)] hover:-translate-y-1 transition-all duration-300',
-    dark: 'bg-zinc-800 rounded-[2.5rem] border-2 border-fuchsia-500/20 shadow-[0_20px_60px_-15px_rgba(217,70,239,0.3)] hover:scale-[1.02] transition-all duration-300'
+    light: 'bg-white rounded-[3rem] border-4 border-violet-300/60 shadow-[0_30px_80px_-20px_rgba(139,92,246,0.4)] hover:shadow-[0_40px_100px_-20px_rgba(139,92,246,0.5)] hover:-translate-y-2 hover:rotate-1 transition-all duration-500 p-6',
+    dark: 'bg-zinc-900 rounded-[3rem] border-4 border-fuchsia-500/30 shadow-[0_30px_80px_-20px_rgba(217,70,239,0.4)] hover:scale-[1.03] hover:-rotate-1 transition-all duration-500 p-6'
   },
-  // MATTE: Editorial, sharp, luxurious
+  // MATTE: Editorial, sharp, luxurious — ZERO RADIUS, MINIMAL, DENSE
   matte_sharp: {
-    light: 'bg-white border border-stone-200 rounded-sm shadow-sm',
-    dark: 'bg-zinc-900 border border-zinc-700 rounded-none'
+    light: 'bg-[#fdfcfa] border-l-4 border-stone-900 rounded-none shadow-none p-6',
+    dark: 'bg-[#0c0c0c] border-l-4 border-zinc-200 rounded-none shadow-none p-6'
   },
-  // RAW: Brutalist, confrontational
+  // RAW: Brutalist, confrontational — HARD SHADOWS, ZERO DECORATION
   raw_sharp: {
-    light: 'bg-white border-2 border-black rounded-none shadow-[6px_6px_0_0_#000]',
-    dark: 'bg-black border-2 border-white rounded-none shadow-[6px_6px_0_0_#fff]'
+    light: 'bg-white border-[3px] border-black rounded-none shadow-[8px_8px_0_0_#000] p-4',
+    dark: 'bg-black border-[3px] border-white rounded-none shadow-[8px_8px_0_0_#fff] p-4'
   },
-  // UNSTABLE: Glitchy, experimental
+  // UNSTABLE: Glitchy, experimental — IRIDESCENT, SHIFTING
   unstable_mixed: {
-    light: 'bg-gradient-to-br from-white to-slate-50 border border-indigo-200/50 rounded-lg shadow-[0_0_30px_-5px_rgba(99,102,241,0.3)]',
-    dark: 'bg-gradient-to-br from-zinc-900 to-black border border-violet-500/20 rounded-lg shadow-[0_0_40px_-5px_rgba(139,92,246,0.4)]'
+    light: 'bg-gradient-to-br from-white via-indigo-50 to-violet-50 border border-indigo-300/30 rounded-xl shadow-[0_0_60px_-10px_rgba(99,102,241,0.3),inset_0_1px_0_0_rgba(255,255,255,0.8)] p-6',
+    dark: 'bg-gradient-to-br from-zinc-950 via-violet-950/20 to-zinc-950 border border-violet-500/20 rounded-xl shadow-[0_0_80px_-10px_rgba(139,92,246,0.4),inset_0_1px_0_0_rgba(255,255,255,0.05)] p-6'
   }
 };
 
 // --- TYPOGRAPHY CLASSES ---
+// AGGRESSIVE DIVERGENCE: Each typography mood must be UNMISTAKABLY different
 const TYPOGRAPHY_EXPRESSIONS: Record<TypographyMood, { title: { light: string; dark: string }; body: { light: string; dark: string } }> = {
+  // QUIET: Whisper, ethereal, barely there
   quiet: {
     title: {
-      light: 'font-sans font-light tracking-wide text-slate-700',
-      dark: 'font-sans font-light tracking-wide text-zinc-300'
+      light: 'font-sans font-extralight tracking-[0.2em] text-slate-500 text-4xl',
+      dark: 'font-sans font-extralight tracking-[0.2em] text-zinc-400 text-4xl'
     },
     body: {
-      light: 'font-sans text-slate-500 leading-relaxed',
-      dark: 'font-sans text-zinc-400 leading-relaxed'
+      light: 'font-sans font-light text-slate-400 leading-loose tracking-wide text-lg',
+      dark: 'font-sans font-light text-zinc-500 leading-loose tracking-wide text-lg'
     }
   },
+  // EDITORIAL: Magazine, dramatic, high-fashion
   editorial: {
     title: {
-      light: 'font-serif font-normal tracking-tight text-stone-900 italic',
-      dark: 'font-serif font-normal tracking-tight text-white italic'
+      light: 'font-serif font-normal tracking-tight text-stone-900 italic text-5xl leading-none',
+      dark: 'font-serif font-normal tracking-tight text-white italic text-5xl leading-none'
     },
     body: {
-      light: 'font-serif text-stone-600 leading-loose text-lg',
-      dark: 'font-serif text-zinc-400 leading-loose text-lg'
+      light: 'font-serif text-stone-600 leading-[2] text-xl',
+      dark: 'font-serif text-zinc-400 leading-[2] text-xl'
     }
   },
+  // PLAYFUL: Loud, bouncy, irreverent
   playful: {
     title: {
-      light: 'font-sans font-black tracking-tighter text-slate-900 uppercase',
-      dark: 'font-sans font-black tracking-tighter text-white uppercase'
+      light: 'font-sans font-black tracking-[-0.05em] text-slate-900 uppercase text-6xl',
+      dark: 'font-sans font-black tracking-[-0.05em] text-white uppercase text-6xl'
     },
     body: {
-      light: 'font-sans font-medium text-slate-600 leading-relaxed',
-      dark: 'font-sans font-medium text-zinc-300 leading-relaxed'
+      light: 'font-sans font-semibold text-slate-700 leading-relaxed text-lg',
+      dark: 'font-sans font-semibold text-zinc-200 leading-relaxed text-lg'
     }
   },
+  // INDUSTRIAL: Raw, mono, utilitarian
   industrial: {
     title: {
-      light: 'font-mono font-bold tracking-tight text-black uppercase',
-      dark: 'font-mono font-bold tracking-tight text-white uppercase'
+      light: 'font-mono font-bold tracking-tight text-black uppercase text-3xl',
+      dark: 'font-mono font-bold tracking-tight text-white uppercase text-3xl'
     },
     body: {
-      light: 'font-mono text-sm text-zinc-700 leading-tight',
-      dark: 'font-mono text-sm text-zinc-300 leading-tight'
+      light: 'font-mono text-xs text-zinc-700 leading-tight tracking-wide uppercase',
+      dark: 'font-mono text-xs text-zinc-400 leading-tight tracking-wide uppercase'
     }
   },
+  // EXPERIMENTAL: Alien, stretched, otherworldly
   experimental: {
     title: {
-      light: 'font-serif font-extralight tracking-widest text-indigo-900',
-      dark: 'font-serif font-extralight tracking-widest text-violet-200'
+      light: 'font-serif font-thin tracking-[0.3em] text-indigo-800 text-4xl',
+      dark: 'font-serif font-thin tracking-[0.3em] text-violet-300 text-4xl'
     },
     body: {
-      light: 'font-sans text-slate-500 leading-loose tracking-wide',
-      dark: 'font-sans text-zinc-500 leading-loose tracking-wide'
+      light: 'font-sans font-light text-slate-500 leading-loose tracking-widest text-base',
+      dark: 'font-sans font-light text-zinc-600 leading-loose tracking-widest text-base'
     }
   }
 };
 
 // --- ACCENT EXPRESSIONS ---
+// AGGRESSIVE DIVERGENCE: Buttons must feel like different product lines
 const ACCENT_EXPRESSIONS: Record<ContrastProfile, { light: string; dark: string }> = {
+  // LOW: Ghost, barely there
   low: {
-    light: 'text-slate-500 hover:text-slate-900 px-4 py-2 rounded-full hover:bg-slate-100 transition-all duration-300',
-    dark: 'text-zinc-400 hover:text-white px-4 py-2 rounded-full hover:bg-white/5 transition-all duration-300'
+    light: 'text-slate-400 hover:text-slate-700 px-6 py-3 rounded-full border border-transparent hover:border-slate-200 hover:bg-slate-50 font-light tracking-wide transition-all duration-500',
+    dark: 'text-zinc-500 hover:text-zinc-200 px-6 py-3 rounded-full border border-transparent hover:border-zinc-700 hover:bg-zinc-800/50 font-light tracking-wide transition-all duration-500'
   },
+  // EXTREME: Brutalist slabs
   extreme: {
-    light: 'bg-black text-white px-6 py-2.5 font-bold uppercase tracking-wider hover:bg-zinc-800 transition-all duration-200',
-    dark: 'bg-white text-black px-6 py-2.5 font-bold uppercase tracking-wider hover:bg-zinc-200 transition-all duration-200'
+    light: 'bg-black text-white px-8 py-3 font-bold uppercase tracking-widest text-sm border-2 border-black hover:bg-white hover:text-black transition-all duration-200',
+    dark: 'bg-white text-black px-8 py-3 font-bold uppercase tracking-widest text-sm border-2 border-white hover:bg-black hover:text-white transition-all duration-200'
   },
+  // ELECTRIC: Neon, dopamine
   electric: {
-    light: 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-105 transition-all duration-300',
-    dark: 'bg-gradient-to-r from-fuchsia-600 to-violet-600 text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-fuchsia-500/30 hover:shadow-fuchsia-500/50 hover:scale-105 transition-all duration-300'
+    light: 'bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500 text-white px-8 py-3 rounded-full font-black uppercase tracking-wider text-sm shadow-[0_10px_40px_-10px_rgba(168,85,247,0.5)] hover:shadow-[0_15px_50px_-10px_rgba(168,85,247,0.7)] hover:scale-110 transition-all duration-300',
+    dark: 'bg-gradient-to-r from-fuchsia-600 via-violet-500 to-indigo-500 text-white px-8 py-3 rounded-full font-black uppercase tracking-wider text-sm shadow-[0_10px_40px_-10px_rgba(192,38,211,0.5)] hover:shadow-[0_15px_50px_-10px_rgba(192,38,211,0.7)] hover:scale-110 transition-all duration-300'
   }
 };
 
