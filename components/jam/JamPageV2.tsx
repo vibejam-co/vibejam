@@ -48,6 +48,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   
+  // Dopamine flash state for theme transition
+  const [dopamineFlash, setDopamineFlash] = useState<'none' | 'light' | 'dark'>('none');
+  
   // AI Remix State
   const [isRemixDrawerOpen, setIsRemixDrawerOpen] = useState(false);
   const [isRemixing, setIsRemixing] = useState(false);
@@ -214,6 +217,13 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const handleThemeChange = (themeName: string) => {
     setPreviousThemeState({ themeId: activeThemeId, remix: ephemeralRemix, source: themeSource });
+    
+    // DOPAMINE FLASH — instant perceptual change
+    const newTheme = getThemeById(themeName);
+    const isNewThemeDark = newTheme?.palette === 'dark';
+    setDopamineFlash(isNewThemeDark ? 'dark' : 'light');
+    setTimeout(() => setDopamineFlash('none'), 150);
+    
     setActiveThemeId(themeName);
     setEphemeralRemix(null);
     setThemeSource('control');
@@ -246,6 +256,23 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   return (
     <div className={`relative ${themeClasses.page}`}>
+      {/* DOPAMINE FLASH — CSS-only transition feedback */}
+      {dopamineFlash !== 'none' && (
+        <div 
+          className={`fixed inset-0 z-[9998] pointer-events-none transition-opacity duration-150 ease-out ${
+            dopamineFlash === 'light' ? 'bg-white' : 'bg-black'
+          }`}
+          style={{ animation: 'dopamineFlash 150ms ease-out forwards' }}
+        />
+      )}
+      
+      <style>{`
+        @keyframes dopamineFlash {
+          0% { opacity: 0.8; }
+          100% { opacity: 0; }
+        }
+      `}</style>
+
       <button
         type="button"
         onClick={onClose}
