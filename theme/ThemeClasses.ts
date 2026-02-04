@@ -10,190 +10,210 @@ export type ThemeClasses = {
   accent: string;
 };
 
+// HELPER: Generates high-impact background classes based on calculated axes
+const getBackgroundClass = (theme: ThemeConfigV1, isDark: boolean): string => {
+  // 1. JOYFUL / PLAYFUL STUDIO -> "Living Gradient"
+  if (theme.mood === 'joyful') {
+    return isDark
+      ? 'bg-slate-950 bg-[radial-gradient(at_top_right,_var(--tw-gradient-stops))] from-fuchsia-900/40 via-slate-950 to-slate-950'
+      : 'bg-indigo-50/50 bg-[radial-gradient(at_80%_0%,_var(--tw-gradient-stops))] from-amber-200/20 via-rose-100/20 to-indigo-50/0';
+  }
+
+  // 2. BRUTAL / SIGNAL -> "Construction Zone"
+  if (theme.mood === 'brutal') {
+    // High contrast diagonal stripes or solid blasts
+    return isDark
+      ? 'bg-zinc-950 bg-[linear-gradient(135deg,#18181b_25%,#000000_25%,#000000_50%,#18181b_50%,#18181b_75%,#000000_75%,#000000_100%)] [background-size:20px_20px]'
+      : 'bg-[#f0f0f0] bg-[radial-gradient(#d4d4d4_1px,transparent_1px)] [background-size:20px_20px]';
+  }
+
+  // 3. ATMOSPHERIC / EXPERIMENTAL -> "The Void / Gallery"
+  if (theme.mood === 'atmospheric') {
+    // Conic or deep spotlights
+    return isDark
+      ? 'bg-black bg-[conic-gradient(at_top,_var(--tw-gradient-stops))] from-zinc-800/50 via-black to-black'
+      : 'bg-zinc-100 bg-[conic-gradient(at_bottom_left,_var(--tw-gradient-stops))] from-stone-200 via-white to-stone-50';
+  }
+
+  // 4. SERIOUS / EDITORIAL -> "Paper & Ink"
+  if (theme.mood === 'serious') {
+    // Subtle noise or grain
+    return isDark
+      ? 'bg-[#111111] bg-[url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\' opacity=\'0.05\'/%3E%3C/svg%3E")]'
+      : 'bg-[#fbfbf9]'; // Warm paper
+  }
+
+  // 5. CALM / FROSTED -> "Air"
+  // Clean, breathable, barely there
+  return isDark
+    ? 'bg-zinc-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-800/30 via-zinc-950 to-zinc-950'
+    : 'bg-white bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-50/40 via-white to-white';
+};
+
 export const resolveThemeClasses = (theme: ThemeConfigV1): ThemeClasses => {
   const isDark = theme.palette === 'dark';
 
-  // 1. Page & Background Treatment (Aggressive Discontinuity)
-  const pageBase = isDark
-    ? 'min-h-screen bg-black text-zinc-100'
-    : 'min-h-screen bg-white text-slate-950';
-
-  const moodBg = (() => {
-    // 1A. Gradient Strategy (High Drama)
-    if (theme.backgroundTreatment === 'gradient') {
-      if (theme.mood === 'joyful') {
-        // "Playful Studio" - Vibrant, living gradient
-        return isDark
-          ? 'bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-fuchsia-950 via-gray-950 to-black'
-          : 'bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-yellow-50 via-rose-50 to-white';
-      }
-      if (theme.mood === 'brutal') {
-        // "Brutalist Signal" - Harsh, linear, alert-like
-        return isDark
-          ? 'bg-[linear-gradient(45deg,#18181b_25%,transparent_25%,transparent_75%,#18181b_75%,#18181b),linear-gradient(45deg,#18181b_25%,transparent_25%,transparent_75%,#18181b_75%,#18181b)] bg-rose-950/20 [background-size:20px_20px] [background-position:0_0,10px_10px]'
-          : 'bg-[linear-gradient(45deg,#f1f5f9_25%,transparent_25%,transparent_75%,#f1f5f9_75%,#f1f5f9),linear-gradient(45deg,#f1f5f9_25%,transparent_25%,transparent_75%,#f1f5f9_75%,#f1f5f9)] bg-white [background-size:20px_20px] [background-position:0_0,10px_10px]';
-      }
-      if (theme.mood === 'atmospheric') {
-        // "Experimental Atmosphere" - Conic, deep, gallery-like
-        return isDark
-          ? 'bg-[conic-gradient(at_top_left,_var(--tw-gradient-stops))] from-slate-900 via-zinc-950 to-black'
-          : 'bg-[conic-gradient(at_top_left,_var(--tw-gradient-stops))] from-indigo-50 via-white to-blue-50';
-      }
-      // "Frosted Calm" - Delicate, breathable radial
-      return isDark
-        ? 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black'
-        : 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-50 via-white to-slate-50';
-    }
-
-    // 1B. Texture Strategy (Tactile)
-    if (theme.backgroundTreatment === 'texture') {
-      if (theme.mood === 'atmospheric') {
-        // "Starfield" - High noise, space-like
-        return isDark
-          ? 'bg-black bg-[radial-gradient(white,transparent_2px)] [background-size:30px_30px]'
-          : 'bg-slate-100 bg-[radial-gradient(#94a3b8,transparent_2px)] [background-size:24px_24px]';
-      }
-      if (theme.mood === 'serious') {
-        // "Midnight Editorial" - Precise grid, technical
-        return isDark
-          ? 'bg-zinc-950 bg-[linear-gradient(to_right,#27272a_1px,transparent_1px),linear-gradient(to_bottom,#27272a_1px,transparent_1px)] [background-size:40px_40px]'
-          : 'bg-stone-50 bg-[linear-gradient(to_right,#e7e5e4_1px,transparent_1px),linear-gradient(to_bottom,#e7e5e4_1px,transparent_1px)] [background-size:40px_40px]';
-      }
-      // Minimal dot matrix
-      return isDark
-        ? 'bg-zinc-950 bg-[radial-gradient(zinc-800_1px,transparent_1px)] [background-size:16px_16px]'
-        : 'bg-white bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px]';
-    }
-
-    // fallback plain
-    return '';
-  })();
-
-  const typoSmoothing = theme.mood === 'brutal' ? 'antialiased' : 'antialiased subpixel-antialiased';
+  // --- 1. PAGE & LAYOUT ATMOSPHERE ---
+  // Base text colors and layout resets
+  const textBase = isDark ? 'text-zinc-100' : 'text-slate-900';
   const selectionStyle = theme.mood === 'joyful'
-    ? (isDark ? 'selection:bg-fuchsia-900 selection:text-fuchsia-100' : 'selection:bg-yellow-200 selection:text-yellow-900')
-    : isDark ? 'selection:bg-zinc-700' : 'selection:bg-blue-100';
+    ? 'selection:bg-fuchsia-300 selection:text-fuchsia-950'
+    : theme.mood === 'brutal'
+      ? 'selection:bg-black selection:text-white dark:selection:bg-white dark:selection:text-black'
+      : 'selection:bg-indigo-500/20';
 
-  const page = `${pageBase} ${moodBg} ${typoSmoothing} ${selectionStyle}`;
+  const backgroundField = getBackgroundClass(theme, isDark);
 
-  // 2. Surface & Card Strategy (Material Physics)
+  // Font smoothing: Brutalist prefers crisp pixels, others smooth
+  const smoothing = theme.mood === 'brutal' ? 'antialiased' : 'antialiased subpixel-antialiased';
+
+  const page = `min-h-screen transition-colors duration-700 ease-in-out ${textBase} ${backgroundField} ${selectionStyle} ${smoothing}`;
+
+
+  // --- 2. SURFACE & CARD PHYSICS ---
   let surface = '';
   let card = '';
 
+  // STRATEGY: GLASS (Frosted Calm)
   if (theme.surfaceStyle === 'glass') {
-    // "Frosted Calm" - Apple-grade blur
     surface = isDark
-      ? 'bg-zinc-900/60 backdrop-blur-3xl border-b border-white/10'
-      : 'bg-white/80 backdrop-blur-3xl border-b border-white/40 support-[backdrop-filter]:bg-white/60';
+      ? 'bg-zinc-900/70 backdrop-blur-2xl border-b border-white/5 shadow-2xl shadow-black/20'
+      : 'bg-white/70 backdrop-blur-2xl border-b border-white/60 shadow-sm supports-[backdrop-filter]:bg-white/50';
+
     card = isDark
-      ? 'bg-zinc-900/40 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-2xl'
-      : 'bg-white/60 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-[0_8px_32px_rgba(0,0,0,0.06)]';
-  } else if (theme.surfaceStyle === 'soft') {
-    // "Playful Studio" - Pillowy, tactile
+      ? 'bg-zinc-800/50 backdrop-blur-xl border border-white/10 rounded-3xl shadow-xl inset-ring inset-ring-white/5'
+      : 'bg-white/60 backdrop-blur-xl border border-white/40 rounded-3xl shadow-xl shadow-slate-200/40';
+  }
+
+  // STRATEGY: SOFT (Playful Studio)
+  else if (theme.surfaceStyle === 'soft') {
+    // Pillowy, tactile, high radius
     surface = isDark
-      ? 'bg-zinc-900 border-b border-zinc-800'
-      : 'bg-white/95 backdrop-blur-sm border-b border-slate-100';
+      ? 'bg-zinc-900/95 border-b border-zinc-800/50'
+      : 'bg-white/95 border-b border-slate-100 shadow-[0_4px_20px_-12px_rgba(0,0,0,0.05)]';
+
     card = isDark
-      ? 'bg-zinc-800 rounded-[2.5rem] border border-white/5 shadow-xl'
-      : 'bg-white rounded-[3rem] border border-slate-100 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.1)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.15)] transition-shadow';
-  } else if (theme.surfaceStyle === 'raw') {
-    // "Brutalist Signal" - Hard, unyielding
-    surface = 'bg-transparent border-b-[3px] border-current';
+      ? 'bg-zinc-800 rounded-[2rem] border border-white/5 shadow-lg shadow-zinc-950/20 hover:scale-[1.01] transition-transform duration-300'
+      : 'bg-white rounded-[2rem] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300';
+  }
+
+  // STRATEGY: RAW (Brutalist / Experimental)
+  else if (theme.surfaceStyle === 'raw') {
+    // No blur, hard lines, visible structure
+    surface = isDark
+      ? 'bg-black border-b border-zinc-700'
+      : 'bg-white border-b-2 border-black';
+
     card = theme.mood === 'brutal'
-      ? 'bg-white dark:bg-zinc-950 border-[3px] border-current rounded-none shadow-[8px_8px_0_0_currentColor]'
-      : 'bg-transparent border-2 border-current rounded-none';
-  } else {
-    // "Midnight Editorial" - Flat, print-like
-    surface = isDark ? 'bg-black border-b border-zinc-800' : 'bg-white border-b border-stone-200';
+      // Brutalist Hard Shadow
+      ? (isDark
+        ? 'bg-zinc-900 border-2 border-zinc-200 rounded-none shadow-[6px_6px_0_0_#e4e4e7]'
+        : 'bg-white border-2 border-black rounded-none shadow-[6px_6px_0_0_#000]')
+      // Experimental Minimal
+      : (isDark
+        ? 'bg-black border border-zinc-800 rounded-sm'
+        : 'bg-transparent border border-zinc-300 rounded-sm');
+  }
+
+  // STRATEGY: FLAT (Midnight Editorial)
+  else {
+    // Print-like, minimal decoration
+    surface = isDark
+      ? 'bg-[#111111] border-b border-white/10'
+      : 'bg-[#fbfbf9] border-b border-black/5';
+
     card = isDark
-      ? 'bg-zinc-900 rounded-none border border-zinc-800'
-      : 'bg-white rounded-none border border-stone-200 shadow-sm';
+      ? 'bg-zinc-900/30 border border-white/10 rounded-sm'
+      : 'bg-white border border-stone-200 rounded-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)]';
   }
 
-  // 3. Typography Strategy (Editorial Voice)
-  // Use user's detected contrast strategy, but enforce font families
-  const titleFont = theme.typographyStyle === 'editorial'
-    ? 'font-serif tracking-tight font-light italic' // "Midnight"
-    : theme.typographyStyle === 'playful'
-      ? 'font-sans font-black tracking-[-0.02em] uppercase' // "Playful"
-      : 'font-sans font-bold tracking-tight'; // "Calm/Brutal"
 
-  const bodyFont = theme.typographyStyle === 'editorial'
-    ? 'font-serif leading-loose'
-    : theme.typographyStyle === 'playful'
-      ? 'font-sans font-medium leading-relaxed'
-      : 'font-sans leading-relaxed';
+  // --- 3. TYPOGRAPHY VOICE ---
+  let title = '';
+  let body = '';
 
-  // Re-use user's robust contrast logic
-  const typographyContrast = theme.typographyStyle === 'editorial'
-    ? 'high'
-    : theme.typographyStyle === 'playful'
-      ? 'inverted'
-      : theme.backgroundTreatment === 'gradient'
-        ? 'high'
-        : 'muted';
+  // EDITORIAL (Midnight)
+  if (theme.typographyStyle === 'editorial') {
+    title = isDark
+      ? 'font-serif text-zinc-100 tracking-tight font-light italic'
+      : 'font-serif text-slate-900 tracking-tight font-light italic';
 
-  const titleColor = typographyContrast === 'high'
-    ? (theme.mood === 'brutal' && !isDark ? 'text-black' : isDark ? 'text-white' : 'text-slate-950')
-    : typographyContrast === 'inverted'
-      ? (isDark ? 'text-rose-100' : 'text-indigo-950')
-      : (isDark ? 'text-zinc-200' : 'text-slate-800');
+    body = isDark
+      ? 'font-serif text-zinc-400 leading-loose text-lg'
+      : 'font-serif text-stone-600 leading-loose text-lg';
+  }
 
-  const bodyColor = typographyContrast === 'high'
-    ? (isDark ? 'text-zinc-300' : 'text-slate-700') // slightly higher contrast for 'high'
-    : typographyContrast === 'inverted'
-      ? (isDark ? 'text-rose-200' : 'text-slate-700')
-      : (isDark ? 'text-zinc-400' : 'text-slate-600');
+  // PLAYFUL (Studio)
+  else if (theme.typographyStyle === 'playful') {
+    title = isDark
+      ? 'font-sans font-black text-white tracking-tighter uppercase drop-shadow-sm'
+      : 'font-sans font-black text-slate-900 tracking-tighter uppercase';
 
-  const bodyOpacity = theme.mood === 'brutal' ? 'opacity-100' : typographyContrast === 'muted' ? 'opacity-75' : 'opacity-90';
+    body = 'font-sans font-medium leading-relaxed tracking-wide';
+  }
 
-  const title = `${titleFont} ${titleColor} transition-colors duration-500`;
-  const body = `${bodyFont} ${bodyColor} ${bodyOpacity}`;
-
-  // 4. Accent Intensity (Dopamine Triggers)
-  const accentBase = 'transition-all duration-300';
-  let accentStyle = '';
-
-  if (theme.accentIntensity === 'high') {
-    // "Brutalist" / "Playful" - Primary Actions
+  // SYSTEM (Clean / Brutal)
+  else {
     if (theme.mood === 'brutal') {
-      accentStyle = isDark
-        ? 'bg-white text-black px-4 py-1.5 font-bold uppercase tracking-wider hover:bg-zinc-200'
-        : 'bg-black text-white px-4 py-1.5 font-bold uppercase tracking-wider hover:bg-zinc-800 shadow-[4px_4px_0_0_rgba(0,0,0,0.2)]';
-    } else if (theme.mood === 'joyful') {
-      accentStyle = 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-6 py-2 rounded-full font-bold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:scale-105';
+      title = 'font-mono font-bold tracking-tight uppercase';
+      body = 'font-mono text-sm leading-relaxed';
     } else {
-      accentStyle = isDark
-        ? 'bg-white text-black px-4 py-1 rounded-full font-medium'
-        : 'bg-black text-white px-4 py-1 rounded-full font-medium';
+      // Normal / Calm
+      title = 'font-sans font-semibold tracking-tight text-slate-900 dark:text-white';
+      body = 'font-sans text-slate-600 dark:text-zinc-400 leading-relaxed';
     }
-  } else if (theme.accentIntensity === 'medium') {
-    // "Midnight" - Sophisticated
-    accentStyle = isDark
-      ? 'text-indigo-300 border-b border-indigo-300/30 hover:border-indigo-300 pb-0.5'
-      : 'text-indigo-600 border-b border-indigo-600/20 hover:border-indigo-600 pb-0.5';
-  } else {
-    // "Calm" - Minimal
-    accentStyle = isDark
-      ? 'text-zinc-400 hover:text-white transition-colors'
-      : 'text-slate-400 hover:text-slate-900 transition-colors';
   }
 
-  const accent = `${accentBase} ${accentStyle}`;
+  // --- 4. ACCENT & INTERACTION ---
+  const accentBase = 'transition-all duration-300 inline-flex items-center justify-center';
+  let accent = '';
 
-  return { page, surface, card, title, body, accent };
+  // INTENSITY: HIGH (Brutal / Joyful)
+  if (theme.accentIntensity === 'high') {
+    if (theme.mood === 'brutal') {
+      accent = isDark
+        ? 'bg-white text-black border-2 border-white px-6 py-2 font-bold uppercase hover:bg-black hover:text-white hover:border-white rounded-none'
+        : 'bg-black text-white border-2 border-black px-6 py-2 font-bold uppercase hover:bg-white hover:text-black hover:shadow-[4px_4px_0_0_#000] rounded-none';
+    } else {
+      // Joyful / Pop
+      accent = isDark
+        ? 'bg-fuchsia-600 text-white px-6 py-2 rounded-full font-bold shadow-lg shadow-fuchsia-900/40 hover:scale-105 hover:bg-fuchsia-500'
+        : 'bg-black text-white px-6 py-2 rounded-full font-bold shadow-xl shadow-slate-900/20 hover:scale-105 hover:bg-slate-800';
+    }
+  }
+
+  // INTENSITY: MEDIUM (Editorial / Experimental)
+  else if (theme.accentIntensity === 'medium') {
+    // Sophisticated, muted
+    accent = isDark
+      ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 px-4 py-1.5 rounded-md font-medium text-sm'
+      : 'bg-stone-100 hover:bg-stone-200 text-stone-800 border border-stone-200 px-4 py-1.5 rounded-md font-medium text-sm';
+  }
+
+  // INTENSITY: LOW (Calm)
+  else {
+    // Ghost / Minimal
+    accent = isDark
+      ? 'text-zinc-400 hover:text-white px-3 py-1 rounded hover:bg-white/5 font-medium'
+      : 'text-slate-500 hover:text-slate-900 px-3 py-1 rounded hover:bg-slate-100 font-medium';
+  }
+
+  // Combine
+  return {
+    page,
+    surface: `${surface} transition-all duration-500`,
+    card: `${card} transition-all duration-500`,
+    title: `${title} transition-colors duration-500`,
+    body: `${body} transition-colors duration-500`,
+    accent: `${accentBase} ${accent}`
+  };
 };
 
+// --- SIMILARITY WARNING SYSTEM ---
 const classifyAxes = (theme: ThemeConfigV1) => {
   const backgroundMode = `${theme.palette}-${theme.backgroundTreatment}`;
   const surfaceMaterial = theme.surfaceStyle;
-  const typographyContrast = theme.typographyStyle === 'editorial'
-    ? 'high'
-    : theme.typographyStyle === 'playful'
-      ? 'inverted'
-      : theme.backgroundTreatment === 'gradient'
-        ? 'high'
-        : 'muted';
+  const typographyContrast = theme.typographyStyle;
   const accentSaturation = theme.accentIntensity;
   return { backgroundMode, surfaceMaterial, typographyContrast, accentSaturation };
 };
@@ -209,6 +229,7 @@ const warnThemeSimilarity = () => {
     for (let j = i + 1; j < entries.length; j += 1) {
       const [nameB, themeB] = entries[j];
       const axesB = classifyAxes(themeB);
+      // We only care if they are visually indistinguishable
       const axisDiffs = [
         axesA.backgroundMode !== axesB.backgroundMode,
         axesA.surfaceMaterial !== axesB.surfaceMaterial,
@@ -216,16 +237,10 @@ const warnThemeSimilarity = () => {
         axesA.accentSaturation !== axesB.accentSaturation
       ].filter(Boolean).length;
 
-      const classesB = resolveThemeClasses(themeB);
-      const classesEqual = classesA.page === classesB.page
-        && classesA.surface === classesB.surface
-        && classesA.card === classesB.card
-        && classesA.title === classesB.title
-        && classesA.body === classesB.body
-        && classesA.accent === classesB.accent;
 
-      if (axisDiffs < 3 || classesEqual) {
-        console.warn(`[ThemeClasses] Themes may be visually equivalent: "${nameA}" vs "${nameB}".`);
+      if (axisDiffs < 2) {
+        // Strict check: if axes are too similar, potential conflict
+        console.warn(`[ThemeClasses] Themes "${nameA}" and "${nameB}" may be too similar.`);
       }
     }
   }

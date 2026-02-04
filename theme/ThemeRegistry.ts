@@ -15,9 +15,9 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     version: 1,
     palette: 'dark',
     surfaceStyle: 'flat',
-    typographyStyle: 'system',
+    typographyStyle: 'editorial',
     mood: 'serious',
-    accentIntensity: 'high',
+    accentIntensity: 'medium',
     backgroundTreatment: 'texture'
   }),
   playful: validateThemeConfig({
