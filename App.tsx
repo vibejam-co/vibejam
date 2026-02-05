@@ -1092,26 +1092,33 @@ const AppContent: React.FC = () => {
         <section className="homepage-v4-segment bg-white">
           <div className="max-w-7xl mx-auto px-4 md:px-6">
             <div className="premium-card rounded-[32px] md:rounded-[50px] p-8 md:p-24 overflow-hidden border-gray-100 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.03)]">
+              {(() => {
+                const featured = discoveryApps[0];
+                if (!featured) return null;
+                const featuredHandle = featured.creator?.handle;
+                return (
               <div className="flex flex-col lg:flex-row items-center gap-12 md:gap-20 relative z-10">
                 <div className="flex-1 space-y-6 md:space-y-10 text-center lg:text-left">
                   <span className="inline-block px-4 md:px-5 py-2 rounded-full bg-blue-50/50 text-blue-500 text-[9px] md:text-[10px] font-black uppercase tracking-[0.3em] border border-blue-100/20">
                     Featured Jam
                   </span>
                   <h2 className="text-4xl md:text-7xl font-black text-gray-900 leading-[1.1] tracking-tighter">
-                    {discoveryApps[0]?.name} <span className="text-blue-500/80">is Live.</span>
+                    {featured.name} <span className="text-blue-500/80">is Live.</span>
                   </h2>
                   <p className="text-gray-400 text-base md:text-xl leading-relaxed font-medium">
-                    {discoveryApps[0]?.description}
+                    {featured.description}
                   </p>
                   <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 md:gap-8 pt-4">
                     <button
-                      onClick={() => openJam(discoveryApps[0])}
+                      onClick={() => openJam(featured)}
                       className="vibe-pill text-white text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] py-4 md:py-5 px-8 md:px-10 rounded-full shadow-2xl shadow-blue-500/10 active:scale-95 transition-all bg-gray-900"
                     >
                       View Jam
                     </button>
                     <button
-                      onClick={() => openProfile(discoveryApps[0].creator.handle)}
+                      onClick={() => {
+                        if (featuredHandle) openProfile(featuredHandle);
+                      }}
                       className="text-gray-400 text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] hover:text-gray-900 transition-colors font-bold"
                     >
                       View Maker Profile →
@@ -1120,10 +1127,12 @@ const AppContent: React.FC = () => {
                 </div>
                 <div className="flex-1 w-full relative group">
                   <div className="relative aspect-[4/5] md:aspect-[4/5] rounded-[24px] md:rounded-[40px] overflow-hidden border-[1px] border-black/5 shadow-2xl">
-                    <img src={discoveryApps[0]?.screenshot} className="w-full h-full object-cover transition-all duration-700" alt="Spotlight" />
+                    <img src={featured.screenshot} className="w-full h-full object-cover transition-all duration-700" alt="Spotlight" />
                   </div>
                 </div>
               </div>
+                );
+              })()}
             </div>
           </div>
         </section>

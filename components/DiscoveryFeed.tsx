@@ -102,14 +102,14 @@ const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({ apps, onSelect, onCreator
 
               <div className="flex flex-wrap gap-2 items-center">
                 <div className="flex gap-1">
-                  {app.vibeTools.slice(0, 2).map(tool => (
+                  {(app.vibeTools || []).slice(0, 2).map(tool => (
                     <span key={tool} className="px-2 py-1 rounded-lg bg-blue-50/30 text-[9px] font-black text-blue-500 border border-blue-100/50 uppercase tracking-wider">
                       {tool}
                     </span>
                   ))}
                 </div>
 
-                {app.stack?.slice(0, 2).map((tool) => (
+                {(app.stack || []).slice(0, 2).map((tool) => (
                   <span key={tool} className="px-2 py-1 rounded-lg bg-gray-50 text-[9px] font-black text-gray-500 border border-gray-100 uppercase tracking-wider">
                     {tool}
                   </span>
