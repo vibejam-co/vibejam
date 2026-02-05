@@ -1,51 +1,63 @@
 import { ThemeConfigV1, DEFAULT_THEME_CONFIG, validateThemeConfig } from './ThemeConfig';
 import { DEFAULT_THEME_BEHAVIOR, ThemeBehaviorProfile, validateThemeBehavior } from './ThemeBehavior';
+import { resolveThemeClasses } from './ThemeClasses';
+import { validateExpressionDivergence } from './ThemeExpression';
 
 export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
   default: DEFAULT_THEME_CONFIG,
+
+  // FROSTED: Ethereal, clean, airy
   frosted: validateThemeConfig({
     version: 1,
     palette: 'light',
     surfaceStyle: 'glass',
-    typographyStyle: 'system',
+    typographyStyle: 'system', // Falling back to expression default 'quiet'
     mood: 'calm',
     accentIntensity: 'low',
-    backgroundTreatment: 'texture'
+    backgroundTreatment: 'gradient'
   }),
+
+  // MIDNIGHT: Dark, cinematic, editorial
   midnight: validateThemeConfig({
     version: 1,
     palette: 'dark',
-    surfaceStyle: 'flat',
+    surfaceStyle: 'flat', // Matte look
     typographyStyle: 'editorial',
     mood: 'serious',
-    accentIntensity: 'medium',
-    backgroundTreatment: 'texture'
+    accentIntensity: 'high',
+    backgroundTreatment: 'plain'
   }),
+
+  // PLAYFUL: Dopamine, chaotic, colorful
   playful: validateThemeConfig({
     version: 1,
     palette: 'light',
-    surfaceStyle: 'glass',
+    surfaceStyle: 'glass', // Glossy look via expression
     typographyStyle: 'playful',
     mood: 'joyful',
     accentIntensity: 'medium',
     backgroundTreatment: 'gradient'
   }),
+
+  // BRUTALIST: Raw, utilitarian, harsh
   brutalist: validateThemeConfig({
     version: 1,
     palette: 'light',
     surfaceStyle: 'raw',
     typographyStyle: 'system',
     mood: 'brutal',
-    accentIntensity: 'medium',
+    accentIntensity: 'high',
     backgroundTreatment: 'plain'
   }),
+
+  // EXPERIMENTAL: Glitchy, dark, weird
   experimental: validateThemeConfig({
     version: 1,
     palette: 'dark',
-    surfaceStyle: 'raw',
+    surfaceStyle: 'raw', // Unstable look via expression
     typographyStyle: 'editorial',
     mood: 'atmospheric',
-    accentIntensity: 'high',
+    accentIntensity: 'medium',
     backgroundTreatment: 'gradient'
   })
 };
@@ -59,8 +71,9 @@ export const THEME_BEHAVIOR_REGISTRY: Readonly<Record<string, ThemeBehaviorProfi
     proofProminence: 'quiet',
     narrativeFlow: 'linear',
     whitespaceBias: 'generous',
-    displayLabel: 'Sparse · Linear · Restrained Hero'
+    displayLabel: 'Stockholm · Quiet · Airy'
   },
+
   // MIDNIGHT: Fashion editorial — bold hero, controlled pacing
   midnight: {
     version: 1,
@@ -69,42 +82,46 @@ export const THEME_BEHAVIOR_REGISTRY: Readonly<Record<string, ThemeBehaviorProfi
     proofProminence: 'featured',
     narrativeFlow: 'linear',
     whitespaceBias: 'neutral',
-    displayLabel: 'Editorial · Linear · Dominant Hero'
+    displayLabel: 'Cinematic · Editorial · Bold'
   },
+
   // PLAYFUL: Noisy zine — confrontational, chopped rhythm
   playful: {
     version: 1,
     heroWeight: 'dominant',
-    contentDensity: 'sparse',
+    contentDensity: 'dense', // More chaotic
     proofProminence: 'confrontational',
     narrativeFlow: 'fragmented',
     whitespaceBias: 'compressed',
-    displayLabel: 'Fragmented · Confrontational · Dominant Hero'
+    displayLabel: 'Kinetic · Loud · Chaotic'
   },
+
   // BRUTALIST: Utility sheet — dense, blunt, fragmented
   brutalist: {
     version: 1,
     heroWeight: 'balanced',
     contentDensity: 'dense',
-    proofProminence: 'quiet',
+    proofProminence: 'confrontational',
     narrativeFlow: 'fragmented',
     whitespaceBias: 'neutral',
-    displayLabel: 'Dense · Fragmented · Quiet Proof'
+    displayLabel: 'Raw · Utilitarian · Blunt'
   },
+
   // EXPERIMENTAL: Immersive manifesto — slow, confrontational
   experimental: {
     version: 1,
-    heroWeight: 'balanced',
+    heroWeight: 'restrained', // Mysterious
     contentDensity: 'editorial',
-    proofProminence: 'confrontational',
+    proofProminence: 'quiet',
     narrativeFlow: 'immersive',
     whitespaceBias: 'generous',
-    displayLabel: 'Immersive · Confrontational · Balanced Hero'
+    displayLabel: 'Glitch · Unstable · Void'
   },
+
   // DEFAULT: Balanced editorial
   default: {
     ...DEFAULT_THEME_BEHAVIOR,
-    displayLabel: 'Editorial · Linear · Balanced Hero'
+    displayLabel: 'Standard · Balanced · Clean'
   }
 };
 
@@ -162,4 +179,48 @@ const validateBehaviorCoverageAndDivergence = (): void => {
   }
 };
 
+const validateThemeClassDivergence = (): void => {
+  const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+  if (!showDevWarning) return;
+
+  const themeEntries = Object.entries(THEME_REGISTRY).filter(([id]) => id !== 'default');
+  const classEntries = themeEntries.map(([id, config]) => [id, resolveThemeClasses(config)] as const);
+
+  const tokens = (value: string) => new Set(value.split(/\s+/).filter(Boolean));
+  const jaccard = (a: Set<string>, b: Set<string>) => {
+    const intersection = new Set([...a].filter((v) => b.has(v)));
+    const union = new Set([...a, ...b]);
+    return union.size === 0 ? 0 : intersection.size / union.size;
+  };
+
+  for (let i = 0; i < classEntries.length; i += 1) {
+    const [nameA, classesA] = classEntries[i];
+    for (let j = i + 1; j < classEntries.length; j += 1) {
+      const [nameB, classesB] = classEntries[j];
+
+      const sections: Array<[keyof typeof classesA, number]> = [
+        ['page', jaccard(tokens(classesA.page), tokens(classesB.page))],
+        ['surface', jaccard(tokens(classesA.surface), tokens(classesB.surface))],
+        ['card', jaccard(tokens(classesA.card), tokens(classesB.card))],
+        ['title', jaccard(tokens(classesA.title), tokens(classesB.title))],
+        ['body', jaccard(tokens(classesA.body), tokens(classesB.body))],
+        ['accent', jaccard(tokens(classesA.accent), tokens(classesB.accent))]
+      ];
+
+      const average = sections.reduce((sum, [, score]) => sum + score, 0) / sections.length;
+      const high = sections.filter(([, score]) => score >= 0.8);
+
+      if (average >= 0.75 || high.length >= 4) {
+        const highList = high.map(([key]) => key).join(', ');
+        console.warn(
+          `[ThemeClasses] SIMILARITY WARNING: "${nameA}" and "${nameB}" share high class overlap (avg=${average.toFixed(2)}). ` +
+          `High-overlap sections: ${highList || 'none'}.`
+        );
+      }
+    }
+  }
+};
+
 validateBehaviorCoverageAndDivergence();
+validateExpressionDivergence(Object.keys(THEME_REGISTRY));
+validateThemeClassDivergence();
