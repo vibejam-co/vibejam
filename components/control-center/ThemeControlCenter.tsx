@@ -11,6 +11,7 @@ interface ThemeControlCenterProps {
   materialLabel: string;
   credibilityLabel: string;
   followInsightLabel?: string;
+  themeOnly?: boolean;
   onThemeChange: (themeId: string) => void;
   onLayoutChange: (layoutId: LayoutArchetype) => void;
   onReset: () => void;
@@ -70,6 +71,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   materialLabel,
   credibilityLabel,
   followInsightLabel,
+  themeOnly = false,
   onThemeChange,
   onLayoutChange,
   onReset,
@@ -196,34 +198,36 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
             </div>
 
             {/* Section Tabs */}
-            <div className="flex p-2 gap-1">
-              <button
-                onClick={() => setActiveSection('theme')}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all duration-300 ${
-                  activeSection === 'theme'
-                    ? 'bg-white text-black shadow-lg'
-                    : 'text-white/50 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Theme
-              </button>
-              <button
-                onClick={() => setActiveSection('layout')}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all duration-300 ${
-                  activeSection === 'layout'
-                    ? 'bg-white text-black shadow-lg'
-                    : 'text-white/50 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Layout
-              </button>
-            </div>
+            {!themeOnly && (
+              <div className="flex p-2 gap-1">
+                <button
+                  onClick={() => setActiveSection('theme')}
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all duration-300 ${
+                    activeSection === 'theme'
+                      ? 'bg-white text-black shadow-lg'
+                      : 'text-white/50 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Theme
+                </button>
+                <button
+                  onClick={() => setActiveSection('layout')}
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all duration-300 ${
+                    activeSection === 'layout'
+                      ? 'bg-white text-black shadow-lg'
+                      : 'text-white/50 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Layout
+                </button>
+              </div>
+            )}
 
             {/* Content */}
             <div className="p-4">
               
               {/* THEME SECTION — Audio Mixer Sliders */}
-              {activeSection === 'theme' && (
+              {(!themeOnly || activeSection === 'theme') && (
                 <div className="space-y-4">
                   {themes.map((themeId, index) => {
                     const isActive = currentThemeId === themeId;
@@ -299,7 +303,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
               )}
 
               {/* LAYOUT SECTION — Figma-style Grid Blocks */}
-              {activeSection === 'layout' && (
+              {!themeOnly && activeSection === 'layout' && (
                 <div className="grid grid-cols-2 gap-3">
                   {layouts.map((layoutId) => {
                     const isActive = currentLayoutId === layoutId;

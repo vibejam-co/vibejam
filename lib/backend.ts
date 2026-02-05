@@ -622,6 +622,31 @@ export const backend = {
     },
 
     /**
+     * Count published jams for current user.
+     */
+    getMyPublishedJamCount: async (): Promise<{ ok: boolean; count: number }> => {
+        if (!supabase) return { ok: false, count: 0 };
+        try {
+            const { data: auth } = await supabase.auth.getUser();
+            const user = auth?.user;
+            if (!user) return { ok: false, count: 0 };
+
+            const { count, error } = await withTimeout(
+                supabase
+                    .from('jams')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('creator_id', user.id)
+                    .eq('status', 'published')
+            );
+            if (error) throw error;
+            return { ok: true, count: count || 0 };
+        } catch (e) {
+            console.warn('[Backend] getMyPublishedJamCount failed:', e);
+            return { ok: false, count: 0 };
+        }
+    },
+
+    /**
      * List notifications for current user.
      */
     listNotifications: async (limit: number = 50): Promise<{ ok: boolean; items: any[] }> => {

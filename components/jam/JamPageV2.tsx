@@ -33,6 +33,8 @@ interface JamPageV2Props {
   userThemeId?: string | null;
   userThemeConfig?: ThemeConfigV1 | null;
   showChrome?: boolean;
+  coldStartPreview?: boolean;
+  showControlCenter?: boolean;
 }
 
 const JamPageV2: React.FC<JamPageV2Props> = ({
@@ -48,7 +50,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   isOwner,
   userThemeId,
   userThemeConfig,
-  showChrome = false
+  showChrome = false,
+  coldStartPreview = false,
+  showControlCenter
 }) => {
   const [loadedProject, setLoadedProject] = useState<AppProject | null>(project ?? null);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,6 +76,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     if (!path.startsWith('/jam/')) return null;
     return path.split('/jam/')[1] || null;
   }, [jamSlug]);
+
+  const [coldStartActive, setColdStartActive] = useState(!!coldStartPreview);
 
   useEffect(() => {
     setLoadedProject(project ?? null);
@@ -105,6 +111,10 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     return () => { cancelled = true; };
   }, [project, routeSlug]);
 
+  useEffect(() => {
+    setColdStartActive(!!coldStartPreview);
+  }, [coldStartPreview]);
+
   const resolvedIsOwner = useMemo(() => {
     if (typeof isOwner === 'boolean') return isOwner;
     if (!currentUserHandle || !loadedProject?.creator?.handle) return false;
@@ -115,6 +125,24 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   if (!loadedProject || loadError) return null;
 
   const truth = createTruthModel(loadedProject);
+  const previewTruth = useMemo(() => {
+    if (!coldStartActive) return truth;
+    const today = new Date();
+    const formatDate = (d: Date) => d.toISOString().slice(0, 10);
+    const milestones = truth.Timeline.props.milestones?.length
+      ? truth.Timeline.props.milestones
+      : [
+        { date: formatDate(today), label: 'Shipped the current build' },
+        { date: formatDate(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)), label: 'Proof of progress posted' },
+        { date: formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)), label: 'First milestone published' }
+      ];
+    const proofUrl = truth.Proof.props.proofUrl || truth.Links.props.websiteUrl || '';
+    return {
+      ...truth,
+      Proof: { ...truth.Proof, props: { ...truth.Proof.props, proofUrl } },
+      Timeline: { ...truth.Timeline, props: { ...truth.Timeline.props, milestones } }
+    };
+  }, [coldStartActive, truth]);
 
   const searchLayout = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('layout')
@@ -221,6 +249,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   }, [truth, showChrome]);
 
   const resolvedThemeData: ResolvedTheme = useMemo(() => {
+    const bestCaseThemeId = 'midnight';
+    const previewThemeId = coldStartActive ? (activeThemeId || bestCaseThemeId) : activeThemeId;
     if (ephemeralRemix) {
       return {
         config: ephemeralRemix.config,
@@ -232,13 +262,13 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       };
     }
     return resolveTheme({
-      urlTheme: activeThemeId,
+      urlTheme: previewThemeId,
       jamTheme: jamThemeId,
       jamThemeConfig,
       userTheme: userThemeId,
       userThemeConfig: userThemeConfig || null
     });
-  }, [ephemeralRemix, activeThemeId, jamThemeId, jamThemeConfig, userThemeId, userThemeConfig]);
+  }, [ephemeralRemix, activeThemeId, jamThemeId, jamThemeConfig, userThemeId, userThemeConfig, coldStartActive]);
 
   const resolvedTheme: ThemeConfigV1 = resolvedThemeData.config;
   const resolvedBehavior = resolvedThemeData.behavior;
@@ -250,15 +280,26 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const credibility: CredibilityState = useMemo(() => {
     const raw = loadedProject as any;
     return deriveCredibilityState({
-      milestones: truth.Timeline.props.milestones,
-      proofUrl: truth.Proof.props.proofUrl,
+      milestones: previewTruth.Timeline.props.milestones,
+      proofUrl: previewTruth.Proof.props.proofUrl,
       updatedAt: raw?.updatedAt || raw?.updated_at || null,
       publishedAt: raw?.publishedAt || raw?.published_at || null,
       createdAt: raw?.createdAt || raw?.created_at || null,
       proofFirst: resolvedContrast?.emphasizes === 'proof',
       heroFirst: resolvedContrast?.emphasizes === 'hero'
     });
-  }, [loadedProject, truth, resolvedContrast]);
+  }, [loadedProject, previewTruth, resolvedContrast]);
+
+  const effectiveCredibility = coldStartActive
+    ? {
+      ...credibility,
+      momentumLevel: 'compounding' as const,
+      consistencyWindow: '7d' as const,
+      proofFreshness: 'current' as const,
+      silencePenalty: false,
+      silenceDays: 0
+    }
+    : credibility;
 
   const isPreviewing = themeSource === 'url' || (themeSource === 'remix' && committedTheme?.type !== 'remix');
   const identityWeight: ThemeIdentityV1['identityWeight'] = isPreviewing
@@ -282,8 +323,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     narrativeLock
   };
 
-  const canShowChrome = showChrome;
-  const canShowRemixControls = canShowChrome && isOwner && themeIdentity.identityWeight === 'light';
+  const showBackButton = showChrome;
+  const canShowControlCenter = typeof showControlCenter === 'boolean' ? showControlCenter : showChrome;
+  const canShowRemixControls = canShowControlCenter && isOwner && themeIdentity.identityWeight === 'light' && !coldStartActive;
 
   const lockedContrast = useMemo(() => {
     if (!narrativeLock || !isPreviewing) return resolvedContrast;
@@ -291,9 +333,21 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     return resolvedContrast;
   }, [narrativeLock, isPreviewing, resolvedContrast, committedTheme]);
 
-  const credibilityLabel = credibility.silencePenalty
-    ? `Credibility: Silent (${credibility.silenceDays} days)`
-    : `Credibility: ${credibility.momentumLevel === 'compounding' ? 'Compounding' : credibility.momentumLevel === 'active' ? 'Active' : 'Dormant'}`;
+  const credibilityLabel = effectiveCredibility.silencePenalty
+    ? `Credibility: Silent (${effectiveCredibility.silenceDays} days)`
+    : `Credibility: ${effectiveCredibility.momentumLevel === 'compounding' ? 'Compounding' : effectiveCredibility.momentumLevel === 'active' ? 'Active' : 'Dormant'}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkSignals = async () => {
+      if (!coldStartActive || !loadedProject?.id) return;
+      const res = await backend.listSignals(loadedProject.id);
+      if (cancelled) return;
+      if (res?.items?.length) setColdStartActive(false);
+    };
+    checkSignals();
+    return () => { cancelled = true; };
+  }, [coldStartActive, loadedProject?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -454,9 +508,11 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     setActiveThemeId(themeName);
     setEphemeralRemix(null);
     setThemeSource('control');
-    lastIdentityAction.current = 'explicit';
-    persistCommittedTheme({ type: 'theme', id: themeName });
-    incrementCommitCount();
+    if (!coldStartActive) {
+      lastIdentityAction.current = 'explicit';
+      persistCommittedTheme({ type: 'theme', id: themeName });
+      incrementCommitCount();
+    }
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       params.set('theme', themeName);
@@ -503,7 +559,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         }
       `}</style>
 
-      {canShowChrome && (
+      {showBackButton && (
         <button
           type="button"
           onClick={onClose}
@@ -516,19 +572,42 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         </button>
       )}
 
+      {coldStartActive && (
+        <div className="max-w-5xl mx-auto px-4 md:px-8 pt-6">
+          <div className="rounded-2xl border border-gray-100 bg-white/80 backdrop-blur-sm px-5 py-4 text-left">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-widest border border-amber-100">
+                Preview
+              </span>
+              <span className="text-xs font-semibold text-gray-700">
+                This is how your build looks when it's real.
+              </span>
+            </div>
+            {loadedProject?.slug && (
+              <div className="mt-3 text-[11px] font-mono text-gray-500">
+                {typeof window !== 'undefined' ? `${window.location.origin}/jam/${loadedProject.slug}` : `/jam/${loadedProject.slug}`}
+              </div>
+            )}
+            <div className="mt-1 text-[10px] uppercase tracking-widest text-gray-400">
+              This link updates as you ship.
+            </div>
+          </div>
+        </div>
+      )}
+
       <LayoutRenderer
         config={activeConfig}
-        truth={truth}
+        truth={previewTruth}
         theme={themeClasses}
         behavior={resolvedBehavior}
         dominance={resolvedDominance}
         contrast={lockedContrast}
         identity={themeIdentity}
         material={resolvedMaterial}
-        credibility={credibility}
+        credibility={effectiveCredibility}
       />
 
-      {canShowChrome && (
+      {canShowControlCenter && (
         <ThemeControlCenter
           currentThemeId={resolvedThemeName}
           currentLayoutId={activeConfig.archetype}
@@ -537,6 +616,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           materialLabel={resolvedMaterial.displayLabel}
           credibilityLabel={credibilityLabel}
           followInsightLabel={followInsightLabel || undefined}
+          themeOnly={coldStartActive}
           onThemeChange={handleThemeChange}
           onLayoutChange={handleArchetypeChange}
           onReset={handleReset}

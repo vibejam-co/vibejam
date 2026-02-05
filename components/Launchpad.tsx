@@ -82,6 +82,7 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
   const [scrapeStatus, setScrapeStatus] = useState<'idle' | 'loading' | 'degraded' | 'success'>('idle');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [publishedJam, setPublishedJam] = useState<JamPublished | null>(null);
+  const [isFirstJamPreview, setIsFirstJamPreview] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [heroImageUrl, setHeroImageUrl] = useState('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -258,6 +259,12 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
     }
 
     setIsPublishing(true);
+    let isFirstJam = false;
+    if (!isEditing) {
+      const count = await backend.getMyPublishedJamCount();
+      isFirstJam = count.ok ? count.count === 0 : false;
+      setIsFirstJamPreview(isFirstJam);
+    }
 
     // Prepare payload
     const patchPayload: any = {
@@ -606,7 +613,14 @@ const Launchpad: React.FC<LaunchpadProps> = ({ onClose, onOpenJam, onPublishSucc
           </div>
         </div>
       </div>
-      <StartJamPreviewOverlay open={previewOpen} jam={publishedJam} onClose={() => { setPreviewOpen(false); onClose(); }} onOpenJam={onOpenJam} />
+      <StartJamPreviewOverlay
+        open={previewOpen}
+        jam={publishedJam}
+        onClose={() => { setPreviewOpen(false); onClose(); }}
+        onOpenJam={onOpenJam}
+        isFirstJamPreview={isFirstJamPreview}
+        isLoggedIn={!!user}
+      />
     </>
   );
 };
