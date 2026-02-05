@@ -1,5 +1,6 @@
 import { ThemeConfigV1, DEFAULT_THEME_CONFIG, validateThemeConfig } from './ThemeConfig';
 import { DEFAULT_THEME_BEHAVIOR, ThemeBehaviorProfile, validateThemeBehavior } from './ThemeBehavior';
+import { DEFAULT_THEME_DOMINANCE, ThemeDominanceProfile, validateThemeDominance } from './ThemeDominance';
 import { resolveThemeClasses } from './ThemeClasses';
 import { validateExpressionDivergence } from './ThemeExpression';
 
@@ -125,6 +126,64 @@ export const THEME_BEHAVIOR_REGISTRY: Readonly<Record<string, ThemeBehaviorProfi
   }
 };
 
+export const THEME_DOMINANCE_REGISTRY: Readonly<Record<string, ThemeDominanceProfile>> = {
+  // FROSTED: Soft presence, clear but quiet hierarchy
+  frosted: {
+    version: 1,
+    heroDominance: 'subdued',
+    contentGravity: 'hero',
+    visualSilence: 'none',
+    hierarchyBreaks: 'allowed',
+    displayLabel: 'Hero-Led · Open Hierarchy · Clear'
+  },
+
+  // MIDNIGHT: Cinematic command, deep focus
+  midnight: {
+    version: 1,
+    heroDominance: 'overpowering',
+    contentGravity: 'hero',
+    visualSilence: 'extreme',
+    hierarchyBreaks: 'discouraged',
+    displayLabel: 'Hero-Led · Extreme Focus · Commanding'
+  },
+
+  // PLAYFUL: Loud hero, chopped structure
+  playful: {
+    version: 1,
+    heroDominance: 'primary',
+    contentGravity: 'hero',
+    visualSilence: 'partial',
+    hierarchyBreaks: 'forbidden',
+    displayLabel: 'Hero-Led · Partial Silence · Structured'
+  },
+
+  // BRUTALIST: Timeline gravity, utilitarian dominance
+  brutalist: {
+    version: 1,
+    heroDominance: 'subdued',
+    contentGravity: 'timeline',
+    visualSilence: 'partial',
+    hierarchyBreaks: 'discouraged',
+    displayLabel: 'Timeline-Led · Partial Silence · Utilitarian'
+  },
+
+  // EXPERIMENTAL: Proof-led with heavy silence
+  experimental: {
+    version: 1,
+    heroDominance: 'subdued',
+    contentGravity: 'proof',
+    visualSilence: 'extreme',
+    hierarchyBreaks: 'forbidden',
+    displayLabel: 'Proof-Led · Extreme Silence · Severe'
+  },
+
+  // DEFAULT: Balanced editorial
+  default: {
+    ...DEFAULT_THEME_DOMINANCE,
+    displayLabel: 'Hero-Led · Balanced · Controlled'
+  }
+};
+
 export const getThemeById = (id?: string | null): ThemeConfigV1 | null => {
   if (!id) return null;
   return THEME_REGISTRY[id] || null;
@@ -136,6 +195,15 @@ export const getThemeBehaviorById = (id?: string | null): ThemeBehaviorProfile =
   return {
     ...validated,
     displayLabel: behavior.displayLabel || THEME_BEHAVIOR_REGISTRY.default.displayLabel
+  };
+};
+
+export const getThemeDominanceById = (id?: string | null): ThemeDominanceProfile => {
+  const dominance = (id && THEME_DOMINANCE_REGISTRY[id]) || THEME_DOMINANCE_REGISTRY.default;
+  const validated = validateThemeDominance(dominance);
+  return {
+    ...validated,
+    displayLabel: dominance.displayLabel || THEME_DOMINANCE_REGISTRY.default.displayLabel
   };
 };
 
@@ -224,3 +292,41 @@ const validateThemeClassDivergence = (): void => {
 validateBehaviorCoverageAndDivergence();
 validateExpressionDivergence(Object.keys(THEME_REGISTRY));
 validateThemeClassDivergence();
+
+const validateDominanceCoverageAndDivergence = (): void => {
+  const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+  if (!showDevWarning) return;
+
+  const themeIds = Object.keys(THEME_REGISTRY);
+  const dominanceIds = Object.keys(THEME_DOMINANCE_REGISTRY);
+
+  for (const id of themeIds) {
+    if (!dominanceIds.includes(id)) {
+      console.warn(`[ThemeDominance] Missing dominance profile for theme "${id}".`);
+    }
+  }
+
+  const entries = Object.entries(THEME_DOMINANCE_REGISTRY).filter(([id]) => id !== 'default');
+
+  for (let i = 0; i < entries.length; i += 1) {
+    const [nameA, domA] = entries[i];
+    for (let j = i + 1; j < entries.length; j += 1) {
+      const [nameB, domB] = entries[j];
+
+      const matches = [
+        domA.heroDominance === domB.heroDominance,
+        domA.contentGravity === domB.contentGravity,
+        domA.visualSilence === domB.visualSilence,
+        domA.hierarchyBreaks === domB.hierarchyBreaks
+      ].filter(Boolean).length;
+
+      if (matches > 1) {
+        console.warn(
+          `[ThemeDominance] DIVERGENCE VIOLATION: "${nameA}" and "${nameB}" share ${matches} dominance values.`
+        );
+      }
+    }
+  }
+};
+
+validateDominanceCoverageAndDivergence();

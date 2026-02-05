@@ -1,6 +1,7 @@
 import { ThemeConfigV1, DEFAULT_THEME_CONFIG, validateThemeConfig } from './ThemeConfig';
-import { getThemeById, getThemeBehaviorById } from './ThemeRegistry';
+import { getThemeById, getThemeBehaviorById, getThemeDominanceById } from './ThemeRegistry';
 import { ThemeBehaviorProfile } from './ThemeBehavior';
+import { ThemeDominanceProfile } from './ThemeDominance';
 
 export type ThemeResolutionInput = {
   urlTheme?: string | null;
@@ -13,6 +14,7 @@ export type ThemeResolutionInput = {
 export interface ResolvedTheme {
   config: ThemeConfigV1;
   behavior: ThemeBehaviorProfile;
+  dominance: ThemeDominanceProfile;
   source: 'url' | 'jam' | 'user' | 'default' | 'remix';
 }
 
@@ -34,6 +36,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
     return {
       config: urlTheme,
       behavior: getThemeBehaviorById(input.urlTheme!),
+      dominance: getThemeDominanceById(input.urlTheme!),
       source: 'url'
     };
   }
@@ -44,6 +47,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
     return {
       config: jamTheme,
       behavior: getThemeBehaviorById(input.jamTheme || 'default'),
+      dominance: getThemeDominanceById(input.jamTheme || 'default'),
       source: 'jam'
     };
   }
@@ -54,6 +58,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
     return {
       config: userTheme,
       behavior: getThemeBehaviorById(input.userTheme || 'default'),
+      dominance: getThemeDominanceById(input.userTheme || 'default'),
       source: 'user'
     };
   }
@@ -62,6 +67,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
   return {
     config: DEFAULT_THEME_CONFIG,
     behavior: getThemeBehaviorById('default'),
+    dominance: getThemeDominanceById('default'),
     source: 'default'
   };
 };

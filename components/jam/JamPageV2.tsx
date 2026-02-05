@@ -8,7 +8,7 @@ import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1,
 import { resolveTheme, ResolvedTheme } from '../../theme/ThemeResolver';
 import { resolveThemeClasses } from '../../theme/ThemeClasses';
 import ThemeControlDock from '../creator/ThemeControlDock';
-import { THEME_REGISTRY, getThemeById, getThemeBehaviorById } from '../../theme/ThemeRegistry';
+import { THEME_REGISTRY, getThemeById, getThemeBehaviorById, getThemeDominanceById } from '../../theme/ThemeRegistry';
 import { ThemeBehaviorProfile } from '../../theme/ThemeBehavior';
 import ThemeRemixDrawer from '../creator/ThemeRemixDrawer';
 import { ThemeRemixResult, validateRemix } from '../../theme/ThemeRemix';
@@ -147,7 +147,14 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   }, [activeThemeId, ephemeralRemix, jamThemeId, jamThemeConfig, userThemeId, userThemeConfig]);
 
   const resolvedThemeData: ResolvedTheme = useMemo(() => {
-    if (ephemeralRemix) return { config: ephemeralRemix.config, behavior: getThemeBehaviorById('experimental'), source: 'remix' };
+    if (ephemeralRemix) {
+      return {
+        config: ephemeralRemix.config,
+        behavior: getThemeBehaviorById('experimental'),
+        dominance: getThemeDominanceById('experimental'),
+        source: 'remix'
+      };
+    }
     return resolveTheme({
       urlTheme: activeThemeId,
       jamTheme: jamThemeId,
@@ -159,6 +166,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const resolvedTheme: ThemeConfigV1 = resolvedThemeData.config;
   const resolvedBehavior = resolvedThemeData.behavior;
+  const resolvedDominance = resolvedThemeData.dominance;
 
   const resolvedThemeName = (() => {
     if (ephemeralRemix) return 'ai-remix';
@@ -288,7 +296,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         Back to Discover
       </button>
 
-      <LayoutRenderer config={activeConfig} truth={truth} theme={themeClasses} behavior={resolvedBehavior} />
+      <LayoutRenderer config={activeConfig} truth={truth} theme={themeClasses} behavior={resolvedBehavior} dominance={resolvedDominance} />
 
       <ThemeControlCenter
         currentThemeId={resolvedThemeName}

@@ -2,6 +2,7 @@ import React from 'react';
 import { LayoutConfigV1 } from '../LayoutConfig';
 import { ThemeClasses } from '../../theme/ThemeClasses';
 import { ThemeBehaviorProfile } from '../../theme/ThemeBehavior';
+import { ThemeDominanceProfile } from '../../theme/ThemeDominance';
 import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
 
@@ -10,6 +11,7 @@ interface LayoutRendererProps {
   truth: TruthBlocks;
   theme: ThemeClasses;
   behavior?: ThemeBehaviorProfile;
+  dominance?: ThemeDominanceProfile;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -103,12 +105,22 @@ export const resolveTimelineRhythm = (config: LayoutConfigV1, behavior?: ThemeBe
   return rhythmMap[behavior.narrativeFlow];
 };
 
-const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior }) => {
+const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance }) => {
   // BEHAVIOR-AWARE COMPOSITION: Adjust layout feel without changing grid math
   const grid = { container: resolveBehaviorSpacing(config, behavior) };
   const heroPlacement = resolveHeroPlacement(config);
   const timelinePlacement = resolveTimelinePlacement(config);
   const titleScale = resolveTitleScale(config, behavior);
+  const heroWidth = dominance?.heroDominance === 'overpowering'
+    ? 'max-w-6xl'
+    : dominance?.heroDominance === 'subdued'
+      ? 'max-w-2xl'
+      : 'max-w-4xl';
+  const dominanceTitleAmp = dominance?.heroDominance === 'overpowering'
+    ? 'md:text-[clamp(9rem,18vw,22rem)]'
+    : dominance?.heroDominance === 'subdued'
+      ? 'md:text-[clamp(3rem,6vw,5rem)] font-light'
+      : '';
   const identityPlacement = config.grid === 'asymmetric'
     ? 'col-span-12 lg:col-span-3 lg:col-start-10'
     : 'col-span-12 lg:col-span-4';
@@ -116,9 +128,36 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
   const heroOffsetLayout = config.grid === 'asymmetric' ? 'lg:grid-cols-[repeat(12,minmax(0,1fr))]' : '';
   const proofArtifact = resolveProofEmphasis(config, behavior);
   const proofVisible = config.emphasis.proof || behavior?.proofProminence === 'confrontational';
+
+  const primarySection = dominance?.contentGravity || 'hero';
+  const nonPrimaryOpacity = dominance?.hierarchyBreaks === 'forbidden'
+    ? 'opacity-80 contrast-90 saturate-90'
+    : dominance?.hierarchyBreaks === 'discouraged'
+      ? 'opacity-70'
+      : 'opacity-60';
+  const primaryBoost = dominance?.hierarchyBreaks === 'allowed'
+    ? 'contrast-110 saturate-110'
+    : dominance?.hierarchyBreaks === 'discouraged'
+      ? 'contrast-105'
+      : '';
+  const sectionEmphasis = (section: 'hero' | 'timeline' | 'proof') =>
+    section === primarySection ? `opacity-100 ${primaryBoost}` : nonPrimaryOpacity;
+
+  const silenceBackdrop = dominance?.visualSilence === 'extreme'
+    ? 'brightness-90 saturate-75'
+    : dominance?.visualSilence === 'partial'
+      ? 'brightness-95 saturate-90'
+      : '';
+  const secondaryTextTone = dominance?.visualSilence === 'extreme'
+    ? 'opacity-60'
+    : dominance?.visualSilence === 'partial'
+      ? 'opacity-80'
+      : '';
   
   // BEHAVIOR: Adjust spacing based on whitespaceBias
-  const looseSpacing = behavior?.whitespaceBias === 'generous' ? 'mt-12 md:mt-20' : 
+  const looseSpacing = dominance?.heroDominance === 'overpowering' ? 'mt-14 md:mt-24' :
+                       dominance?.heroDominance === 'subdued' ? 'mt-4 md:mt-6' :
+                       behavior?.whitespaceBias === 'generous' ? 'mt-12 md:mt-20' : 
                        behavior?.whitespaceBias === 'compressed' ? 'mt-4 md:mt-6' :
                        config.spacingDensity === 'loose' ? 'mt-8 md:mt-12' : 'mt-6';
   
@@ -126,20 +165,20 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
   const timelineRhythm = resolveTimelineRhythm(config, behavior);
 
   return (
-    <div className={theme.page}>
+    <div className={`${theme.page} ${silenceBackdrop}`}>
       <div className={grid.container}>
         {config.emphasis.hero && (
-          <div className={heroPlacement.wrapper}>
+          <div className={`${heroPlacement.wrapper} ${sectionEmphasis('hero')}`}>
             {config.heroPlacement === 'offset' ? (
               <div className={`grid grid-cols-12 gap-8 items-start ${heroOffsetLayout}`}>
                 <div className="col-span-12 lg:col-span-5 lg:row-span-2">
                   {config.emphasis.title && (
-                    <h1 className={`${titleScale} font-black ${theme.title}`}>
+                    <h1 className={`${titleScale} ${dominanceTitleAmp} ${heroWidth} font-black ${theme.title}`}>
                       {truth.Hero.props.title}
                     </h1>
                   )}
                   {truth.Hero.props.description && (
-                    <p className={`mt-6 text-base md:text-lg opacity-70 max-w-3xl ${theme.body}`}>
+                    <p className={`mt-6 text-base md:text-lg opacity-70 ${secondaryTextTone} ${heroWidth} ${theme.body}`}>
                       {truth.Hero.props.description}
                     </p>
                   )}
@@ -155,12 +194,12 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
             ) : (
               <>
                 {config.emphasis.title && (
-                  <h1 className={`${titleScale} font-bold tracking-tight ${theme.title}`}>
+                  <h1 className={`${titleScale} ${dominanceTitleAmp} ${heroWidth} font-bold tracking-tight ${theme.title}`}>
                     {truth.Hero.props.title}
                   </h1>
                 )}
                 {truth.Hero.props.description && (
-                  <p className={`mt-4 text-base md:text-lg text-gray-600 max-w-3xl ${theme.body}`}>
+                  <p className={`mt-4 text-base md:text-lg text-gray-600 ${secondaryTextTone} ${heroWidth} ${theme.body}`}>
                     {truth.Hero.props.description}
                   </p>
                 )}
@@ -174,11 +213,11 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
           </div>
         )}
 
-        <div className={`${timelinePlacement} ${timelineRhythm}`}>
+        <div className={`${timelinePlacement} ${timelineRhythm} ${sectionEmphasis('timeline')} ${primarySection !== 'timeline' ? 'mt-6 md:mt-10' : ''}`}>
           <TimelineV2 milestones={truth.Timeline.props.milestones} onDiscussionClick={() => undefined} />
         </div>
 
-        <div className={`${identityPlacement} ${identityOffset} space-y-5 ${theme.body}`}>
+        <div className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body}`}>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100">
               {truth.Identity.props.avatarUrl && (
@@ -188,7 +227,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
             <div>
               <div className="text-base font-semibold">{truth.Identity.props.name}</div>
               {truth.Identity.props.handle && (
-                <div className="text-xs font-mono text-gray-400">{truth.Identity.props.handle}</div>
+                <div className={`text-xs font-mono text-gray-400 ${secondaryTextTone}`}>{truth.Identity.props.handle}</div>
               )}
             </div>
           </div>
