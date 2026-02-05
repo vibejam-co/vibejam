@@ -1,6 +1,7 @@
 import { ThemeConfigV1, DEFAULT_THEME_CONFIG, validateThemeConfig } from './ThemeConfig';
 import { DEFAULT_THEME_BEHAVIOR, ThemeBehaviorProfile, validateThemeBehavior } from './ThemeBehavior';
 import { DEFAULT_THEME_DOMINANCE, ThemeDominanceProfile, validateThemeDominance } from './ThemeDominance';
+import { DEFAULT_THEME_CONTRAST, ThemeContrastProfile, validateThemeContrast, validateContrastRules } from './ThemeContrast';
 import { resolveThemeClasses } from './ThemeClasses';
 import { validateExpressionDivergence } from './ThemeExpression';
 
@@ -40,7 +41,7 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     backgroundTreatment: 'gradient'
   }),
 
-  // BRUTALIST: Raw, utilitarian, harsh
+  // BRUTALIST: Audit, raw, utilitarian, harsh
   brutalist: validateThemeConfig({
     version: 1,
     palette: 'light',
@@ -184,6 +185,64 @@ export const THEME_DOMINANCE_REGISTRY: Readonly<Record<string, ThemeDominancePro
   }
 };
 
+export const THEME_CONTRAST_REGISTRY: Readonly<Record<string, ThemeContrastProfile>> = {
+  // FROSTED: Reverent, journey-first, quiet trust
+  frosted: {
+    version: 1,
+    emphasizes: 'journey',
+    suppresses: 'hero',
+    moralTone: 'reverent',
+    trustSignal: 'quiet',
+    displayLabel: 'Reverent · Journey-First · Quiet'
+  },
+
+  // MIDNIGHT: Proud, hero-first, institutional trust
+  midnight: {
+    version: 1,
+    emphasizes: 'hero',
+    suppresses: 'builder',
+    moralTone: 'proud',
+    trustSignal: 'institutional',
+    displayLabel: 'Proud · Hero-Led · Institutional'
+  },
+
+  // PLAYFUL: Playful POV, builder-first, chaotic trust
+  playful: {
+    version: 1,
+    emphasizes: 'builder',
+    suppresses: 'proof',
+    moralTone: 'playful',
+    trustSignal: 'chaotic',
+    displayLabel: 'Playful · Builder-Led · Chaotic'
+  },
+
+  // BRUTALIST: Skeptical, proof-first, institutional trust
+  brutalist: {
+    version: 1,
+    emphasizes: 'proof',
+    suppresses: 'journey',
+    moralTone: 'skeptical',
+    trustSignal: 'institutional',
+    displayLabel: 'Skeptical · Proof-First · Institutional'
+  },
+
+  // EXPERIMENTAL: Confrontational, proof-first, loud trust
+  experimental: {
+    version: 1,
+    emphasizes: 'proof',
+    suppresses: 'hero',
+    moralTone: 'confrontational',
+    trustSignal: 'loud',
+    displayLabel: 'Confrontational · Proof-First · Loud'
+  },
+
+  // DEFAULT: Balanced editorial
+  default: {
+    ...DEFAULT_THEME_CONTRAST,
+    displayLabel: 'Reverent · Hero-Led · Quiet'
+  }
+};
+
 export const getThemeById = (id?: string | null): ThemeConfigV1 | null => {
   if (!id) return null;
   return THEME_REGISTRY[id] || null;
@@ -204,6 +263,15 @@ export const getThemeDominanceById = (id?: string | null): ThemeDominanceProfile
   return {
     ...validated,
     displayLabel: dominance.displayLabel || THEME_DOMINANCE_REGISTRY.default.displayLabel
+  };
+};
+
+export const getThemeContrastById = (id?: string | null): ThemeContrastProfile => {
+  const contrast = (id && THEME_CONTRAST_REGISTRY[id]) || THEME_CONTRAST_REGISTRY.default;
+  const validated = validateThemeContrast(contrast);
+  return {
+    ...validated,
+    displayLabel: contrast.displayLabel || THEME_CONTRAST_REGISTRY.default.displayLabel
   };
 };
 
@@ -330,3 +398,19 @@ const validateDominanceCoverageAndDivergence = (): void => {
 };
 
 validateDominanceCoverageAndDivergence();
+const validateContrastCoverage = (): void => {
+  const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+  if (!showDevWarning) return;
+
+  const themeIds = Object.keys(THEME_REGISTRY);
+  const contrastIds = Object.keys(THEME_CONTRAST_REGISTRY);
+
+  for (const id of themeIds) {
+    if (!contrastIds.includes(id)) {
+      console.warn(`[ThemeContrast] Missing contrast profile for theme "${id}".`);
+    }
+  }
+};
+
+validateContrastCoverage();
+validateContrastRules(THEME_CONTRAST_REGISTRY);

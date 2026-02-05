@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { THEME_REGISTRY, getThemeBehaviorById, getThemeDominanceById } from '../../theme/ThemeRegistry';
+import { THEME_REGISTRY, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById } from '../../theme/ThemeRegistry';
 import { LAYOUT_PRESETS, LayoutArchetype } from '../../layout/LayoutConfig';
 import { THEME_EXPRESSIONS } from '../../theme/ThemeExpression';
 
 interface ThemeControlCenterProps {
   currentThemeId: string;
   currentLayoutId: string;
+  identityWeight: 'light' | 'committed' | 'locked';
+  isPreviewing: boolean;
   onThemeChange: (themeId: string) => void;
   onLayoutChange: (layoutId: LayoutArchetype) => void;
   onReset: () => void;
@@ -60,6 +62,8 @@ const LAYOUT_ICONS: Record<LayoutArchetype, React.ReactNode> = {
 const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   currentThemeId,
   currentLayoutId,
+  identityWeight,
+  isPreviewing,
   onThemeChange,
   onLayoutChange,
   onReset,
@@ -135,9 +139,14 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
             
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-              <h3 className="text-sm font-semibold text-white tracking-wide">
-                Control Center
-              </h3>
+              <div>
+                <h3 className="text-sm font-semibold text-white tracking-wide">
+                  Control Center
+                </h3>
+                <div className="text-[9px] uppercase tracking-widest text-white/40 mt-1">
+                  {isPreviewing ? 'Previewing' : 'Committed'} · {identityWeight.replace('-', ' ')}
+                </div>
+              </div>
               <button
                 onClick={() => setIsOpen(false)}
                 className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
@@ -184,6 +193,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                     const expression = THEME_EXPRESSIONS[themeId];
                     const behavior = getThemeBehaviorById(themeId);
                     const dominance = getThemeDominanceById(themeId);
+                    const contrast = getThemeContrastById(themeId);
                     
                     return (
                       <button
@@ -227,6 +237,11 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                                 {dominance?.displayLabel && (
                                   <span className="block text-white/50 text-[9px] uppercase tracking-widest mt-0.5">
                                     {dominance.displayLabel}
+                                  </span>
+                                )}
+                                {contrast?.displayLabel && (
+                                  <span className="block text-white/40 text-[9px] uppercase tracking-widest mt-0.5">
+                                    Editor&apos;s POV · {contrast.displayLabel}
                                   </span>
                                 )}
                               </div>

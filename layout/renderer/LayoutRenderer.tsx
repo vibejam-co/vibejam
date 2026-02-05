@@ -3,6 +3,8 @@ import { LayoutConfigV1 } from '../LayoutConfig';
 import { ThemeClasses } from '../../theme/ThemeClasses';
 import { ThemeBehaviorProfile } from '../../theme/ThemeBehavior';
 import { ThemeDominanceProfile } from '../../theme/ThemeDominance';
+import { ThemeContrastProfile } from '../../theme/ThemeContrast';
+import { ThemeIdentityV1 } from '../../theme/ThemeIdentity';
 import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
 
@@ -12,6 +14,8 @@ interface LayoutRendererProps {
   theme: ThemeClasses;
   behavior?: ThemeBehaviorProfile;
   dominance?: ThemeDominanceProfile;
+  contrast?: ThemeContrastProfile;
+  identity?: ThemeIdentityV1;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -105,7 +109,7 @@ export const resolveTimelineRhythm = (config: LayoutConfigV1, behavior?: ThemeBe
   return rhythmMap[behavior.narrativeFlow];
 };
 
-const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance }) => {
+const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance, contrast, identity }) => {
   // BEHAVIOR-AWARE COMPOSITION: Adjust layout feel without changing grid math
   const grid = { container: resolveBehaviorSpacing(config, behavior) };
   const heroPlacement = resolveHeroPlacement(config);
@@ -131,28 +135,59 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
 
   const primarySection = dominance?.contentGravity || 'hero';
   const nonPrimaryOpacity = dominance?.hierarchyBreaks === 'forbidden'
-    ? 'opacity-80 contrast-90 saturate-90'
+    ? 'opacity-80 contrast-75 saturate-50'
     : dominance?.hierarchyBreaks === 'discouraged'
       ? 'opacity-70'
       : 'opacity-60';
   const primaryBoost = dominance?.hierarchyBreaks === 'allowed'
-    ? 'contrast-110 saturate-110'
-    : dominance?.hierarchyBreaks === 'discouraged'
-      ? 'contrast-105'
-      : '';
+    ? 'contrast-125 saturate-125'
+    : '';
   const sectionEmphasis = (section: 'hero' | 'timeline' | 'proof') =>
     section === primarySection ? `opacity-100 ${primaryBoost}` : nonPrimaryOpacity;
 
   const silenceBackdrop = dominance?.visualSilence === 'extreme'
-    ? 'brightness-90 saturate-75'
+    ? 'brightness-90 saturate-50'
     : dominance?.visualSilence === 'partial'
-      ? 'brightness-95 saturate-90'
+      ? 'brightness-95'
       : '';
   const secondaryTextTone = dominance?.visualSilence === 'extreme'
     ? 'opacity-60'
     : dominance?.visualSilence === 'partial'
       ? 'opacity-80'
       : '';
+
+  const contrastPrimary = contrast?.emphasizes || 'hero';
+  const contrastSuppressed = contrast?.suppresses || 'proof';
+  const contrastEmphasis = 'scale-[1.02] contrast-125 saturate-125';
+  const contrastSuppression = 'opacity-60 scale-[0.98] saturate-50';
+  const contrastClass = (section: 'hero' | 'timeline' | 'proof') =>
+    section === contrastPrimary ? contrastEmphasis : section === contrastSuppressed ? contrastSuppression : '';
+
+  const trustSignalStyle = (() => {
+    if (!contrast) return '';
+    const styles: Record<string, string> = {
+      quiet: 'uppercase tracking-[0.3em] text-[10px] border border-dashed rounded-full px-3 py-1',
+      loud: 'uppercase tracking-widest text-[11px] bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-lg shadow-emerald-500/20',
+      institutional: 'font-mono text-[11px] bg-slate-100 text-slate-700 border border-slate-300 px-3 py-2 rounded-none',
+      chaotic: 'uppercase tracking-wide text-[10px] border-l-4 border-yellow-400 bg-yellow-50 text-yellow-900 px-3 py-2 rounded-sm'
+    };
+    return styles[contrast.trustSignal] || '';
+  })();
+
+  const followUrl = truth.Identity.props.handle
+    ? `https://x.com/${truth.Identity.props.handle.replace('@', '')}`
+    : truth.Links.props.websiteUrl || '';
+
+  const identityVolatility = identity?.identityWeight === 'light'
+    ? 'contrast-105 saturate-105'
+    : identity?.identityWeight === 'locked'
+      ? 'contrast-95 saturate-95'
+      : '';
+  const identityTextDensity = identity?.identityWeight === 'light'
+    ? 'leading-snug'
+    : identity?.identityWeight === 'locked'
+      ? 'leading-relaxed'
+      : 'leading-normal';
   
   // BEHAVIOR: Adjust spacing based on whitespaceBias
   const looseSpacing = dominance?.heroDominance === 'overpowering' ? 'mt-14 md:mt-24' :
@@ -165,10 +200,10 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
   const timelineRhythm = resolveTimelineRhythm(config, behavior);
 
   return (
-    <div className={`${theme.page} ${silenceBackdrop}`}>
+    <div className={`${theme.page} ${silenceBackdrop} ${identityVolatility}`}>
       <div className={grid.container}>
         {config.emphasis.hero && (
-          <div className={`${heroPlacement.wrapper} ${sectionEmphasis('hero')}`}>
+          <div className={`${heroPlacement.wrapper} ${sectionEmphasis('hero')} ${contrastClass('hero')}`}>
             {config.heroPlacement === 'offset' ? (
               <div className={`grid grid-cols-12 gap-8 items-start ${heroOffsetLayout}`}>
                 <div className="col-span-12 lg:col-span-5 lg:row-span-2">
@@ -177,8 +212,39 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                       {truth.Hero.props.title}
                     </h1>
                   )}
+                  {(truth.Identity.props.name || truth.Proof.props.proofUrl) && (
+                    <div className={`mt-4 flex flex-wrap items-center gap-3 text-xs uppercase tracking-widest ${theme.body}`}>
+                      {truth.Identity.props.name && (
+                        <span className="inline-flex items-center gap-2">
+                          <span className="opacity-50">Built by</span>
+                          <span className="font-semibold">{truth.Identity.props.name}</span>
+                        </span>
+                      )}
+                      {truth.Proof.props.proofUrl && (
+                        <a
+                          href={truth.Proof.props.proofUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`inline-flex items-center gap-2 ${trustSignalStyle}`}
+                        >
+                          <span>Proof</span>
+                          <span className="text-[10px] opacity-70">Verified</span>
+                        </a>
+                      )}
+                      {followUrl && (
+                        <a
+                          href={followUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`inline-flex items-center gap-2 ${theme.accent}`}
+                        >
+                          Follow Build
+                        </a>
+                      )}
+                    </div>
+                  )}
                   {truth.Hero.props.description && (
-                    <p className={`mt-6 text-base md:text-lg opacity-70 ${secondaryTextTone} ${heroWidth} ${theme.body}`}>
+                    <p className={`mt-6 text-base md:text-lg opacity-70 ${secondaryTextTone} ${identityTextDensity} ${heroWidth} ${theme.body}`}>
                       {truth.Hero.props.description}
                     </p>
                   )}
@@ -198,8 +264,39 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                     {truth.Hero.props.title}
                   </h1>
                 )}
+                {(truth.Identity.props.name || truth.Proof.props.proofUrl) && (
+                  <div className={`mt-3 flex flex-wrap items-center gap-3 text-xs uppercase tracking-widest ${theme.body}`}>
+                    {truth.Identity.props.name && (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="opacity-50">Built by</span>
+                        <span className="font-semibold">{truth.Identity.props.name}</span>
+                      </span>
+                    )}
+                    {truth.Proof.props.proofUrl && (
+                      <a
+                        href={truth.Proof.props.proofUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`inline-flex items-center gap-2 ${trustSignalStyle}`}
+                      >
+                        <span>Proof</span>
+                        <span className="text-[10px] opacity-70">Verified</span>
+                      </a>
+                    )}
+                    {followUrl && (
+                      <a
+                        href={followUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`inline-flex items-center gap-2 ${theme.accent}`}
+                      >
+                        Follow Build
+                      </a>
+                    )}
+                  </div>
+                )}
                 {truth.Hero.props.description && (
-                  <p className={`mt-4 text-base md:text-lg text-gray-600 ${secondaryTextTone} ${heroWidth} ${theme.body}`}>
+                  <p className={`mt-4 text-base md:text-lg text-gray-600 ${secondaryTextTone} ${identityTextDensity} ${heroWidth} ${theme.body}`}>
                     {truth.Hero.props.description}
                   </p>
                 )}
@@ -213,11 +310,11 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
           </div>
         )}
 
-        <div className={`${timelinePlacement} ${timelineRhythm} ${sectionEmphasis('timeline')} ${primarySection !== 'timeline' ? 'mt-6 md:mt-10' : ''}`}>
+        <div className={`${timelinePlacement} ${timelineRhythm} ${sectionEmphasis('timeline')} ${contrastClass('timeline')} ${primarySection !== 'timeline' ? 'mt-6 md:mt-10' : ''}`}>
           <TimelineV2 milestones={truth.Timeline.props.milestones} onDiscussionClick={() => undefined} />
         </div>
 
-        <div className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body}`}>
+        <div className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${contrastClass('proof')} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body} ${identityTextDensity}`}>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100">
               {truth.Identity.props.avatarUrl && (
@@ -235,7 +332,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
           {(proofVisible || truth.Metrics.props.growth || truth.Metrics.props.revenue) && (
             <div className={`flex flex-wrap gap-4 text-sm text-gray-500 ${theme.body}`}>
               {proofVisible && truth.Proof.props.proofUrl && (
-                <a href={truth.Proof.props.proofUrl} target="_blank" rel="noreferrer" className={`font-semibold uppercase tracking-widest ${theme.accent} ${proofArtifact}`}>
+                <a href={truth.Proof.props.proofUrl} target="_blank" rel="noreferrer" className={`font-semibold ${theme.accent} ${proofArtifact} ${trustSignalStyle}`}>
                   Source Verified
                 </a>
               )}

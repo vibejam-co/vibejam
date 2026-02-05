@@ -1,7 +1,8 @@
 import { ThemeConfigV1, DEFAULT_THEME_CONFIG, validateThemeConfig } from './ThemeConfig';
-import { getThemeById, getThemeBehaviorById, getThemeDominanceById } from './ThemeRegistry';
+import { getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById } from './ThemeRegistry';
 import { ThemeBehaviorProfile } from './ThemeBehavior';
 import { ThemeDominanceProfile } from './ThemeDominance';
+import { ThemeContrastProfile } from './ThemeContrast';
 
 export type ThemeResolutionInput = {
   urlTheme?: string | null;
@@ -15,6 +16,7 @@ export interface ResolvedTheme {
   config: ThemeConfigV1;
   behavior: ThemeBehaviorProfile;
   dominance: ThemeDominanceProfile;
+  contrast: ThemeContrastProfile;
   source: 'url' | 'jam' | 'user' | 'default' | 'remix';
 }
 
@@ -37,6 +39,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
       config: urlTheme,
       behavior: getThemeBehaviorById(input.urlTheme!),
       dominance: getThemeDominanceById(input.urlTheme!),
+      contrast: getThemeContrastById(input.urlTheme!),
       source: 'url'
     };
   }
@@ -48,6 +51,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
       config: jamTheme,
       behavior: getThemeBehaviorById(input.jamTheme || 'default'),
       dominance: getThemeDominanceById(input.jamTheme || 'default'),
+      contrast: getThemeContrastById(input.jamTheme || 'default'),
       source: 'jam'
     };
   }
@@ -59,6 +63,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
       config: userTheme,
       behavior: getThemeBehaviorById(input.userTheme || 'default'),
       dominance: getThemeDominanceById(input.userTheme || 'default'),
+      contrast: getThemeContrastById(input.userTheme || 'default'),
       source: 'user'
     };
   }
@@ -68,6 +73,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
     config: DEFAULT_THEME_CONFIG,
     behavior: getThemeBehaviorById('default'),
     dominance: getThemeDominanceById('default'),
+    contrast: getThemeContrastById('default'),
     source: 'default'
   };
 };
