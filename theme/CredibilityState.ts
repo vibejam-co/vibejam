@@ -1,13 +1,12 @@
+import { registerGovernanceTouchpoint } from '../lib/ChangeTypes';
+
 // ============================================================================
 // CREDIBILITY STATE CONTRACT
 // ============================================================================
 // Derived, read-only. No user input. Uses signals, timestamps, and proof.
 // ============================================================================
 
-import { registerGovernanceTouchpoint } from '../lib/ChangeTypes';
-
-// Governance guardrail: credibility logic is trust-affecting and requires review.
-registerGovernanceTouchpoint('credibility-state');
+let hasWarnedCredibilityState = false;
 
 export type MomentumLevel = 'dormant' | 'active' | 'compounding';
 export type ConsistencyWindow = '7d' | '30d' | '90d';
@@ -38,6 +37,10 @@ const parseDate = (value?: string | null): Date | null => {
 };
 
 export const deriveCredibilityState = (input: CredibilityInput): CredibilityState => {
+  if (!hasWarnedCredibilityState) {
+    registerGovernanceTouchpoint('credibility-state');
+    hasWarnedCredibilityState = true;
+  }
   const now = new Date();
   const milestoneDates = (input.milestones || [])
     .map((m) => parseDate(m.date))

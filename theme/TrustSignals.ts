@@ -1,3 +1,5 @@
+import { registerGovernanceTouchpoint } from '../lib/ChangeTypes';
+
 // ============================================================================
 // TRUST SIGNALS
 // ============================================================================
@@ -5,12 +7,8 @@
 // No persistence, no mutations, no runtime throws.
 // ============================================================================
 
-import { registerGovernanceTouchpoint } from '../lib/ChangeTypes';
-
 export const TRUST_SIGNALS_VERSION = 1 as const;
-
-// Governance guardrail: trust signals are high-impact and require review.
-registerGovernanceTouchpoint('trust-signals');
+let hasWarnedTrustSignals = false;
 
 export type TrustActivityPattern = 'steady' | 'bursty' | 'silent';
 
@@ -73,6 +71,10 @@ const resolveActivityPattern = (milestones: { date: string }[] | null | undefine
 };
 
 export const deriveTrustSignals = (input: TrustSignalInput): TrustSignalsV1 => {
+  if (!hasWarnedTrustSignals) {
+    registerGovernanceTouchpoint('trust-signals');
+    hasWarnedTrustSignals = true;
+  }
   const now = new Date();
   const createdAt = parseDate(input.createdAt);
   const publishedAt = parseDate(input.publishedAt);
