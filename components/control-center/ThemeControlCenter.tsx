@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { THEME_REGISTRY } from '../../theme/ThemeRegistry';
+import { THEME_REGISTRY, getThemeBehaviorById } from '../../theme/ThemeRegistry';
 import { LAYOUT_PRESETS, LayoutArchetype } from '../../layout/LayoutConfig';
 import { THEME_EXPRESSIONS } from '../../theme/ThemeExpression';
 
@@ -182,6 +182,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                     const isActive = currentThemeId === themeId;
                     const indicator = THEME_INDICATORS[themeId] || { bg: 'bg-zinc-800', accent: 'bg-zinc-400' };
                     const expression = THEME_EXPRESSIONS[themeId];
+                    const behavior = getThemeBehaviorById(themeId);
                     
                     return (
                       <button
@@ -215,6 +216,11 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                                 {expression && (
                                   <span className="block text-white/50 text-[9px] uppercase tracking-widest mt-0.5">
                                     {expression.materialMetaphor} · {expression.surfaceCharacter}
+                                  </span>
+                                )}
+                                {behavior?.displayLabel && (
+                                  <span className="block text-white/60 text-[9px] uppercase tracking-widest mt-0.5">
+                                    {behavior.displayLabel}
                                   </span>
                                 )}
                               </div>
