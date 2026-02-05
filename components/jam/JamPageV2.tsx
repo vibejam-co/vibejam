@@ -5,10 +5,11 @@ import { mapJamToAppProject } from '../../lib/jamMapping';
 import LayoutRenderer from '../../layout/renderer/LayoutRenderer';
 import { createTruthModel } from '../../layout/truth';
 import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1, validateLayoutConfig } from '../../layout/LayoutConfig';
-import { resolveTheme } from '../../theme/ThemeResolver';
+import { resolveTheme, ResolvedTheme } from '../../theme/ThemeResolver';
 import { resolveThemeClasses } from '../../theme/ThemeClasses';
 import ThemeControlDock from '../creator/ThemeControlDock';
-import { THEME_REGISTRY, getThemeById } from '../../theme/ThemeRegistry';
+import { THEME_REGISTRY, getThemeById, getThemeBehaviorById } from '../../theme/ThemeRegistry';
+import { ThemeBehaviorProfile } from '../../theme/ThemeBehavior';
 import ThemeRemixDrawer from '../creator/ThemeRemixDrawer';
 import { ThemeRemixResult, validateRemix } from '../../theme/ThemeRemix';
 import { ThemeConfigV1 } from '../../theme/ThemeConfig';
@@ -145,8 +146,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     setThemeSource('default');
   }, [activeThemeId, ephemeralRemix, jamThemeId, jamThemeConfig, userThemeId, userThemeConfig]);
 
-  const resolvedTheme: ThemeConfigV1 = useMemo(() => {
-    if (ephemeralRemix) return ephemeralRemix.config;
+  const resolvedThemeData: ResolvedTheme = useMemo(() => {
+    if (ephemeralRemix) return { config: ephemeralRemix.config, behavior: getThemeBehaviorById('experimental'), source: 'remix' };
     return resolveTheme({
       urlTheme: activeThemeId,
       jamTheme: jamThemeId,
@@ -155,6 +156,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       userThemeConfig: userThemeConfig || null
     });
   }, [ephemeralRemix, activeThemeId, jamThemeId, jamThemeConfig, userThemeId, userThemeConfig]);
+
+  const resolvedTheme: ThemeConfigV1 = resolvedThemeData.config;
+  const resolvedBehavior = resolvedThemeData.behavior;
 
   const resolvedThemeName = (() => {
     if (ephemeralRemix) return 'ai-remix';
@@ -284,7 +288,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         Back to Discover
       </button>
 
-      <LayoutRenderer config={activeConfig} truth={truth} theme={themeClasses} />
+      <LayoutRenderer config={activeConfig} truth={truth} theme={themeClasses} behavior={resolvedBehavior} />
 
       <ThemeControlCenter
         currentThemeId={resolvedThemeName}
