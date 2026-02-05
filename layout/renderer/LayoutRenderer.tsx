@@ -7,8 +7,10 @@ import { ThemeContrastProfile } from '../../theme/ThemeContrast';
 import { ThemeIdentityV1 } from '../../theme/ThemeIdentity';
 import { MaterialResponseProfile } from '../../theme/MaterialResponse';
 import { CredibilityState } from '../../theme/CredibilityState';
+import { TrustSignalsV1 } from '../../theme/TrustSignals';
 import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
+import { FEATURE_FLAGS } from '../../constants';
 
 interface LayoutRendererProps {
   config: LayoutConfigV1;
@@ -20,6 +22,7 @@ interface LayoutRendererProps {
   identity?: ThemeIdentityV1;
   material?: MaterialResponseProfile;
   credibility?: CredibilityState;
+  trustSignals?: TrustSignalsV1;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -113,7 +116,9 @@ export const resolveTimelineRhythm = (config: LayoutConfigV1, behavior?: ThemeBe
   return rhythmMap[behavior.narrativeFlow];
 };
 
-const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance, contrast, identity, material, credibility }) => {
+const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance, contrast, identity, material, credibility, trustSignals }) => {
+  const credibilityEnabled = FEATURE_FLAGS.VITE_FEATURE_CREDIBILITY_VISUALS;
+  const activeCredibility = credibilityEnabled ? credibility : undefined;
   // BEHAVIOR-AWARE COMPOSITION: Adjust layout feel without changing grid math
   const grid = { container: resolveBehaviorSpacing(config, behavior) };
   const heroPlacement = resolveHeroPlacement(config);
@@ -213,38 +218,55 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
     ? `https://x.com/${truth.Identity.props.handle.replace('@', '')}`
     : truth.Links.props.websiteUrl || '';
 
+  const isStableIdentity = identity?.stability === 'stable';
   const identityVolatility = identity?.identityWeight === 'light'
     ? 'contrast-105 saturate-105'
-    : identity?.identityWeight === 'locked'
+    : isStableIdentity
       ? 'contrast-95 saturate-95'
       : '';
   const identityTextDensity = identity?.identityWeight === 'light'
     ? 'leading-snug'
-    : identity?.identityWeight === 'locked'
+    : isStableIdentity
       ? 'leading-relaxed'
       : 'leading-normal';
 
-  const credibilityTone = credibility?.momentumLevel === 'compounding'
+  const credibilityTone = activeCredibility?.momentumLevel === 'compounding'
     ? 'contrast-110'
-    : credibility?.momentumLevel === 'dormant'
+    : activeCredibility?.momentumLevel === 'dormant'
       ? 'opacity-70'
       : '';
-  const credibilitySilence = credibility?.silencePenalty
+  const credibilitySilence = activeCredibility?.silencePenalty
     ? 'opacity-60'
     : '';
-  const credibilityProof = credibility?.proofFreshness === 'current'
+  const credibilityProof = activeCredibility?.proofFreshness === 'current'
     ? 'opacity-100'
-    : credibility?.proofFreshness === 'recent'
+    : activeCredibility?.proofFreshness === 'recent'
       ? 'opacity-80'
       : 'opacity-55';
-  const credibilityTimeline = credibility?.momentumLevel === 'compounding'
+  const credibilityTimeline = activeCredibility?.momentumLevel === 'compounding'
     ? 'space-y-3 md:space-y-4'
-    : credibility?.momentumLevel === 'dormant'
+    : activeCredibility?.momentumLevel === 'dormant'
       ? 'space-y-10 md:space-y-14'
       : '';
-  const credibilityHeroGap = credibility?.silencePenalty && contrast?.emphasizes === 'hero'
+  const credibilityHeroGap = activeCredibility?.silencePenalty && contrast?.emphasizes === 'hero'
     ? 'mt-10 md:mt-14'
     : '';
+
+  const trustSilenceTone = trustSignals?.silencePenalty ? 'opacity-70' : '';
+  const trustRecencyTone = trustSignals && trustSignals.updateRecencyDays >= 14 ? 'opacity-80' : '';
+  const trustTone = `${trustSilenceTone} ${trustRecencyTone}`.trim();
+  const trustProofLabel = trustSignals ? (trustSignals.proofPresence ? 'Proof linked' : 'Proof missing') : null;
+  const trustBaseItems = [
+    trustSignals?.buildAgeLabel,
+    trustSignals?.updateRecencyLabel,
+    trustSignals?.activityPattern ? `Activity: ${trustSignals.activityPattern}` : null,
+    ...(trustSignals?.socialSignals || [])
+  ].filter((item): item is string => !!item);
+  const trustItems = (contrast?.emphasizes === 'proof'
+    ? [trustProofLabel, ...trustBaseItems]
+    : [...trustBaseItems, trustProofLabel]
+  ).filter((item): item is string => !!item);
+  const showTrustSignals = trustItems.length > 0;
   
   // BEHAVIOR: Adjust spacing based on whitespaceBias
   const looseSpacing = dominance?.heroDominance === 'overpowering' ? 'mt-14 md:mt-24' :
@@ -255,6 +277,16 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
   
   // BEHAVIOR: Timeline rhythm based on narrativeFlow
   const timelineRhythm = resolveTimelineRhythm(config, behavior);
+  const trustBar = showTrustSignals ? (
+    <div className={`mt-4 flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-widest ${theme.body} ${trustTone}`}>
+      {trustItems.map((item, index) => (
+        <span key={`${item}-${index}`} className="inline-flex items-center gap-2">
+          <span className="opacity-40">•</span>
+          <span>{item}</span>
+        </span>
+      ))}
+    </div>
+  ) : null;
 
   return (
     <div className={`${theme.page} ${silenceBackdrop} ${identityVolatility}`}>
@@ -300,6 +332,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                       )}
                     </div>
                   )}
+                  {trustBar}
                   {truth.Hero.props.description && (
                     <p className={`mt-6 text-base md:text-lg opacity-70 ${secondaryTextTone} ${identityTextDensity} ${heroWidth} ${theme.body}`}>
                       {truth.Hero.props.description}
@@ -352,6 +385,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                     )}
                   </div>
                 )}
+                {trustBar}
                 {truth.Hero.props.description && (
                   <p className={`mt-4 text-base md:text-lg text-gray-600 ${secondaryTextTone} ${identityTextDensity} ${heroWidth} ${theme.body}`}>
                     {truth.Hero.props.description}
@@ -371,7 +405,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
           <TimelineV2 milestones={truth.Timeline.props.milestones} onDiscussionClick={() => undefined} />
         </div>
 
-        <div className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${contrastClass('proof')} ${credibilityTone} ${credibilitySilence} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body} ${identityTextDensity}`}>
+        <div className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${contrastClass('proof')} ${credibilityTone} ${credibilitySilence} ${trustTone} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body} ${identityTextDensity}`}>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100">
               {truth.Identity.props.avatarUrl && (

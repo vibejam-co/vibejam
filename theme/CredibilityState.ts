@@ -4,6 +4,11 @@
 // Derived, read-only. No user input. Uses signals, timestamps, and proof.
 // ============================================================================
 
+import { registerGovernanceTouchpoint } from '../lib/ChangeTypes';
+
+// Governance guardrail: credibility logic is trust-affecting and requires review.
+registerGovernanceTouchpoint('credibility-state');
+
 export type MomentumLevel = 'dormant' | 'active' | 'compounding';
 export type ConsistencyWindow = '7d' | '30d' | '90d';
 export type ProofFreshness = 'stale' | 'recent' | 'current';

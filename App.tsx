@@ -23,6 +23,9 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { supabase } from './lib/supabaseClient';
 import JamPageV2 from './components/jam/JamPageV2';
 import ProfilePageV2 from './components/profile/ProfilePageV2';
+import EmbedPage from './components/embed/EmbedPage';
+import { ONE_SENTENCE_TRUTH, BUILDER_EXPECTATIONS, ANTI_FEATURES, warnIfCopyDrifts } from './lib/LaunchNarrative';
+import { warnIfObserveOnlyWindow, warnIfRankingOrHype } from './lib/ChangeTypes';
 
 const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { signInWithGoogle } = useAuth();
@@ -336,7 +339,7 @@ const FooterV4: React.FC<{ onNavigate?: (page: any) => void; onNavigateSubmitApp
         <div className="lg:col-span-2 space-y-6 md:space-y-8">
           <Logo />
           <p className="text-sm md:text-base text-gray-400 max-w-[300px] leading-relaxed font-medium">
-            Curating the next generation of creative platforms. Built for the culture, by the culture.
+            {ONE_SENTENCE_TRUTH}
           </p>
         </div>
 
@@ -344,8 +347,9 @@ const FooterV4: React.FC<{ onNavigate?: (page: any) => void; onNavigateSubmitApp
           <h4 className="text-[10px] font-black text-gray-900 uppercase tracking-[0.3em] mb-6 md:mb-8">Platform</h4>
           <ul className="space-y-3 md:space-y-4">
             <li><button onClick={() => onNavigate?.('discover')} className="text-sm text-gray-400 hover:text-gray-900 transition-colors font-bold">Browse Jams</button></li>
-            <li><button onClick={() => onNavigate?.('leaderboard')} className="text-sm text-gray-400 hover:text-gray-900 transition-colors font-bold">Leaderboard</button></li>
-            <li><button onClick={() => onNavigate?.('discover')} className="text-sm text-gray-400 hover:text-gray-900 transition-colors font-bold">Featured</button></li>
+            {FEATURE_FLAGS.VITE_FEATURE_LEADERBOARD && (
+              <li><button onClick={() => onNavigate?.('leaderboard')} className="text-sm text-gray-400 hover:text-gray-900 transition-colors font-bold">Leaderboard</button></li>
+            )}
           </ul>
         </div>
 
@@ -397,7 +401,7 @@ const FooterV4: React.FC<{ onNavigate?: (page: any) => void; onNavigateSubmitApp
 
       <div className="pt-10 border-t border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6">
         <span className="text-[9px] md:text-[10px] font-black text-gray-300 uppercase tracking-widest text-center md:text-left">
-          © 2024 VibeJam Inc. An early, curated platform for builders shipping in public.
+          © 2024 VibeJam Inc.
         </span>
         <div className="flex flex-wrap justify-center gap-6 md:gap-8">
           <button onClick={() => onNavigate?.('privacy')} className="text-[9px] md:text-[10px] font-black text-gray-300 hover:text-gray-600 uppercase tracking-widest">PRIVACY</button>
@@ -445,7 +449,8 @@ const AppContent: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [jamRouteSlug, setJamRouteSlug] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState<'home' | 'discover' | 'learn' | 'me' | 'creator-studio' | 'privacy' | 'terms' | 'cookie' | 'leaderboard' | 'creator-tools' | 'guidelines' | 'contact' | 'jam' | 'profile'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'discover' | 'learn' | 'me' | 'creator-studio' | 'privacy' | 'terms' | 'cookie' | 'leaderboard' | 'creator-tools' | 'guidelines' | 'contact' | 'jam' | 'profile' | 'embed'>('home');
+  const [embedSlug, setEmbedSlug] = useState<string | null>(null);
   const [dashboardRefreshTrigger, setDashboardRefreshTrigger] = useState(0);
   const [discoveryApps, setDiscoveryApps] = useState<AppProject[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -487,6 +492,43 @@ const AppContent: React.FC = () => {
       subscription.unsubscribe();
     };
   }, [debugEnabled]);
+
+  useEffect(() => {
+    warnIfCopyDrifts('LaunchNarrative', [
+      ONE_SENTENCE_TRUTH,
+      ...BUILDER_EXPECTATIONS,
+      ...ANTI_FEATURES
+    ]);
+  }, []);
+
+  useEffect(() => {
+    warnIfObserveOnlyWindow();
+    warnIfRankingOrHype({
+      leaderboard: FEATURE_FLAGS.VITE_FEATURE_LEADERBOARD
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (currentPage === 'jam') return;
+
+    const setMeta = (selector: string, attr: 'content' | 'href', value: string) => {
+      let el = document.querySelector(selector) as HTMLMetaElement | HTMLLinkElement | null;
+      if (!el) {
+        const [tag, key, keyValue] = selector.startsWith('meta')
+          ? ['meta', 'name', selector.match(/\"(.*?)\"/)?.[1]]
+          : ['link', 'rel', selector.match(/\"(.*?)\"/)?.[1]];
+        if (!keyValue) return;
+        el = document.createElement(tag) as any;
+        el.setAttribute(key, keyValue);
+        document.head.appendChild(el);
+      }
+      el.setAttribute(attr, value);
+    };
+
+    document.title = 'VibeJam';
+    setMeta('meta[name=\"description\"]', 'content', ONE_SENTENCE_TRUTH);
+  }, [currentPage]);
 
   const updateHistoryForPage = useCallback((page: typeof currentPage, mode: 'push' | 'replace' = 'replace') => {
     if (typeof window === 'undefined') return;
@@ -573,6 +615,17 @@ const AppContent: React.FC = () => {
         return;
       }
     }
+    if (path.startsWith('/embed/')) {
+      const slug = path.split('/embed/')[1];
+      if (slug) {
+        setEmbedSlug(slug);
+        setSelectedApp(null);
+        setJamRouteSlug(null);
+        setProfileHandle(null);
+        setCurrentPage('embed');
+        return;
+      }
+    }
     if (path.startsWith('/@')) {
       const handle = path.slice(2);
       if (handle) {
@@ -603,6 +656,17 @@ const AppContent: React.FC = () => {
         }
         return;
       }
+      if (path.startsWith('/embed/')) {
+        const slug = path.split('/embed/')[1];
+        if (slug) {
+          setEmbedSlug(slug);
+          setSelectedApp(null);
+          setJamRouteSlug(null);
+          setProfileHandle(null);
+          setCurrentPage('embed');
+        }
+        return;
+      }
       if (path.startsWith('/@')) {
         const handle = path.slice(2);
         if (handle) {
@@ -615,6 +679,7 @@ const AppContent: React.FC = () => {
       }
       setSelectedApp(null);
       setJamRouteSlug(null);
+      setEmbedSlug(null);
       setProfileHandle(null);
       const fallback = (window.history.state?.page as typeof currentPage) || 'home';
       setCurrentPage(fallback);
@@ -1013,22 +1078,19 @@ const AppContent: React.FC = () => {
     <div className="homepage-v4 overflow-x-hidden">
       <section className="relative pt-32 md:pt-48 pb-16 md:pb-20 overflow-hidden hero-spotlight">
         <div className="max-w-7xl mx-auto px-4 md:px-6 text-center relative z-10">
-          <span className="block text-[10px] font-black text-blue-500 uppercase tracking-[.3em] mb-4 md:mb-6 animate-in fade-in slide-in-from-bottom-2 duration-1000">Founding Era — Curated Preview</span>
+          <span className="block text-[10px] font-black text-blue-500 uppercase tracking-[.3em] mb-4 md:mb-6 animate-in fade-in slide-in-from-bottom-2 duration-1000">Expectation Contract</span>
           <h1 className="text-[clamp(2.5rem,10vw,5.5rem)] font-black text-gray-900 tracking-tighter leading-[1] mb-8 md:mb-10 max-w-5xl mx-auto">
-            Discover <span className="text-blue-500 whitespace-nowrap">vibe–coded</span> apps built in public.
+            {ONE_SENTENCE_TRUTH}
           </h1>
-          <p className="text-lg md:text-2xl text-gray-400 max-w-2xl mx-auto mb-12 md:mb-16 leading-relaxed font-medium">
-            VibeJam is the home for creative engineering, cult-favorite products, and the makers behind them. Premium curation with human warmth.
-          </p>
-          <div className="flex flex-col items-center justify-center gap-6">
-            <div className="flex -space-x-3 md:-space-x-4">
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="w-10 h-10 md:w-12 md:h-12 rounded-full border-[2px] md:border-[3px] border-white overflow-hidden bg-gray-100 shadow-sm relative group/av">
-                  <img src={`https://picsum.photos/seed/curator${i}/100`} alt="curator" />
+          <div className="max-w-md mx-auto text-left bg-white/70 rounded-3xl border border-gray-100 px-6 py-6 md:px-8 md:py-7 shadow-sm">
+            <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Builder Expectations</div>
+            <div className="space-y-2">
+              {BUILDER_EXPECTATIONS.map((line) => (
+                <div key={line} className="text-sm md:text-base text-gray-600 font-medium">
+                  {line}
                 </div>
               ))}
             </div>
-            <p className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest px-4">Join <span className="text-gray-900">12,400+</span> curators making vibes happen</p>
           </div>
         </div>
       </section>
@@ -1087,12 +1149,27 @@ const AppContent: React.FC = () => {
         </section>
       )}
 
-      {FEATURE_FLAGS.VITE_LAUNCH_MODE !== 'week1' && <VibeCheckV4 />}
+      {FEATURE_FLAGS.VITE_LAUNCH_MODE !== 'week1' && (
+        <section className="homepage-v4-segment bg-white">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="premium-card rounded-[32px] md:rounded-[50px] p-8 md:p-12 border-gray-100 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.1)]">
+              <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Anti-Features</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                {ANTI_FEATURES.map((line) => (
+                  <div key={line} className="text-sm md:text-base text-gray-600 font-medium">
+                    {line}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
       <FooterV4 onNavigate={(page) => { setCurrentPage(page); window.scrollTo(0, 0); }} onNavigateSubmitApp={handleOpenLaunchpad} />
     </div>
   );
 
-  const isV2PageActive = currentPage === 'jam' || currentPage === 'profile';
+  const isV2PageActive = currentPage === 'jam' || currentPage === 'profile' || currentPage === 'embed';
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       {!isV2PageActive && renderHeader()}
@@ -1111,10 +1188,12 @@ const AppContent: React.FC = () => {
               <CookiePage onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }} />
             )}
             {currentPage === 'leaderboard' && (
-              <LeaderboardPage
-                onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }}
-                onSelectCreator={(creator) => openProfile(creator.handle)}
-              />
+              FEATURE_FLAGS.VITE_FEATURE_LEADERBOARD ? (
+                <LeaderboardPage
+                  onBack={() => { setCurrentPage('home'); window.scrollTo(0, 0); }}
+                  onSelectCreator={(creator) => openProfile(creator.handle)}
+                />
+              ) : null
             )}
             {currentPage === 'creator-tools' && (
               <CreatorToolsPage
@@ -1180,6 +1259,10 @@ const AppContent: React.FC = () => {
           onClose={closeProfile}
           onSelectJam={openJam}
         />
+      )}
+
+      {currentPage === 'embed' && embedSlug && (
+        <EmbedPage slug={embedSlug} />
       )}
 
       {currentPage === 'jam' && (

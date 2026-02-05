@@ -9,6 +9,13 @@ interface SignalComposerProps {
     placeholder?: string;
     minHeight?: string;
     className?: string;
+    eventContext?: {
+        jamId?: string;
+        theme?: string;
+        narrative?: string;
+        credibility?: string;
+        surface?: 'public' | 'in-app' | 'internal' | 'unknown';
+    };
 }
 
 const SignalComposer: React.FC<SignalComposerProps> = ({
@@ -19,7 +26,8 @@ const SignalComposer: React.FC<SignalComposerProps> = ({
     onSuccess,
     placeholder = "Write a signal...",
     minHeight = "100px",
-    className = ""
+    className = "",
+    eventContext
 }) => {
     const [content, setContent] = useState('');
     const [loading, setLoading] = useState(false);
@@ -38,6 +46,16 @@ const SignalComposer: React.FC<SignalComposerProps> = ({
             if (res?.ok && res.item) {
                 onSuccess(res.item);
                 setContent('');
+                try {
+                    const { emitEventSignal } = await import('../../lib/EventSignals');
+                    const storageKey = `vibejam.signal.first.${jamId}`;
+                    if (typeof window !== 'undefined' && !window.localStorage.getItem(storageKey)) {
+                        window.localStorage.setItem(storageKey, '1');
+                        emitEventSignal('first_signal_post', eventContext || { jamId });
+                    }
+                } catch (eventError) {
+                    console.warn('[EventSignals] Failed to emit first_signal_post', eventError);
+                }
             }
         } catch (e) {
             console.error('Signal create failed', e);

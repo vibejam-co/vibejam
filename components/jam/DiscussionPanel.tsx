@@ -9,6 +9,13 @@ interface DiscussionPanelProps {
     isLoggedIn: boolean;
     onAuthTrigger?: () => void;
     creatorHandle?: string;
+    eventContext?: {
+        jamId?: string;
+        theme?: string;
+        narrative?: string;
+        credibility?: string;
+        surface?: 'public' | 'in-app' | 'internal' | 'unknown';
+    };
 }
 
 const DiscussionPanel: React.FC<DiscussionPanelProps> = ({
@@ -17,7 +24,8 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({
     jamId,
     isLoggedIn,
     onAuthTrigger,
-    creatorHandle
+    creatorHandle,
+    eventContext
 }) => {
     const isMobile = useMediaQuery('(max-width: 768px)');
     const [mounted, setMounted] = useState(false);
@@ -76,6 +84,7 @@ const DiscussionPanel: React.FC<DiscussionPanelProps> = ({
                         isLoggedIn={isLoggedIn}
                         onAuthTrigger={onAuthTrigger}
                         creatorHandle={creatorHandle}
+                        eventContext={eventContext}
                     />
                 </div>
             </div>

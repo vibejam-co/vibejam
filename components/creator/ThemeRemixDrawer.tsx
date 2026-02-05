@@ -7,6 +7,7 @@ interface ThemeRemixDrawerProps {
     onRemix: (prompt: string) => Promise<ThemeRemixResult | null>;
     isProcessing: boolean;
     lastRemix?: ThemeRemixResult;
+    requiresIntent?: boolean;
 }
 
 const ThemeRemixDrawer: React.FC<ThemeRemixDrawerProps> = ({
@@ -14,9 +15,16 @@ const ThemeRemixDrawer: React.FC<ThemeRemixDrawerProps> = ({
     onClose,
     onRemix,
     isProcessing,
-    lastRemix
+    lastRemix,
+    requiresIntent = false
 }) => {
     const [prompt, setPrompt] = useState('');
+    const [intentConfirmed, setIntentConfirmed] = useState(!requiresIntent);
+
+    React.useEffect(() => {
+        if (!isOpen) return;
+        setIntentConfirmed(!requiresIntent);
+    }, [isOpen, requiresIntent]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,37 +58,55 @@ const ThemeRemixDrawer: React.FC<ThemeRemixDrawerProps> = ({
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Type your mood, AI does the rest.</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="relative">
-                    <input
-                        autoFocus
-                        type="text"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        disabled={isProcessing}
-                        placeholder="e.g. 1970s jazz poster, underwater sanctuary, vaporwave..."
-                        className={`
+                {!intentConfirmed ? (
+                    <div className="rounded-3xl border border-gray-100 bg-white/70 px-6 py-5 text-left">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                            You&apos;re making this public.
+                        </div>
+                        <div className="text-sm font-semibold text-gray-700 mt-2">
+                            This will represent your build.
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIntentConfirmed(true)}
+                            className="mt-4 w-full h-12 rounded-2xl bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.99] transition-all"
+                        >
+                            Continue Remix
+                        </button>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="relative">
+                        <input
+                            autoFocus
+                            type="text"
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            disabled={isProcessing}
+                            placeholder="e.g. 1970s jazz poster, underwater sanctuary, vaporwave..."
+                            className={`
               w-full h-16 px-6 bg-gray-50/50 border border-gray-100 rounded-2xl text-lg font-medium text-gray-900 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/5 transition-all
               ${isProcessing ? 'opacity-50' : 'opacity-100'}
             `}
-                    />
+                        />
 
-                    <button
-                        type="submit"
-                        disabled={!prompt.trim() || isProcessing}
-                        className={`
+                        <button
+                            type="submit"
+                            disabled={!prompt.trim() || isProcessing}
+                            className={`
               absolute right-2 top-2 h-12 px-6 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all
               ${isProcessing ? 'bg-gray-100 text-gray-400' : 'bg-gray-900 text-white hover:scale-105 active:scale-95 shadow-lg shadow-gray-900/20'}
               disabled:opacity-50 disabled:scale-100
             `}
-                    >
-                        {isProcessing ? (
-                            <span className="flex items-center gap-2">
-                                <div className="w-3 h-3 border-2 border-gray-400 border-t-white rounded-full animate-spin" />
-                                Brewing...
-                            </span>
-                        ) : 'Mutate'}
-                    </button>
-                </form>
+                        >
+                            {isProcessing ? (
+                                <span className="flex items-center gap-2">
+                                    <div className="w-3 h-3 border-2 border-gray-400 border-t-white rounded-full animate-spin" />
+                                    Brewing...
+                                </span>
+                            ) : 'Mutate'}
+                        </button>
+                    </form>
+                )}
 
                 {lastRemix?.explanation && (
                     <div className="mt-6 flex items-start gap-3 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">

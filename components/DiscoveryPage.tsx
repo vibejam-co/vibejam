@@ -4,6 +4,7 @@ import { backend } from '../lib/backend';
 import Badge from '../components/Badge';
 import { FEATURE_FLAGS } from '../constants';
 import FollowSignalSurface from './follow/FollowSignalSurface';
+import { ONE_SENTENCE_TRUTH } from '../lib/LaunchNarrative';
 
 // Semantic Icon Set (Outline 1.5px stroke)
 const Icons = {
@@ -194,10 +195,10 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
       <header className="max-w-7xl mx-auto px-4 md:px-6 mb-8 md:mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="max-w-xl">
           <h1 className="text-[clamp(2.5rem,8vw,4rem)] font-black text-gray-900 tracking-tighter leading-[1.1] mb-4">
-            Discover what builders are <span className="whitespace-nowrap">shipping now.</span>
+            See what builders are <span className="whitespace-nowrap">shipping now.</span>
           </h1>
           <p className="text-base md:text-lg text-gray-500 font-medium leading-relaxed">
-            Real products. Real momentum. Built in public.
+            {ONE_SENTENCE_TRUTH}
           </p>
         </div>
         <div className="w-full md:w-80">

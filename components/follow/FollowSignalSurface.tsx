@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FollowSignalItem, FollowSignalSummary, formatSince, loadFollowSignalSurface } from '../../lib/FollowSignalSurface';
+import { FEATURE_FLAGS } from '../../constants';
 
 type Variant = 'strip' | 'list' | 'profile';
 
@@ -35,6 +36,7 @@ const FollowSignalSurface: React.FC<FollowSignalSurfaceProps> = ({ handle, title
     return () => { cancelled = true; };
   }, [handle, limit]);
 
+  if (!FEATURE_FLAGS.VITE_FEATURE_DISCOVERY_SURFACES) return null;
   if (!handle) return null;
 
   const containerClass = variant === 'strip'

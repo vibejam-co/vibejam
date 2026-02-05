@@ -18,6 +18,18 @@ import { ThemeClasses } from '../../theme/ThemeClasses';
 import ThemeControlCenter from '../control-center/ThemeControlCenter';
 import { CredibilityState, deriveCredibilityState } from '../../theme/CredibilityState';
 import { loadFollowSignalSurface } from '../../lib/FollowSignalSurface';
+import { TrustSignalsV1, deriveTrustSignals } from '../../theme/TrustSignals';
+import { emitEventSignal, normalizeEventContext } from '../../lib/EventSignals';
+import { FEATURE_FLAGS } from '../../constants';
+import {
+  CommitmentMomentsV1,
+  CommitmentMomentKey,
+  DEFAULT_COMMITMENT_MOMENTS,
+  hasAnyCommitmentMoment,
+  markCommitmentMoment,
+  readCommitmentMoments,
+  serializeCommitmentMoments
+} from '../../theme/CommitmentMoments';
 
 interface JamPageV2Props {
   project?: AppProject | null;
@@ -123,6 +135,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   if (isLoading || (!loadedProject && routeSlug)) return null;
   if (!loadedProject || loadError) return null;
+  if (!FEATURE_FLAGS.VITE_FEATURE_PUBLIC_BIO && !showChrome) return null;
 
   const truth = createTruthModel(loadedProject);
   const previewTruth = useMemo(() => {
@@ -167,11 +180,16 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const [themeSource, setThemeSource] = useState<'url' | 'control' | 'remix' | 'saved' | 'default'>(searchTheme ? 'url' : 'default');
   const [committedTheme, setCommittedTheme] = useState<{ type: 'theme'; id: string } | { type: 'remix'; remix: ThemeRemixResult } | null>(null);
   const [commitCount, setCommitCount] = useState<number>(0);
+  const [commitmentMoments, setCommitmentMoments] = useState<CommitmentMomentsV1>(DEFAULT_COMMITMENT_MOMENTS);
+  const [followersCount, setFollowersCount] = useState<number | null>(null);
+  const pageViewLogged = React.useRef(false);
+  const previewThemeLogged = React.useRef(false);
   const lastIdentityAction = React.useRef<'explicit' | 'system'>('system');
   const previousIdentityWeight = React.useRef<ThemeIdentityV1['identityWeight'] | null>(null);
 
   const themeCommitKey = loadedProject?.id ? `vibejam.theme.commit.${loadedProject.id}` : null;
   const themeCommitCountKey = loadedProject?.id ? `vibejam.theme.commitCount.${loadedProject.id}` : null;
+  const commitmentMomentsKey = loadedProject?.id ? `vibejam.commitment.moments.${loadedProject.id}` : null;
 
   useEffect(() => {
     if (!themeCommitKey || typeof window === 'undefined') return;
@@ -201,10 +219,15 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         const count = Number(window.localStorage.getItem(themeCommitCountKey) || '0');
         setCommitCount(Number.isFinite(count) ? count : 0);
       }
+
+      if (commitmentMomentsKey) {
+        const stored = window.localStorage.getItem(commitmentMomentsKey);
+        setCommitmentMoments(readCommitmentMoments(stored));
+      }
     } catch (error) {
       console.warn('[ThemeIdentity] Failed to hydrate committed theme from localStorage.', error);
     }
-  }, [themeCommitKey, themeCommitCountKey, searchTheme]);
+  }, [themeCommitKey, themeCommitCountKey, commitmentMomentsKey, searchTheme]);
 
   const persistCommittedTheme = (record: { type: 'theme'; id: string } | { type: 'remix'; remix: ThemeRemixResult }) => {
     if (!themeCommitKey || typeof window === 'undefined') return;
@@ -225,6 +248,37 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     } catch (error) {
       console.warn('[ThemeIdentity] Failed to persist commit count.', error);
     }
+    if (next === 1) {
+      registerCommitmentMoment('firstThemeCommit');
+    }
+  };
+
+  const registerCommitmentMoment = (moment: CommitmentMomentKey) => {
+    if (!commitmentMomentsKey || typeof window === 'undefined') return;
+    setCommitmentMoments((prev) => {
+      const next = markCommitmentMoment(prev, moment);
+      if (next !== prev) {
+        try {
+          window.localStorage.setItem(commitmentMomentsKey, serializeCommitmentMoments(next));
+        } catch (error) {
+          console.warn('[CommitmentMoments] Failed to persist commitment moments.', error);
+        }
+        const context = normalizeEventContext({
+          jamId: loadedProject?.id,
+          theme: resolvedThemeName,
+          narrative: resolvedBehavior?.narrativeFlow,
+          credibility: effectiveCredibility.momentumLevel,
+          surface: showChrome ? 'in-app' : 'public'
+        });
+        if (moment === 'firstPublicShare') {
+          emitEventSignal('first_share', context);
+        }
+        if (moment === 'firstSignalPosted') {
+          emitEventSignal('first_signal_post', context);
+        }
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -301,6 +355,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     }
     : credibility;
 
+  const hasCommitment = hasAnyCommitmentMoment(commitmentMoments);
   const isPreviewing = themeSource === 'url' || (themeSource === 'remix' && committedTheme?.type !== 'remix');
   const identityWeight: ThemeIdentityV1['identityWeight'] = isPreviewing
     ? 'light'
@@ -312,7 +367,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       (themeSource === 'control' || themeSource === 'saved') ? 'creator' : 'system';
   const stability: ThemeIdentityV1['stability'] =
     identityWeight === 'locked' ? 'stable' :
-      identityWeight === 'committed' ? 'semi-stable' : 'fluid';
+      identityWeight === 'committed' ? (hasCommitment ? 'stable' : 'semi-stable') : 'fluid';
   const narrativeLock = identityWeight === 'locked';
 
   const themeIdentity: ThemeIdentityV1 = {
@@ -325,7 +380,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const showBackButton = showChrome;
   const canShowControlCenter = typeof showControlCenter === 'boolean' ? showControlCenter : showChrome;
-  const canShowRemixControls = canShowControlCenter && isOwner && themeIdentity.identityWeight === 'light' && !coldStartActive;
+  const canShowRemixControls = canShowControlCenter && isOwner && !coldStartActive;
 
   const lockedContrast = useMemo(() => {
     if (!narrativeLock || !isPreviewing) return resolvedContrast;
@@ -348,6 +403,52 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     checkSignals();
     return () => { cancelled = true; };
   }, [coldStartActive, loadedProject?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkSignalsForCommitment = async () => {
+      if (!loadedProject?.id || commitmentMoments.firstSignalPosted) return;
+      const res = await backend.listSignals(loadedProject.id);
+      if (cancelled) return;
+      if (res?.items?.length) {
+        registerCommitmentMoment('firstSignalPosted');
+      }
+    };
+    checkSignalsForCommitment();
+    return () => { cancelled = true; };
+  }, [loadedProject?.id, commitmentMoments.firstSignalPosted]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkFollowers = async () => {
+      if (!resolvedIsOwner) return;
+      if (commitmentMoments.firstFollower) return;
+      const handle = loadedProject?.creator?.handle;
+      if (!handle) return;
+      const res = await backend.getFollowStatus({ handle });
+      if (cancelled) return;
+      if (res?.followersCount && res.followersCount > 0) {
+        registerCommitmentMoment('firstFollower');
+      }
+    };
+    checkFollowers();
+    return () => { cancelled = true; };
+  }, [resolvedIsOwner, loadedProject?.creator?.handle, commitmentMoments.firstFollower]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadFollowers = async () => {
+      const handle = loadedProject?.creator?.handle;
+      if (!handle) return;
+      const res = await backend.getFollowStatus({ handle });
+      if (cancelled) return;
+      if (typeof res.followersCount === 'number') {
+        setFollowersCount(res.followersCount);
+      }
+    };
+    loadFollowers();
+    return () => { cancelled = true; };
+  }, [loadedProject?.creator?.handle]);
 
   useEffect(() => {
     let cancelled = false;
@@ -404,6 +505,26 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   }, [loadedProject, truth, resolvedThemeName, resolvedBehavior, routeSlug]);
 
   useEffect(() => {
+    if (!loadedProject?.id || pageViewLogged.current) return;
+    emitEventSignal('jam_page_view', eventContext, {
+      source: showChrome ? 'in-app' : 'public',
+      themeSource,
+      proof: !!truth.Proof.props.proofUrl,
+      credibility: effectiveCredibility
+    });
+    pageViewLogged.current = true;
+  }, [loadedProject?.id, eventContext, showChrome, themeSource, truth.Proof.props.proofUrl, effectiveCredibility]);
+
+  useEffect(() => {
+    if (themeSource !== 'url' || !activeThemeId || previewThemeLogged.current) return;
+    emitEventSignal('theme_switch', normalizeEventContext({ ...eventContext, theme: activeThemeId }), {
+      mode: 'preview',
+      source: 'url'
+    });
+    previewThemeLogged.current = true;
+  }, [themeSource, activeThemeId, eventContext]);
+
+  useEffect(() => {
     const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
     if (!showDevWarning) return;
 
@@ -440,6 +561,48 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     if (userThemeConfig) return 'custom';
     return 'default';
   })();
+
+  const trustSignals: TrustSignalsV1 = useMemo(() => {
+    const raw = loadedProject as any;
+    return deriveTrustSignals({
+      proofUrl: previewTruth.Proof.props.proofUrl,
+      milestones: previewTruth.Timeline.props.milestones,
+      updatedAt: raw?.updatedAt || raw?.updated_at || null,
+      publishedAt: raw?.publishedAt || raw?.published_at || null,
+      createdAt: raw?.createdAt || raw?.created_at || null
+    });
+  }, [loadedProject, previewTruth]);
+
+  const socialSignals = useMemo(() => {
+    const signals: string[] = [];
+    if (typeof followersCount === 'number' && followersCount >= 3) {
+      signals.push(`Followed by ${followersCount} builders`);
+    }
+    const watchedBy = loadedProject?.stats?.bookmarks || 0;
+    if (watchedBy >= 10) {
+      signals.push(`Watched by ${watchedBy} people`);
+    }
+    return signals;
+  }, [followersCount, loadedProject?.stats?.bookmarks]);
+
+  const trustSignalsWithSocial: TrustSignalsV1 = {
+    ...trustSignals,
+    socialSignals
+  };
+
+  const eventContext = useMemo(() => normalizeEventContext({
+    jamId: loadedProject?.id,
+    theme: resolvedThemeName,
+    narrative: resolvedBehavior?.narrativeFlow,
+    credibility: effectiveCredibility.momentumLevel,
+    surface: showChrome ? 'in-app' : 'public'
+  }), [loadedProject?.id, resolvedThemeName, resolvedBehavior?.narrativeFlow, effectiveCredibility.momentumLevel, showChrome]);
+
+  const identityStatusLabel = hasCommitment
+    ? 'Authored'
+    : isPreviewing
+      ? 'Previewing'
+      : 'Committed';
 
   const themeClasses: ThemeClasses = useMemo(() => {
     if (ephemeralRemix) return ephemeralRemix.classes;
@@ -508,6 +671,12 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     setActiveThemeId(themeName);
     setEphemeralRemix(null);
     setThemeSource('control');
+    emitEventSignal('theme_switch', normalizeEventContext({ ...eventContext, theme: themeName }), {
+      mode: 'commit',
+      from: resolvedThemeName,
+      to: themeName,
+      source: 'control'
+    });
     if (!coldStartActive) {
       lastIdentityAction.current = 'explicit';
       persistCommittedTheme({ type: 'theme', id: themeName });
@@ -539,6 +708,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   };
 
   const showDevLabel = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+  const publicUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/jam/${routeSlug || loadedProject.slug || loadedProject.id}`
+    : `/jam/${routeSlug || loadedProject.slug || loadedProject.id}`;
 
   return (
     <div className={`relative ${themeClasses.page}`}>
@@ -605,6 +777,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         identity={themeIdentity}
         material={resolvedMaterial}
         credibility={effectiveCredibility}
+        trustSignals={trustSignalsWithSocial}
       />
 
       {canShowControlCenter && (
@@ -612,10 +785,12 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           currentThemeId={resolvedThemeName}
           currentLayoutId={activeConfig.archetype}
           identityWeight={themeIdentity.identityWeight}
-          isPreviewing={themeIdentity.identityWeight === 'light' && isPreviewing}
+          identityStatusLabel={identityStatusLabel}
           materialLabel={resolvedMaterial.displayLabel}
           credibilityLabel={credibilityLabel}
           followInsightLabel={followInsightLabel || undefined}
+          publicUrl={resolvedIsOwner ? publicUrl : undefined}
+          onPublicShare={() => registerCommitmentMoment('firstPublicShare')}
           themeOnly={coldStartActive}
           onThemeChange={handleThemeChange}
           onLayoutChange={handleArchetypeChange}
@@ -645,6 +820,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           onClose={() => setIsRemixDrawerOpen(false)}
           isProcessing={isRemixing}
           onRemix={handleRemix}
+          requiresIntent={themeIdentity.stability === 'stable'}
           lastRemix={ephemeralRemix || undefined}
         />
       )}

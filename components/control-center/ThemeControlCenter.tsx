@@ -7,10 +7,12 @@ interface ThemeControlCenterProps {
   currentThemeId: string;
   currentLayoutId: string;
   identityWeight: 'light' | 'committed' | 'locked';
-  isPreviewing: boolean;
+  identityStatusLabel: string;
   materialLabel: string;
   credibilityLabel: string;
   followInsightLabel?: string;
+  publicUrl?: string;
+  onPublicShare?: () => void;
   themeOnly?: boolean;
   onThemeChange: (themeId: string) => void;
   onLayoutChange: (layoutId: LayoutArchetype) => void;
@@ -67,10 +69,12 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   currentThemeId,
   currentLayoutId,
   identityWeight,
-  isPreviewing,
+  identityStatusLabel,
   materialLabel,
   credibilityLabel,
   followInsightLabel,
+  publicUrl,
+  onPublicShare,
   themeOnly = false,
   onThemeChange,
   onLayoutChange,
@@ -79,6 +83,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<'theme' | 'layout'>('theme');
   const [isChanging, setIsChanging] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<'idle' | 'copied'>('idle');
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Performative theme switch
@@ -131,6 +136,20 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
     return `transition-[transform,box-shadow,opacity] duration-150 ease-out ${tension} ${settle} ${feedback} ${weight}`;
   })();
 
+  const handleShare = async () => {
+    if (!publicUrl) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(publicUrl);
+      }
+      setShareFeedback('copied');
+      onPublicShare?.();
+      setTimeout(() => setShareFeedback('idle'), 2000);
+    } catch (error) {
+      console.warn('[CommitmentMoments] Failed to copy public link.', error);
+    }
+  };
+
   return (
     <div className="fixed bottom-6 right-6 z-[9999] font-sans">
       {/* FLOATING TRIGGER — Creative, not utility */}
@@ -176,7 +195,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                   Control Center
                 </h3>
                 <div className="text-[9px] uppercase tracking-widest text-white/40 mt-1">
-                  {isPreviewing ? 'Previewing' : 'Committed'} · {identityWeight.replace('-', ' ')} · {materialLabel}
+                  {identityStatusLabel} · {identityWeight.replace('-', ' ')} · {materialLabel}
                 </div>
                 <div className="text-[9px] uppercase tracking-widest text-white/30 mt-1">
                   {credibilityLabel}
@@ -349,6 +368,22 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
 
             {/* Footer — Reset Action */}
             <div className="px-4 pb-4">
+              {publicUrl && (
+                <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                  <div className="text-[9px] uppercase tracking-widest text-white/40">
+                    You&apos;re making this public.
+                  </div>
+                  <div className="text-[9px] uppercase tracking-widest text-white/30 mt-0.5">
+                    This will represent your build.
+                  </div>
+                  <button
+                    onClick={handleShare}
+                    className={`mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-white/60 hover:text-white hover:bg-white/10 transition-all duration-200 ${materialMotion}`}
+                  >
+                    {shareFeedback === 'copied' ? 'Link Copied' : 'Copy Public Link'}
+                  </button>
+                </div>
+              )}
               <button
                 onClick={onReset}
                 className={`w-full py-2.5 rounded-xl text-xs font-medium text-white/30 hover:text-white/60 hover:bg-white/5 transition-all duration-300 uppercase tracking-widest ${materialMotion}`}

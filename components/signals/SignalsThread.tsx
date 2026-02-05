@@ -23,6 +23,13 @@ interface SignalsThreadProps {
     isLoggedIn: boolean;
     onAuthTrigger?: () => void;
     creatorHandle?: string;
+    eventContext?: {
+        jamId?: string;
+        theme?: string;
+        narrative?: string;
+        credibility?: string;
+        surface?: 'public' | 'in-app' | 'internal' | 'unknown';
+    };
 }
 
 const formatTime = (iso?: string) => {
@@ -44,7 +51,8 @@ const SignalsThread: React.FC<SignalsThreadProps> = ({
     jamId,
     isLoggedIn,
     onAuthTrigger,
-    creatorHandle
+    creatorHandle,
+    eventContext
 }) => {
     const [signals, setSignals] = useState<Signal[]>([]);
     const [loading, setLoading] = useState(true);
@@ -166,6 +174,7 @@ const SignalsThread: React.FC<SignalsThreadProps> = ({
                                 onSuccess={handleNewSignal}
                                 placeholder={`Reply to ${s.user.name}...`}
                                 minHeight="80px"
+                                eventContext={eventContext}
                             />
                         </div>
                     )}
@@ -202,6 +211,7 @@ const SignalsThread: React.FC<SignalsThreadProps> = ({
                     onAuthTrigger={onAuthTrigger}
                     onSuccess={handleNewSignal}
                     placeholder="Write a signal..."
+                    eventContext={eventContext}
                 />
             </div>
 

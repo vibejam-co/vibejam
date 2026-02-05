@@ -179,6 +179,14 @@ export const backend = {
     },
 
     /**
+     * Track a lightweight event signal (fire-and-forget).
+     */
+    trackEvent: (eventType: string, meta: any = {}, level: 'info' | 'warn' | 'error' = 'info'): { ok: boolean } => {
+        logEventSafe(eventType, level, meta);
+        return { ok: true };
+    },
+
+    /**
      * Toggle Upvote.
      */
     /**
@@ -600,8 +608,21 @@ export const backend = {
     /**
      * Toggle follow for a profile (by handle or id).
      */
-    toggleFollow: async (params: { handle?: string; targetId?: string }): Promise<{ ok: boolean; isFollowing: boolean; followersCount?: number; followingCount?: number; targetId?: string; error?: string }> => {
-        return safeInvoke<any>('follow-toggle', params);
+    toggleFollow: async (params: { handle?: string; targetId?: string; eventContext?: { theme?: string; narrative?: string; credibility?: string; surface?: string } }): Promise<{ ok: boolean; isFollowing: boolean; followersCount?: number; followingCount?: number; targetId?: string; error?: string }> => {
+        const res = await safeInvoke<any>('follow-toggle', params);
+        if (res?.isFollowing !== undefined) {
+            const context = params.eventContext || {};
+            logEventSafe('follow_action', 'info', {
+                theme: context.theme || 'unknown',
+                narrative: context.narrative || 'unknown',
+                credibility: context.credibility || 'unknown',
+                surface: context.surface || 'internal',
+                action: res.isFollowing ? 'follow' : 'unfollow',
+                targetId: res.targetId || params.targetId,
+                handle: params.handle
+            });
+        }
+        return res;
     },
 
     /**
