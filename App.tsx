@@ -1138,6 +1138,7 @@ const AppContent: React.FC = () => {
                 onSelectApp={openJam}
                 onSelectCreator={(creator) => openProfile(creator.handle)}
                 onNavigateLeaderboard={() => setCurrentPage('leaderboard')}
+                currentUserHandle={currentUser?.handle || null}
               />
             )}
             {currentPage === 'learn' && (

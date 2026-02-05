@@ -4,6 +4,7 @@ import { BadgeRow, SEAL_METADATA } from './Badge';
 import SocialListPanel from './SocialListPanel';
 import BookmarksPanel from './BookmarksPanel';
 import AppCard from './AppCard';
+import FollowSignalSurface from './follow/FollowSignalSurface';
 import { useAuth } from '../contexts/AuthContext';
 import { useBookmarks } from '../lib/useBookmarks';
 import { supabase } from '../lib/supabaseClient';
@@ -327,6 +328,16 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onBack, onSelectApp, onSe
                   <span className="block text-[9px] font-black text-gray-300 uppercase tracking-widest">{stat.label}</span>
                 </div>
               ))}
+            </div>
+
+            <div className="mb-20">
+              <FollowSignalSurface
+                handle={profile?.handle || null}
+                title="Builds You Follow"
+                subtitle="Quiet updates from your graph."
+                variant="list"
+                limit={8}
+              />
             </div>
 
             <section className="mb-20 flex flex-col items-center">

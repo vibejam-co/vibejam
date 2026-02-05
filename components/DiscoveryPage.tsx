@@ -3,6 +3,7 @@ import { AppProject } from '../types';
 import { backend } from '../lib/backend';
 import Badge from '../components/Badge';
 import { FEATURE_FLAGS } from '../constants';
+import FollowSignalSurface from './follow/FollowSignalSurface';
 
 // Semantic Icon Set (Outline 1.5px stroke)
 const Icons = {
@@ -72,9 +73,10 @@ interface DiscoveryPageProps {
   onSelectApp: (app: AppProject) => void;
   onSelectCreator: (creator: AppProject['creator']) => void;
   onNavigateLeaderboard?: () => void;
+  currentUserHandle?: string | null;
 }
 
-const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCreator, onNavigateLeaderboard }) => {
+const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCreator, onNavigateLeaderboard, currentUserHandle }) => {
   const [mode, setMode] = useState<'trending' | 'new' | 'revenue' | 'picks'>('trending');
   const [activeCategory, setActiveCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,6 +101,7 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
 
   const [apps, setApps] = useState<AppProject[]>([]);
   const [loading, setLoading] = useState(true);
+
 
   // Initial Fetch
   React.useEffect(() => {
@@ -165,6 +168,7 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
   }, [mode, activeCategory]);
 
 
+
   const filteredApps = useMemo(() => {
     let result = [...apps];
 
@@ -211,6 +215,16 @@ const DiscoveryPage: React.FC<DiscoveryPageProps> = ({ onSelectApp, onSelectCrea
           </div>
         </div>
       </header>
+
+      <div className="max-w-7xl mx-auto px-4 md:px-6">
+        <FollowSignalSurface
+          handle={currentUserHandle || null}
+          title="Still Shipping"
+          subtitle="Builds you already follow."
+          variant="strip"
+          limit={6}
+        />
+      </div>
 
       {/* TABS & CATEGORIES */}
       <div className="sticky top-[60px] md:top-[72px] z-40 bg-white/80 backdrop-blur-xl border-y border-gray-50/50 mb-8 md:mb-12">

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { THEME_REGISTRY, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById } from '../../theme/ThemeRegistry';
+import { THEME_REGISTRY, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById } from '../../theme/ThemeRegistry';
 import { LAYOUT_PRESETS, LayoutArchetype } from '../../layout/LayoutConfig';
 import { THEME_EXPRESSIONS } from '../../theme/ThemeExpression';
 
@@ -8,6 +8,9 @@ interface ThemeControlCenterProps {
   currentLayoutId: string;
   identityWeight: 'light' | 'committed' | 'locked';
   isPreviewing: boolean;
+  materialLabel: string;
+  credibilityLabel: string;
+  followInsightLabel?: string;
   onThemeChange: (themeId: string) => void;
   onLayoutChange: (layoutId: LayoutArchetype) => void;
   onReset: () => void;
@@ -64,6 +67,9 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   currentLayoutId,
   identityWeight,
   isPreviewing,
+  materialLabel,
+  credibilityLabel,
+  followInsightLabel,
   onThemeChange,
   onLayoutChange,
   onReset,
@@ -98,6 +104,30 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
 
   const layouts = Object.keys(LAYOUT_PRESETS) as LayoutArchetype[];
   const themes = Object.keys(THEME_REGISTRY).filter((t) => t !== 'default');
+  const material = getThemeMaterialById(currentThemeId);
+  const materialMotion = (() => {
+    const tension = material.interactionTension === 'soft'
+      ? 'active:scale-[0.99]'
+      : material.interactionTension === 'rigid'
+        ? 'active:scale-[0.97]'
+        : 'active:scale-[0.98]';
+    const settle = material.settleBehavior === 'float'
+      ? 'hover:-translate-y-0.5'
+      : material.settleBehavior === 'sink'
+        ? 'hover:translate-y-0.5'
+        : '';
+    const feedback = material.feedbackVisibility === 'assertive'
+      ? 'focus-visible:ring-2 focus-visible:ring-white/30'
+      : material.feedbackVisibility === 'present'
+        ? 'focus-visible:ring-1 focus-visible:ring-white/20'
+        : 'focus-visible:ring-1 focus-visible:ring-white/10';
+    const weight = material.surfaceWeight === 'heavy'
+      ? 'shadow-2xl'
+      : material.surfaceWeight === 'light'
+        ? 'shadow-lg'
+        : 'shadow-xl';
+    return `transition-[transform,box-shadow,opacity] duration-150 ease-out ${tension} ${settle} ${feedback} ${weight}`;
+  })();
 
   return (
     <div className="fixed bottom-6 right-6 z-[9999] font-sans">
@@ -111,7 +141,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-violet-500/20 via-fuchsia-500/20 to-amber-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           
           {/* Main button */}
-          <div className="relative flex items-center gap-3 bg-black/90 backdrop-blur-xl text-white px-5 py-3 rounded-2xl shadow-2xl shadow-black/30 border border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105">
+          <div className={`relative flex items-center gap-3 bg-black/90 backdrop-blur-xl text-white px-5 py-3 rounded-2xl shadow-2xl shadow-black/30 border border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-105 ${materialMotion}`}>
             {/* Theme preview dot */}
             <div className={`w-3 h-3 rounded-full ${THEME_INDICATORS[currentThemeId]?.accent || 'bg-white'} shadow-lg`} />
             
@@ -144,8 +174,16 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                   Control Center
                 </h3>
                 <div className="text-[9px] uppercase tracking-widest text-white/40 mt-1">
-                  {isPreviewing ? 'Previewing' : 'Committed'} · {identityWeight.replace('-', ' ')}
+                  {isPreviewing ? 'Previewing' : 'Committed'} · {identityWeight.replace('-', ' ')} · {materialLabel}
                 </div>
+                <div className="text-[9px] uppercase tracking-widest text-white/30 mt-1">
+                  {credibilityLabel}
+                </div>
+                {followInsightLabel && (
+                  <div className="text-[9px] uppercase tracking-widest text-white/30 mt-1">
+                    {followInsightLabel}
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -199,7 +237,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                       <button
                         key={themeId}
                         onClick={() => handleThemeChange(themeId)}
-                        className={`w-full group relative overflow-hidden rounded-2xl transition-all duration-500 ${
+                        className={`w-full group relative overflow-hidden rounded-2xl transition-all duration-500 ${materialMotion} ${
                           isActive 
                             ? 'ring-[3px] ring-white/80 ring-offset-2 ring-offset-black shadow-[0_0_30px_-5px_rgba(255,255,255,0.3)] scale-[1.02]' 
                             : 'hover:scale-[1.02] hover:shadow-lg'
@@ -270,7 +308,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                       <button
                         key={layoutId}
                         onClick={() => onLayoutChange(layoutId)}
-                        className={`relative group overflow-hidden rounded-2xl border transition-all duration-300 ${
+                        className={`relative group overflow-hidden rounded-2xl border transition-all duration-300 ${materialMotion} ${
                           isActive
                             ? 'bg-white text-black border-white shadow-[0_10px_40px_-10px_rgba(255,255,255,0.3)] scale-[1.02]'
                             : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:border-white/30'
@@ -309,7 +347,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
             <div className="px-4 pb-4">
               <button
                 onClick={onReset}
-                className="w-full py-2.5 rounded-xl text-xs font-medium text-white/30 hover:text-white/60 hover:bg-white/5 transition-all duration-300 uppercase tracking-widest"
+                className={`w-full py-2.5 rounded-xl text-xs font-medium text-white/30 hover:text-white/60 hover:bg-white/5 transition-all duration-300 uppercase tracking-widest ${materialMotion}`}
               >
                 Reset to Defaults
               </button>

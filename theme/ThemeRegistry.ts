@@ -2,6 +2,7 @@ import { ThemeConfigV1, DEFAULT_THEME_CONFIG, validateThemeConfig } from './Them
 import { DEFAULT_THEME_BEHAVIOR, ThemeBehaviorProfile, validateThemeBehavior } from './ThemeBehavior';
 import { DEFAULT_THEME_DOMINANCE, ThemeDominanceProfile, validateThemeDominance } from './ThemeDominance';
 import { DEFAULT_THEME_CONTRAST, ThemeContrastProfile, validateThemeContrast, validateContrastRules } from './ThemeContrast';
+import { DEFAULT_MATERIAL_RESPONSE, MaterialResponseProfile, validateMaterialResponse } from './MaterialResponse';
 import { resolveThemeClasses } from './ThemeClasses';
 import { validateExpressionDivergence } from './ThemeExpression';
 
@@ -243,6 +244,53 @@ export const THEME_CONTRAST_REGISTRY: Readonly<Record<string, ThemeContrastProfi
   }
 };
 
+export const THEME_MATERIAL_REGISTRY: Readonly<Record<string, MaterialResponseProfile>> = {
+  frosted: {
+    version: 1,
+    surfaceWeight: 'light',
+    interactionTension: 'soft',
+    settleBehavior: 'float',
+    feedbackVisibility: 'subtle',
+    displayLabel: 'Soft · Floating'
+  },
+  midnight: {
+    version: 1,
+    surfaceWeight: 'heavy',
+    interactionTension: 'rigid',
+    settleBehavior: 'sink',
+    feedbackVisibility: 'present',
+    displayLabel: 'Rigid · Sinking'
+  },
+  playful: {
+    version: 1,
+    surfaceWeight: 'light',
+    interactionTension: 'firm',
+    settleBehavior: 'snap',
+    feedbackVisibility: 'assertive',
+    displayLabel: 'Firm · Snapped'
+  },
+  brutalist: {
+    version: 1,
+    surfaceWeight: 'heavy',
+    interactionTension: 'rigid',
+    settleBehavior: 'snap',
+    feedbackVisibility: 'subtle',
+    displayLabel: 'Rigid · Snapped'
+  },
+  experimental: {
+    version: 1,
+    surfaceWeight: 'medium',
+    interactionTension: 'soft',
+    settleBehavior: 'sink',
+    feedbackVisibility: 'assertive',
+    displayLabel: 'Soft · Sinking'
+  },
+  default: {
+    ...DEFAULT_MATERIAL_RESPONSE,
+    displayLabel: 'Firm · Snapped'
+  }
+};
+
 export const getThemeById = (id?: string | null): ThemeConfigV1 | null => {
   if (!id) return null;
   return THEME_REGISTRY[id] || null;
@@ -272,6 +320,15 @@ export const getThemeContrastById = (id?: string | null): ThemeContrastProfile =
   return {
     ...validated,
     displayLabel: contrast.displayLabel || THEME_CONTRAST_REGISTRY.default.displayLabel
+  };
+};
+
+export const getThemeMaterialById = (id?: string | null): MaterialResponseProfile => {
+  const material = (id && THEME_MATERIAL_REGISTRY[id]) || THEME_MATERIAL_REGISTRY.default;
+  const validated = validateMaterialResponse(material);
+  return {
+    ...validated,
+    displayLabel: material.displayLabel || THEME_MATERIAL_REGISTRY.default.displayLabel
   };
 };
 
@@ -414,3 +471,32 @@ const validateContrastCoverage = (): void => {
 
 validateContrastCoverage();
 validateContrastRules(THEME_CONTRAST_REGISTRY);
+
+const validateMaterialCoverageAndDivergence = (): void => {
+  const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+  if (!showDevWarning) return;
+
+  const themeIds = Object.keys(THEME_REGISTRY);
+  const materialIds = Object.keys(THEME_MATERIAL_REGISTRY);
+
+  for (const id of themeIds) {
+    if (!materialIds.includes(id)) {
+      console.warn(`[MaterialResponse] Missing material profile for theme "${id}".`);
+    }
+  }
+
+  const entries = Object.entries(THEME_MATERIAL_REGISTRY).filter(([id]) => id !== 'default');
+  const profileSet = new Set<string>();
+
+  for (const [name, profile] of entries) {
+    const key = `${profile.surfaceWeight}:${profile.interactionTension}:${profile.settleBehavior}:${profile.feedbackVisibility}`;
+    if (profileSet.has(key)) {
+      console.warn(
+        `[MaterialResponse] DUPLICATE PROFILE: "${name}" shares an identical material profile.`
+      );
+    }
+    profileSet.add(key);
+  }
+};
+
+validateMaterialCoverageAndDivergence();

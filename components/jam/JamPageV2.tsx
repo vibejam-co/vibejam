@@ -8,7 +8,7 @@ import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1,
 import { resolveTheme, ResolvedTheme } from '../../theme/ThemeResolver';
 import { resolveThemeClasses } from '../../theme/ThemeClasses';
 import ThemeControlDock from '../creator/ThemeControlDock';
-import { THEME_REGISTRY, getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById } from '../../theme/ThemeRegistry';
+import { THEME_REGISTRY, getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById } from '../../theme/ThemeRegistry';
 import { ThemeBehaviorProfile } from '../../theme/ThemeBehavior';
 import ThemeRemixDrawer from '../creator/ThemeRemixDrawer';
 import { ThemeRemixResult, validateRemix } from '../../theme/ThemeRemix';
@@ -16,6 +16,8 @@ import { ThemeConfigV1 } from '../../theme/ThemeConfig';
 import { ThemeIdentityV1 } from '../../theme/ThemeIdentity';
 import { ThemeClasses } from '../../theme/ThemeClasses';
 import ThemeControlCenter from '../control-center/ThemeControlCenter';
+import { CredibilityState, deriveCredibilityState } from '../../theme/CredibilityState';
+import { loadFollowSignalSurface } from '../../lib/FollowSignalSurface';
 
 interface JamPageV2Props {
   project?: AppProject | null;
@@ -225,6 +227,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         behavior: getThemeBehaviorById('experimental'),
         dominance: getThemeDominanceById('experimental'),
         contrast: getThemeContrastById('experimental'),
+        material: getThemeMaterialById('experimental'),
         source: 'remix'
       };
     }
@@ -241,6 +244,21 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const resolvedBehavior = resolvedThemeData.behavior;
   const resolvedDominance = resolvedThemeData.dominance;
   const resolvedContrast = resolvedThemeData.contrast;
+  const resolvedMaterial = resolvedThemeData.material;
+  const [followInsightLabel, setFollowInsightLabel] = useState<string | null>(null);
+
+  const credibility: CredibilityState = useMemo(() => {
+    const raw = loadedProject as any;
+    return deriveCredibilityState({
+      milestones: truth.Timeline.props.milestones,
+      proofUrl: truth.Proof.props.proofUrl,
+      updatedAt: raw?.updatedAt || raw?.updated_at || null,
+      publishedAt: raw?.publishedAt || raw?.published_at || null,
+      createdAt: raw?.createdAt || raw?.created_at || null,
+      proofFirst: resolvedContrast?.emphasizes === 'proof',
+      heroFirst: resolvedContrast?.emphasizes === 'hero'
+    });
+  }, [loadedProject, truth, resolvedContrast]);
 
   const isPreviewing = themeSource === 'url' || (themeSource === 'remix' && committedTheme?.type !== 'remix');
   const identityWeight: ThemeIdentityV1['identityWeight'] = isPreviewing
@@ -272,6 +290,26 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     if (committedTheme?.type === 'theme') return getThemeContrastById(committedTheme.id);
     return resolvedContrast;
   }, [narrativeLock, isPreviewing, resolvedContrast, committedTheme]);
+
+  const credibilityLabel = credibility.silencePenalty
+    ? `Credibility: Silent (${credibility.silenceDays} days)`
+    : `Credibility: ${credibility.momentumLevel === 'compounding' ? 'Compounding' : credibility.momentumLevel === 'active' ? 'Active' : 'Dormant'}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadInsight = async () => {
+      if (!currentUserHandle) return;
+      const summary = await loadFollowSignalSurface(currentUserHandle, 12);
+      if (cancelled) return;
+      if (summary.totalCount === 0) {
+        setFollowInsightLabel(null);
+        return;
+      }
+      setFollowInsightLabel(`You follow ${summary.totalCount} builds · ${summary.activeCount} active this week`);
+    };
+    loadInsight();
+    return () => { cancelled = true; };
+  }, [currentUserHandle]);
 
   useEffect(() => {
     if (!loadedProject) return;
@@ -486,6 +524,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         dominance={resolvedDominance}
         contrast={lockedContrast}
         identity={themeIdentity}
+        material={resolvedMaterial}
+        credibility={credibility}
       />
 
       {canShowChrome && (
@@ -494,6 +534,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           currentLayoutId={activeConfig.archetype}
           identityWeight={themeIdentity.identityWeight}
           isPreviewing={themeIdentity.identityWeight === 'light' && isPreviewing}
+          materialLabel={resolvedMaterial.displayLabel}
+          credibilityLabel={credibilityLabel}
+          followInsightLabel={followInsightLabel || undefined}
           onThemeChange={handleThemeChange}
           onLayoutChange={handleArchetypeChange}
           onReset={handleReset}

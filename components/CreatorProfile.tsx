@@ -8,6 +8,7 @@ import { useBookmarks } from '../lib/useBookmarks';
 import { useAuth } from '../contexts/AuthContext'; // [NEW]
 import { supabase } from '../lib/supabaseClient'; // [NEW]
 import { backend } from '../lib/backend'; // [NEW]
+import FollowSignalSurface from './follow/FollowSignalSurface';
 
 interface CreatorProfileProps {
   creator: {
@@ -381,6 +382,16 @@ const CreatorProfile: React.FC<CreatorProfileProps> = ({ creator: initialCreator
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="py-12 border-b border-gray-50">
+          <FollowSignalSurface
+            handle={profileData.handle}
+            title="Also Following"
+            subtitle="Quiet builds this creator tracks."
+            variant="profile"
+            limit={6}
+          />
         </div>
       </div>
 

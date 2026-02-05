@@ -1,8 +1,9 @@
 import { ThemeConfigV1, DEFAULT_THEME_CONFIG, validateThemeConfig } from './ThemeConfig';
-import { getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById } from './ThemeRegistry';
+import { getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById } from './ThemeRegistry';
 import { ThemeBehaviorProfile } from './ThemeBehavior';
 import { ThemeDominanceProfile } from './ThemeDominance';
 import { ThemeContrastProfile } from './ThemeContrast';
+import { MaterialResponseProfile } from './MaterialResponse';
 
 export type ThemeResolutionInput = {
   urlTheme?: string | null;
@@ -17,6 +18,7 @@ export interface ResolvedTheme {
   behavior: ThemeBehaviorProfile;
   dominance: ThemeDominanceProfile;
   contrast: ThemeContrastProfile;
+  material: MaterialResponseProfile;
   source: 'url' | 'jam' | 'user' | 'default' | 'remix';
 }
 
@@ -40,6 +42,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
       behavior: getThemeBehaviorById(input.urlTheme!),
       dominance: getThemeDominanceById(input.urlTheme!),
       contrast: getThemeContrastById(input.urlTheme!),
+      material: getThemeMaterialById(input.urlTheme!),
       source: 'url'
     };
   }
@@ -52,6 +55,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
       behavior: getThemeBehaviorById(input.jamTheme || 'default'),
       dominance: getThemeDominanceById(input.jamTheme || 'default'),
       contrast: getThemeContrastById(input.jamTheme || 'default'),
+      material: getThemeMaterialById(input.jamTheme || 'default'),
       source: 'jam'
     };
   }
@@ -64,6 +68,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
       behavior: getThemeBehaviorById(input.userTheme || 'default'),
       dominance: getThemeDominanceById(input.userTheme || 'default'),
       contrast: getThemeContrastById(input.userTheme || 'default'),
+      material: getThemeMaterialById(input.userTheme || 'default'),
       source: 'user'
     };
   }
@@ -74,6 +79,7 @@ export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
     behavior: getThemeBehaviorById('default'),
     dominance: getThemeDominanceById('default'),
     contrast: getThemeContrastById('default'),
+    material: getThemeMaterialById('default'),
     source: 'default'
   };
 };

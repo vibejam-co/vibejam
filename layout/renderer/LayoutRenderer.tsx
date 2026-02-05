@@ -5,6 +5,8 @@ import { ThemeBehaviorProfile } from '../../theme/ThemeBehavior';
 import { ThemeDominanceProfile } from '../../theme/ThemeDominance';
 import { ThemeContrastProfile } from '../../theme/ThemeContrast';
 import { ThemeIdentityV1 } from '../../theme/ThemeIdentity';
+import { MaterialResponseProfile } from '../../theme/MaterialResponse';
+import { CredibilityState } from '../../theme/CredibilityState';
 import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
 
@@ -16,6 +18,8 @@ interface LayoutRendererProps {
   dominance?: ThemeDominanceProfile;
   contrast?: ThemeContrastProfile;
   identity?: ThemeIdentityV1;
+  material?: MaterialResponseProfile;
+  credibility?: CredibilityState;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -109,7 +113,7 @@ export const resolveTimelineRhythm = (config: LayoutConfigV1, behavior?: ThemeBe
   return rhythmMap[behavior.narrativeFlow];
 };
 
-const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance, contrast, identity }) => {
+const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance, contrast, identity, material, credibility }) => {
   // BEHAVIOR-AWARE COMPOSITION: Adjust layout feel without changing grid math
   const grid = { container: resolveBehaviorSpacing(config, behavior) };
   const heroPlacement = resolveHeroPlacement(config);
@@ -174,6 +178,37 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
     return styles[contrast.trustSignal] || '';
   })();
 
+  const materialMotion = (() => {
+    if (!material) return '';
+    const tension = material.interactionTension === 'soft'
+      ? 'active:scale-[0.99]'
+      : material.interactionTension === 'rigid'
+        ? 'active:scale-[0.97]'
+        : 'active:scale-[0.98]';
+    const settle = material.settleBehavior === 'float'
+      ? 'hover:-translate-y-0.5'
+      : material.settleBehavior === 'sink'
+        ? 'hover:translate-y-0.5'
+        : '';
+    const feedback = material.feedbackVisibility === 'assertive'
+      ? 'focus-visible:ring-2 focus-visible:ring-emerald-400/40'
+      : material.feedbackVisibility === 'present'
+        ? 'focus-visible:ring-1 focus-visible:ring-emerald-300/30'
+        : 'focus-visible:ring-1 focus-visible:ring-black/10';
+    const weight = material.surfaceWeight === 'heavy'
+      ? 'shadow-lg'
+      : material.surfaceWeight === 'light'
+        ? 'shadow-sm'
+        : 'shadow-md';
+    return `transition-[transform,box-shadow,opacity] duration-150 ease-out ${tension} ${settle} ${feedback} ${weight}`;
+  })();
+
+  const materialProof = material?.feedbackVisibility === 'assertive'
+    ? 'tracking-[0.25em]'
+    : material?.feedbackVisibility === 'present'
+      ? 'tracking-[0.2em]'
+      : 'tracking-[0.15em]';
+
   const followUrl = truth.Identity.props.handle
     ? `https://x.com/${truth.Identity.props.handle.replace('@', '')}`
     : truth.Links.props.websiteUrl || '';
@@ -188,6 +223,28 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
     : identity?.identityWeight === 'locked'
       ? 'leading-relaxed'
       : 'leading-normal';
+
+  const credibilityTone = credibility?.momentumLevel === 'compounding'
+    ? 'contrast-110'
+    : credibility?.momentumLevel === 'dormant'
+      ? 'opacity-70'
+      : '';
+  const credibilitySilence = credibility?.silencePenalty
+    ? 'opacity-60'
+    : '';
+  const credibilityProof = credibility?.proofFreshness === 'current'
+    ? 'opacity-100'
+    : credibility?.proofFreshness === 'recent'
+      ? 'opacity-80'
+      : 'opacity-55';
+  const credibilityTimeline = credibility?.momentumLevel === 'compounding'
+    ? 'space-y-3 md:space-y-4'
+    : credibility?.momentumLevel === 'dormant'
+      ? 'space-y-10 md:space-y-14'
+      : '';
+  const credibilityHeroGap = credibility?.silencePenalty && contrast?.emphasizes === 'hero'
+    ? 'mt-10 md:mt-14'
+    : '';
   
   // BEHAVIOR: Adjust spacing based on whitespaceBias
   const looseSpacing = dominance?.heroDominance === 'overpowering' ? 'mt-14 md:mt-24' :
@@ -225,7 +282,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                           href={truth.Proof.props.proofUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className={`inline-flex items-center gap-2 ${trustSignalStyle}`}
+                        className={`inline-flex items-center gap-2 ${trustSignalStyle} ${materialMotion}`}
                         >
                           <span>Proof</span>
                           <span className="text-[10px] opacity-70">Verified</span>
@@ -236,7 +293,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                           href={followUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className={`inline-flex items-center gap-2 ${theme.accent}`}
+                        className={`inline-flex items-center gap-2 ${theme.accent} ${materialMotion}`}
                         >
                           Follow Build
                         </a>
@@ -251,7 +308,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                 </div>
                 {truth.Hero.props.imageUrl && (
                   <div className="col-span-12 lg:col-span-7 lg:col-start-6 lg:row-start-2">
-                    <div className={`overflow-hidden border border-gray-100 ${theme.card} ${theme.surface}`}>
+                    <div className={`overflow-hidden border border-gray-100 ${theme.card} ${theme.surface} ${materialMotion}`}>
                       <img src={truth.Hero.props.imageUrl} alt={truth.Hero.props.title} className="w-full h-full object-cover" />
                     </div>
                   </div>
@@ -277,7 +334,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                         href={truth.Proof.props.proofUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className={`inline-flex items-center gap-2 ${trustSignalStyle}`}
+                        className={`inline-flex items-center gap-2 ${trustSignalStyle} ${materialMotion}`}
                       >
                         <span>Proof</span>
                         <span className="text-[10px] opacity-70">Verified</span>
@@ -288,7 +345,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                         href={followUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className={`inline-flex items-center gap-2 ${theme.accent}`}
+                        className={`inline-flex items-center gap-2 ${theme.accent} ${materialMotion}`}
                       >
                         Follow Build
                       </a>
@@ -301,7 +358,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
                   </p>
                 )}
                 {truth.Hero.props.imageUrl && (
-                  <div className={`${looseSpacing} overflow-hidden border border-gray-100 ${theme.card} ${theme.surface}`}>
+                  <div className={`${looseSpacing} overflow-hidden border border-gray-100 ${theme.card} ${theme.surface} ${materialMotion}`}>
                     <img src={truth.Hero.props.imageUrl} alt={truth.Hero.props.title} className="w-full h-full object-cover" />
                   </div>
                 )}
@@ -310,11 +367,11 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
           </div>
         )}
 
-        <div className={`${timelinePlacement} ${timelineRhythm} ${sectionEmphasis('timeline')} ${contrastClass('timeline')} ${primarySection !== 'timeline' ? 'mt-6 md:mt-10' : ''}`}>
+        <div className={`${timelinePlacement} ${timelineRhythm} ${credibilityTimeline} ${sectionEmphasis('timeline')} ${contrastClass('timeline')} ${credibilityTone} ${credibilitySilence} ${primarySection !== 'timeline' ? 'mt-6 md:mt-10' : ''} ${credibilityHeroGap}`}>
           <TimelineV2 milestones={truth.Timeline.props.milestones} onDiscussionClick={() => undefined} />
         </div>
 
-        <div className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${contrastClass('proof')} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body} ${identityTextDensity}`}>
+        <div className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${contrastClass('proof')} ${credibilityTone} ${credibilitySilence} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body} ${identityTextDensity}`}>
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100">
               {truth.Identity.props.avatarUrl && (
@@ -332,7 +389,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
           {(proofVisible || truth.Metrics.props.growth || truth.Metrics.props.revenue) && (
             <div className={`flex flex-wrap gap-4 text-sm text-gray-500 ${theme.body}`}>
               {proofVisible && truth.Proof.props.proofUrl && (
-                <a href={truth.Proof.props.proofUrl} target="_blank" rel="noreferrer" className={`font-semibold ${theme.accent} ${proofArtifact} ${trustSignalStyle}`}>
+                <a href={truth.Proof.props.proofUrl} target="_blank" rel="noreferrer" className={`font-semibold ${materialProof} ${theme.accent} ${proofArtifact} ${trustSignalStyle} ${materialMotion} ${credibilityProof}`}>
                   Source Verified
                 </a>
               )}
