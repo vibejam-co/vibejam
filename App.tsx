@@ -1050,6 +1050,7 @@ const AppContent: React.FC = () => {
     );
   };
 
+  // Homepage is intentionally theme-agnostic and not affected by Jam theming.
   const renderHomePageV4 = () => (
     <div className="homepage-v4 overflow-x-hidden">
       <section className="relative pt-32 md:pt-48 pb-16 md:pb-20 overflow-hidden hero-spotlight">
