@@ -17,8 +17,6 @@ export interface EventSignalContext {
   surface?: EventSurface;
 }
 
-const isDev = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
-
 export const normalizeEventContext = (context: Partial<EventSignalContext>): EventSignalContext => ({
   jamId: context.jamId,
   theme: context.theme || 'unknown',
@@ -32,6 +30,7 @@ export const emitEventSignal = (
   context: Partial<EventSignalContext>,
   meta: Record<string, any> = {}
 ) => {
+  const isDev = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   const normalized = normalizeEventContext(context);
   backend.trackEvent(eventType, {
     ...normalized,

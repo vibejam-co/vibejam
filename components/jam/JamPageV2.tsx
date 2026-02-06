@@ -8,7 +8,7 @@ import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1,
 import { resolveTheme, ResolvedTheme } from '../../theme/ThemeResolver';
 import { resolveThemeClasses } from '../../theme/ThemeClasses';
 import ThemeControlDock from '../creator/ThemeControlDock';
-import { THEME_REGISTRY, getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById } from '../../theme/ThemeRegistry';
+import { THEME_REGISTRY, getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById, runThemeRegistryDevChecks } from '../../theme/ThemeRegistry';
 import { ThemeBehaviorProfile } from '../../theme/ThemeBehavior';
 import ThemeRemixDrawer from '../creator/ThemeRemixDrawer';
 import { ThemeRemixResult, validateRemix } from '../../theme/ThemeRemix';
@@ -301,6 +301,10 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       console.warn('[PublicJam] Jam content is too sparse for a standalone public page. Add a title and builder identity.');
     }
   }, [truth, showChrome]);
+
+  useEffect(() => {
+    runThemeRegistryDevChecks();
+  }, []);
 
   const resolvedThemeData: ResolvedTheme = useMemo(() => {
     const bestCaseThemeId = 'midnight';

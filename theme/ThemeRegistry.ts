@@ -10,7 +10,7 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
   default: DEFAULT_THEME_CONFIG,
 
   // FROSTED: Ethereal, clean, airy
-  frosted: validateThemeConfig({
+  frosted: {
     version: 1,
     palette: 'light',
     surfaceStyle: 'glass',
@@ -18,10 +18,10 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     mood: 'calm',
     accentIntensity: 'low',
     backgroundTreatment: 'gradient'
-  }),
+  },
 
   // MIDNIGHT: Dark, cinematic, editorial
-  midnight: validateThemeConfig({
+  midnight: {
     version: 1,
     palette: 'dark',
     surfaceStyle: 'flat', // Matte look
@@ -29,10 +29,10 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     mood: 'serious',
     accentIntensity: 'high',
     backgroundTreatment: 'plain'
-  }),
+  },
 
   // PLAYFUL: Dopamine, chaotic, colorful
-  playful: validateThemeConfig({
+  playful: {
     version: 1,
     palette: 'light',
     surfaceStyle: 'glass', // Glossy look via expression
@@ -40,10 +40,10 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     mood: 'joyful',
     accentIntensity: 'medium',
     backgroundTreatment: 'gradient'
-  }),
+  },
 
   // BRUTALIST: Audit, raw, utilitarian, harsh
-  brutalist: validateThemeConfig({
+  brutalist: {
     version: 1,
     palette: 'light',
     surfaceStyle: 'raw',
@@ -51,10 +51,10 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     mood: 'brutal',
     accentIntensity: 'high',
     backgroundTreatment: 'plain'
-  }),
+  },
 
   // EXPERIMENTAL: Glitchy, dark, weird
-  experimental: validateThemeConfig({
+  experimental: {
     version: 1,
     palette: 'dark',
     surfaceStyle: 'raw', // Unstable look via expression
@@ -62,7 +62,7 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     mood: 'atmospheric',
     accentIntensity: 'medium',
     backgroundTreatment: 'gradient'
-  })
+  }
 };
 
 export const THEME_BEHAVIOR_REGISTRY: Readonly<Record<string, ThemeBehaviorProfile>> = {
@@ -293,7 +293,8 @@ export const THEME_MATERIAL_REGISTRY: Readonly<Record<string, MaterialResponsePr
 
 export const getThemeById = (id?: string | null): ThemeConfigV1 | null => {
   if (!id) return null;
-  return THEME_REGISTRY[id] || null;
+  const theme = THEME_REGISTRY[id] || null;
+  return theme ? validateThemeConfig(theme) : null;
 };
 
 export const getThemeBehaviorById = (id?: string | null): ThemeBehaviorProfile => {
@@ -414,10 +415,6 @@ const validateThemeClassDivergence = (): void => {
   }
 };
 
-validateBehaviorCoverageAndDivergence();
-validateExpressionDivergence(Object.keys(THEME_REGISTRY));
-validateThemeClassDivergence();
-
 const validateDominanceCoverageAndDivergence = (): void => {
   const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   if (!showDevWarning) return;
@@ -454,7 +451,6 @@ const validateDominanceCoverageAndDivergence = (): void => {
   }
 };
 
-validateDominanceCoverageAndDivergence();
 const validateContrastCoverage = (): void => {
   const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   if (!showDevWarning) return;
@@ -469,8 +465,6 @@ const validateContrastCoverage = (): void => {
   }
 };
 
-validateContrastCoverage();
-validateContrastRules(THEME_CONTRAST_REGISTRY);
 
 const validateMaterialCoverageAndDivergence = (): void => {
   const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
@@ -499,4 +493,18 @@ const validateMaterialCoverageAndDivergence = (): void => {
   }
 };
 
-validateMaterialCoverageAndDivergence();
+let hasRunDevChecks = false;
+
+export const runThemeRegistryDevChecks = (): void => {
+  const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+  if (!showDevWarning || hasRunDevChecks) return;
+  hasRunDevChecks = true;
+
+  validateBehaviorCoverageAndDivergence();
+  validateExpressionDivergence(Object.keys(THEME_REGISTRY));
+  validateThemeClassDivergence();
+  validateDominanceCoverageAndDivergence();
+  validateContrastCoverage();
+  validateContrastRules(THEME_CONTRAST_REGISTRY);
+  validateMaterialCoverageAndDivergence();
+};
