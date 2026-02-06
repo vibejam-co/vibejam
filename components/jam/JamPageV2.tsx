@@ -32,6 +32,7 @@ import { deriveDensityProfile } from '../../jam/density/deriveDensityProfile';
 import { CreativeSurfaceConfig } from '../../jam/creative/CreativeSurfaceConfig';
 import { resolveCreativeSurface } from '../../jam/creative/resolveCreativeSurface';
 import { resolveCreativeGrid } from '../../jam/creative/CreativeGrid';
+import { enforceCreativeSafety } from '../../jam/creative/CreativeSafety';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -678,17 +679,17 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const applyCreativeSurfacePatch = (patch: Partial<CreativeSurfaceConfig>) => {
     setCreativeSurfaceUndo(creativeSurface);
-    setCreativeSurface({
+    setCreativeSurface(enforceCreativeSafety({
       ...creativeSurface,
       ...patch,
       colorSlots: { ...creativeSurface.colorSlots, ...(patch.colorSlots || {}) },
       typographySlots: { ...creativeSurface.typographySlots, ...(patch.typographySlots || {}) }
-    });
+    }));
   };
 
   const handleCreativeReset = () => {
     setCreativeSurfaceUndo(creativeSurface);
-    setCreativeSurface(defaultCreativeSurface);
+    setCreativeSurface(enforceCreativeSafety(defaultCreativeSurface));
   };
 
   const handleCreativeUndo = () => {
