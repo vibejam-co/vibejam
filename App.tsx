@@ -1144,9 +1144,15 @@ const AppContent: React.FC = () => {
     </div>
   );
 
-  const isV2PageActive = currentPage === 'jam' || currentPage === 'profile' || currentPage === 'embed';
-  const appShellClass = isV2PageActive
-    ? 'min-h-screen w-screen overflow-x-visible flex flex-col'
+  const jamMode = typeof window !== 'undefined'
+    ? (window.location.pathname.startsWith('/jam/')
+      || window.location.pathname.startsWith('/profile/')
+      || window.location.pathname.startsWith('/embed/')
+      || window.location.pathname.startsWith('/@'))
+    : (currentPage === 'jam' || currentPage === 'profile' || currentPage === 'embed');
+  const isV2PageActive = jamMode;
+  const appShellClass = jamMode
+    ? 'min-h-screen w-screen h-screen overflow-x-visible flex flex-col'
     : 'min-h-screen flex flex-col overflow-x-hidden';
   return (
     <div className={appShellClass}>
