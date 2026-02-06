@@ -611,6 +611,15 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     socialSignals
   };
 
+  const hasMilestones = previewTruth.Timeline.props.milestones?.length > 0;
+  const hasProof = !!previewTruth.Proof.props.proofUrl;
+  const activityState: 'silent' | 'light' | 'active' =
+    (!hasMilestones && !hasProof) || trustSignals.activityPattern === 'silent'
+      ? 'silent'
+      : hasMilestones && (previewTruth.Timeline.props.milestones?.length || 0) >= 4
+        ? 'active'
+        : 'light';
+
   const identityStatusLabel = hasCommitment
     ? 'Authored'
     : isPreviewing
@@ -802,6 +811,93 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         .jam-editorial .jam-reading .border {
           border-color: rgba(15, 23, 42, 0.18) !important;
         }
+
+        .jam-editorial .jam-reading {
+          transition: opacity 240ms ease;
+        }
+
+        .jam-editorial .jam-reading[data-activity="silent"] .jam-timeline-empty {
+          border-color: rgba(15, 23, 42, 0.28);
+          background: rgba(15, 23, 42, 0.02);
+        }
+
+        .jam-editorial .jam-reading[data-activity="silent"] .jam-timeline-empty-title {
+          color: rgba(15, 23, 42, 0.55);
+          font-weight: 600;
+        }
+
+        .jam-editorial .jam-reading[data-activity="silent"] .jam-timeline-empty-body {
+          color: rgba(15, 23, 42, 0.55);
+          max-width: 32rem;
+        }
+
+        .jam-editorial .jam-reading .jam-timeline-empty-rule {
+          height: 1px;
+          background: rgba(15, 23, 42, 0.2);
+        }
+
+        .jam-editorial .jam-reading[data-activity="silent"] .jam-timeline {
+          padding-top: 3rem;
+          padding-bottom: 3rem;
+        }
+
+        .jam-editorial .jam-reading[data-activity="active"] .jam-timeline {
+          row-gap: 0.75rem;
+        }
+
+        .jam-editorial .jam-reading[data-activity="active"] .jam-timeline-item {
+          padding-bottom: 1.75rem;
+        }
+
+        .jam-editorial .jam-reading[data-activity="active"] .jam-timeline-title {
+          font-weight: 700;
+        }
+
+        .jam-editorial .jam-reading[data-activity="active"] .jam-timeline-meta {
+          margin-bottom: 0.35rem;
+        }
+
+        .jam-editorial .jam-reading[data-activity="light"] .jam-timeline {
+          row-gap: 1.25rem;
+        }
+
+        .jam-editorial .jam-reading[data-activity="light"] .jam-timeline-item {
+          padding-bottom: 2.25rem;
+        }
+
+        .jam-editorial .jam-reading[data-activity="silent"] .text-sm.text-gray-500 {
+          opacity: 0.55;
+        }
+
+        .jam-editorial .jam-reading[data-activity="active"] .text-sm.text-gray-500 {
+          opacity: 0.95;
+          border-color: rgba(15, 23, 42, 0.4);
+        }
+
+        .jam-editorial .jam-reading[data-activity="active"] .text-sm.text-gray-500 span {
+          font-weight: 600;
+          letter-spacing: 0.04em;
+        }
+
+        .jam-editorial .jam-reading[data-activity="active"][data-proof="off"] .text-sm.text-gray-500 {
+          opacity: 0.7;
+        }
+
+        .jam-editorial .jam-reading[data-activity="silent"] .jam-timeline-line {
+          border-left-style: dashed;
+          opacity: 0.2;
+        }
+
+        .jam-editorial .jam-reading[data-activity="active"] .jam-timeline-line {
+          border-left-style: solid;
+          opacity: 0.45;
+        }
+
+        .jam-editorial .jam-reading[data-activity="active"] .jam-timeline-dot {
+          width: 10px;
+          height: 10px;
+          border-width: 2px;
+        }
       `}</style>
 
       {showBackButton && (
@@ -840,7 +936,12 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         </div>
       )}
 
-      <div className="jam-reading">
+      <div
+        className="jam-reading"
+        data-activity={activityState}
+        data-proof={hasProof ? 'on' : 'off'}
+        data-milestones={hasMilestones ? 'on' : 'off'}
+      >
         <LayoutRenderer
           config={activeConfig}
           truth={previewTruth}

@@ -16,14 +16,19 @@ interface TimelineV2Props {
 const TimelineV2: React.FC<TimelineV2Props> = ({ milestones, onDiscussionClick }) => {
     if (!milestones || milestones.length === 0) {
         return (
-            <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-[32px]">
-                <p className="text-gray-300 font-medium italic">The journey is just beginning. No milestones yet.</p>
+            <div className="jam-timeline-empty py-16 px-10 text-left border border-dashed border-gray-200">
+                <div className="jam-timeline-empty-rule mb-6" />
+                <p className="jam-timeline-empty-title text-sm uppercase tracking-[0.32em] text-gray-400">No milestones yet</p>
+                <p className="jam-timeline-empty-body mt-4 text-base text-gray-500">
+                    Silence is the current state. Evidence will accumulate here.
+                </p>
+                <div className="jam-timeline-empty-rule mt-8" />
             </div>
         );
     }
 
     return (
-        <div className="space-y-0 ml-4 py-8">
+        <div className="jam-timeline space-y-2 ml-4 py-6">
             {milestones.map((m, i) => (
                 <TimelineItem
                     key={i}

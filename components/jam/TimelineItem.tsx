@@ -18,29 +18,29 @@ const TimelineItem: React.FC<TimelineItemProps> = ({
     onDiscussionClick
 }) => {
     return (
-        <div className={`relative pl-12 pb-16 ${isLast ? 'pb-0' : ''}`}>
+        <div className={`jam-timeline-item relative pl-12 pb-10 ${isLast ? 'pb-0' : ''}`}>
             {/* Line */}
             {!isLast && (
-                <div className="absolute left-[5.5px] top-4 bottom-0 w-[1.5px] border-l-[1.5px] border-dashed border-current/10" />
+                <div className="jam-timeline-line absolute left-[5.5px] top-4 bottom-0 w-[1.5px] border-l-[1.5px] border-dashed border-current/20" />
             )}
 
             {/* Dot */}
-            <div className="absolute left-0 top-[6px] w-3 h-3 rounded-full bg-white border-2 border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)] z-10" />
+            <div className="jam-timeline-dot absolute left-0 top-[6px] w-2.5 h-2.5 rounded-full bg-white border border-current z-10" />
 
-            <div className="animate-in fade-in slide-in-from-left-4 duration-700">
-                <div className="flex flex-wrap items-center gap-3 mb-2">
+            <div className="jam-timeline-content animate-in fade-in slide-in-from-left-4 duration-700">
+                <div className="jam-timeline-meta flex flex-wrap items-center gap-3 mb-2">
                     {date && (
-                        <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{date}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.32em] text-current/70">{date}</span>
                     )}
                     {statusChip && (
-                        <span className="px-2 py-0.5 rounded bg-gray-900 text-[8px] font-black text-white uppercase tracking-wider">{statusChip}</span>
+                        <span className="jam-timeline-chip px-2 py-0.5 border border-current/20 text-[8px] font-semibold uppercase tracking-[0.3em] text-current/70">{statusChip}</span>
                     )}
                 </div>
 
-                <h4 className="text-2xl font-black text-current tracking-tight mb-3">{label}</h4>
+                <h4 className="jam-timeline-title text-xl md:text-2xl font-semibold text-current tracking-tight mb-2">{label}</h4>
 
                 {body && (
-                    <p className="opacity-60 leading-relaxed max-w-2xl mb-6">{body}</p>
+                    <p className="jam-timeline-body opacity-70 leading-relaxed max-w-2xl mb-4">{body}</p>
                 )}
 
                 {onDiscussionClick && (
