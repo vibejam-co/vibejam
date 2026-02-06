@@ -1,8 +1,9 @@
+import type { CSSProperties } from 'react';
 import { CreativeGridVariant } from './CreativeSurfaceConfig';
 
 export type CreativeGridDefinition = {
   containerClass: string;
-  containerStyle?: React.CSSProperties;
+  containerStyle?: CSSProperties;
 };
 
 // Extension point: AI/user overrides may supply custom grid parameters here.
@@ -15,7 +16,7 @@ export const resolveCreativeGrid = (variant: CreativeGridVariant): CreativeGridD
         containerStyle: {
           '--jam-grid-columns': '12',
           '--jam-grid-gutter': '1.5rem'
-        } as React.CSSProperties
+        } as CSSProperties
       };
     case 'modular_blocks':
       return {
@@ -23,7 +24,7 @@ export const resolveCreativeGrid = (variant: CreativeGridVariant): CreativeGridD
         containerStyle: {
           '--jam-grid-columns': '12',
           '--jam-grid-gutter': '1.5rem'
-        } as React.CSSProperties
+        } as CSSProperties
       };
     case 'freeform_canvas':
       return {
@@ -31,7 +32,7 @@ export const resolveCreativeGrid = (variant: CreativeGridVariant): CreativeGridD
         containerStyle: {
           '--jam-grid-columns': '12',
           '--jam-grid-gutter': '1.5rem'
-        } as React.CSSProperties
+        } as CSSProperties
       };
     case 'brutalist_stack':
       return {
@@ -39,7 +40,7 @@ export const resolveCreativeGrid = (variant: CreativeGridVariant): CreativeGridD
         containerStyle: {
           '--jam-grid-columns': '12',
           '--jam-grid-gutter': '1.5rem'
-        } as React.CSSProperties
+        } as CSSProperties
       };
     case 'editorial_column':
     default:
@@ -48,7 +49,7 @@ export const resolveCreativeGrid = (variant: CreativeGridVariant): CreativeGridD
         containerStyle: {
           '--jam-grid-columns': '12',
           '--jam-grid-gutter': '1.5rem'
-        } as React.CSSProperties
+        } as CSSProperties
       };
   }
 };

@@ -14,7 +14,6 @@ import { ThemeRemixResult, validateRemix } from '../../theme/ThemeRemix';
 import { ThemeConfigV1 } from '../../theme/ThemeConfig';
 import { ThemeIdentityV1 } from '../../theme/ThemeIdentity';
 import { ThemeClasses } from '../../theme/ThemeClasses';
-import ThemeControlCenter from '../control-center/ThemeControlCenter';
 import { CredibilityState, deriveCredibilityState } from '../../theme/CredibilityState';
 import { loadFollowSignalSurface } from '../../lib/FollowSignalSurface';
 import { TrustSignalsV1, deriveTrustSignals } from '../../theme/TrustSignals';
@@ -30,6 +29,7 @@ import { deriveSilenceState } from '../../jam/silence/deriveSilenceState';
 import { SILENCE_FRAMING_MAP } from '../../jam/silence/SilenceFraming';
 import { ACTIVITY_DENSITY_MAP } from '../../jam/density/ActivityDensity';
 import { deriveDensityProfile } from '../../jam/density/deriveDensityProfile';
+import { CreativeSurfaceConfig } from '../../jam/creative/CreativeSurfaceConfig';
 import { resolveCreativeSurface } from '../../jam/creative/resolveCreativeSurface';
 import { resolveCreativeGrid } from '../../jam/creative/CreativeGrid';
 import {
@@ -672,7 +672,31 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const densityIntent = useMemo(() => ACTIVITY_DENSITY_MAP[densityProfile], [densityProfile]);
 
   // Creative substrate is inert by default and cannot override proof/narrative/silence.
-  const creativeSurface = useMemo(() => resolveCreativeSurface(), []);
+  const defaultCreativeSurface = useMemo(() => resolveCreativeSurface(), []);
+  const [creativeSurface, setCreativeSurface] = useState<CreativeSurfaceConfig>(defaultCreativeSurface);
+  const [creativeSurfaceUndo, setCreativeSurfaceUndo] = useState<CreativeSurfaceConfig | null>(null);
+
+  const applyCreativeSurfacePatch = (patch: Partial<CreativeSurfaceConfig>) => {
+    setCreativeSurfaceUndo(creativeSurface);
+    setCreativeSurface({
+      ...creativeSurface,
+      ...patch,
+      colorSlots: { ...creativeSurface.colorSlots, ...(patch.colorSlots || {}) },
+      typographySlots: { ...creativeSurface.typographySlots, ...(patch.typographySlots || {}) }
+    });
+  };
+
+  const handleCreativeReset = () => {
+    setCreativeSurfaceUndo(creativeSurface);
+    setCreativeSurface(defaultCreativeSurface);
+  };
+
+  const handleCreativeUndo = () => {
+    if (!creativeSurfaceUndo) return;
+    setCreativeSurface(creativeSurfaceUndo);
+    setCreativeSurfaceUndo(null);
+  };
+
   const creativeGrid = useMemo(() => resolveCreativeGrid(creativeSurface.gridVariant), [creativeSurface.gridVariant]);
 
   const identityStatusLabel = hasCommitment
@@ -1039,6 +1063,11 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           onThemeChange={handleThemeChange}
           onLayoutChange={handleArchetypeChange}
           onReset={handleReset}
+          creativeSurface={creativeSurface}
+          onCreativeSurfaceChange={applyCreativeSurfacePatch}
+          onCreativeReset={handleCreativeReset}
+          onCreativeUndo={handleCreativeUndo}
+          canUndoCreative={!!creativeSurfaceUndo}
         />
       )}
 

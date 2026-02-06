@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { getThemeRegistry, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById } from '../../theme/ThemeRegistry';
 import { LAYOUT_PRESETS, LayoutArchetype } from '../../layout/LayoutConfig';
 import { THEME_EXPRESSIONS } from '../../theme/ThemeExpression';
+import { CreativeGridVariant, CreativeSurfaceConfig } from '../../jam/creative/CreativeSurfaceConfig';
 
 interface ThemeControlCenterProps {
   currentThemeId: string;
@@ -17,6 +18,11 @@ interface ThemeControlCenterProps {
   onThemeChange: (themeId: string) => void;
   onLayoutChange: (layoutId: LayoutArchetype) => void;
   onReset: () => void;
+  creativeSurface?: CreativeSurfaceConfig;
+  onCreativeSurfaceChange?: (patch: Partial<CreativeSurfaceConfig>) => void;
+  onCreativeReset?: () => void;
+  onCreativeUndo?: () => void;
+  canUndoCreative?: boolean;
 }
 
 // Theme color indicators for visual preview
@@ -79,9 +85,14 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   onThemeChange,
   onLayoutChange,
   onReset,
+  creativeSurface,
+  onCreativeSurfaceChange,
+  onCreativeReset,
+  onCreativeUndo,
+  canUndoCreative
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<'theme' | 'layout'>('theme');
+  const [activeSection, setActiveSection] = useState<'theme' | 'layout' | 'creative'>('theme');
   const [isChanging, setIsChanging] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<'idle' | 'copied'>('idle');
   const panelRef = useRef<HTMLDivElement>(null);
@@ -111,6 +122,9 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
 
   const layouts = Object.keys(LAYOUT_PRESETS) as LayoutArchetype[];
   const themes = Object.keys(getThemeRegistry()).filter((t) => t !== 'default');
+  const gridVariants: CreativeGridVariant[] = ['editorial_column', 'asymmetric_flow', 'modular_blocks', 'freeform_canvas', 'brutalist_stack'];
+  const colorTokens = ['current', 'muted', 'accent', 'contrast', 'warm', 'cool'];
+  const typeTokens = ['inherit', 'serif', 'sans', 'mono', 'editorial', 'grotesque'];
   const material = getThemeMaterialById(currentThemeId);
   const materialMotion = (() => {
     const tension = material.interactionTension === 'soft'
@@ -239,6 +253,16 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                 >
                   Layout
                 </button>
+                <button
+                  onClick={() => setActiveSection('creative')}
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all duration-300 ${
+                    activeSection === 'creative'
+                      ? 'bg-white text-black shadow-lg'
+                      : 'text-white/50 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  Creative
+                </button>
               </div>
             )}
 
@@ -364,6 +388,119 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                   })}
                 </div>
               )}
+
+              {/* CREATIVE SECTION — Cockpit Controls */}
+              {!themeOnly && activeSection === 'creative' && (
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <div className="text-[9px] uppercase tracking-widest text-white/50">Grid</div>
+                    <div className="flex flex-wrap gap-2">
+                      {gridVariants.map((variant) => {
+                        const isActive = creativeSurface?.gridVariant === variant;
+                        return (
+                          <button
+                            key={variant}
+                            onClick={() => onCreativeSurfaceChange?.({ gridVariant: variant })}
+                            className={`px-3 py-2 rounded-xl text-[10px] uppercase tracking-widest border transition-all duration-200 ${
+                              isActive
+                                ? 'bg-white text-black border-white shadow-lg'
+                                : 'text-white/60 border-white/10 hover:border-white/30 hover:text-white'
+                            }`}
+                          >
+                            {variant.replace('_', ' ')}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[9px] uppercase tracking-widest text-white/50">Color</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['primary', 'secondary', 'accent', 'background', 'contrast'] as const).map((slot) => (
+                        <div key={slot} className="flex items-center justify-between rounded-xl border border-white/10 px-3 py-2">
+                          <span className="text-[9px] uppercase tracking-widest text-white/50">{slot}</span>
+                          <div className="flex items-center gap-1">
+                            {colorTokens.map((token) => (
+                              <button
+                                key={`${slot}-${token}`}
+                                onClick={() => onCreativeSurfaceChange?.({ colorSlots: { [slot]: token } })}
+                                className={`px-2 py-1 rounded-lg text-[9px] uppercase tracking-widest transition-colors ${
+                                  creativeSurface?.colorSlots[slot] === token
+                                    ? 'bg-white text-black'
+                                    : 'text-white/40 hover:text-white'
+                                }`}
+                              >
+                                {token[0]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[9px] uppercase tracking-widest text-white/50">Type</div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {(['display', 'body', 'meta'] as const).map((slot) => (
+                        <div key={slot} className="flex items-center justify-between rounded-xl border border-white/10 px-3 py-2">
+                          <span className="text-[9px] uppercase tracking-widest text-white/50">{slot}</span>
+                          <div className="flex items-center gap-1">
+                            {typeTokens.map((token) => (
+                              <button
+                                key={`${slot}-${token}`}
+                                onClick={() => onCreativeSurfaceChange?.({ typographySlots: { [slot]: token } })}
+                                className={`px-2 py-1 rounded-lg text-[9px] uppercase tracking-widest transition-colors ${
+                                  creativeSurface?.typographySlots[slot] === token
+                                    ? 'bg-white text-black'
+                                    : 'text-white/40 hover:text-white'
+                                }`}
+                              >
+                                {token[0]}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[9px] uppercase tracking-widest text-white/50">Rhythm</div>
+                    <div className="flex items-center gap-3 rounded-xl border border-white/10 px-3 py-2">
+                      <span className="text-[9px] uppercase tracking-widest text-white/50">Density</span>
+                      <input
+                        type="range"
+                        min={0.8}
+                        max={1.2}
+                        step={0.05}
+                        value={creativeSurface?.rhythmScale ?? 1}
+                        onChange={(e) => onCreativeSurfaceChange?.({ rhythmScale: Number(e.target.value) })}
+                        className="w-full accent-white"
+                      />
+                      <span className="text-[9px] uppercase tracking-widest text-white/50">
+                        {(creativeSurface?.rhythmScale ?? 1).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[9px] uppercase tracking-widest text-white/50">AI</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {['Generate', 'Remix', 'Refine'].map((label) => (
+                        <button
+                          key={label}
+                          disabled
+                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[9px] uppercase tracking-widest text-white/30"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer — Reset Action */}
@@ -390,6 +527,23 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
               >
                 Reset to Defaults
               </button>
+              {!themeOnly && activeSection === 'creative' && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={onCreativeUndo}
+                    disabled={!canUndoCreative}
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[9px] uppercase tracking-widest text-white/40 disabled:text-white/20"
+                  >
+                    Undo
+                  </button>
+                  <button
+                    onClick={onCreativeReset}
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[9px] uppercase tracking-widest text-white/40"
+                  >
+                    Reset Creative
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -238,6 +238,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({
   })();
 
   const proofEmphasisClass = (() => {
+    // Proof emphasis is structural and cannot be overridden by creative surface controls.
     if (!proofEmphasis) return '';
     if (proofEmphasis.weight === 'heavy') return 'font-semibold border-y-2 border-current/40 py-3';
     if (proofEmphasis.weight === 'medium') return 'font-semibold border-y border-current/30 py-2';
