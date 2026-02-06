@@ -466,6 +466,16 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     return () => { cancelled = true; };
   }, [currentUserHandle]);
 
+  const resolvedThemeName = (() => {
+    if (ephemeralRemix) return 'ai-remix';
+    if (activeThemeId && THEME_REGISTRY[activeThemeId]) return activeThemeId;
+    if (jamThemeId && THEME_REGISTRY[jamThemeId]) return jamThemeId;
+    if (jamThemeConfig) return 'custom';
+    if (userThemeId && THEME_REGISTRY[userThemeId]) return userThemeId;
+    if (userThemeConfig) return 'custom';
+    return 'default';
+  })();
+
   useEffect(() => {
     if (!loadedProject) return;
     if (typeof document === 'undefined') return;
@@ -551,16 +561,6 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     previousIdentityWeight.current = themeIdentity.identityWeight;
     lastIdentityAction.current = 'system';
   }, [themeIdentity.identityWeight]);
-
-  const resolvedThemeName = (() => {
-    if (ephemeralRemix) return 'ai-remix';
-    if (activeThemeId && THEME_REGISTRY[activeThemeId]) return activeThemeId;
-    if (jamThemeId && THEME_REGISTRY[jamThemeId]) return jamThemeId;
-    if (jamThemeConfig) return 'custom';
-    if (userThemeId && THEME_REGISTRY[userThemeId]) return userThemeId;
-    if (userThemeConfig) return 'custom';
-    return 'default';
-  })();
 
   const trustSignals: TrustSignalsV1 = useMemo(() => {
     const raw = loadedProject as any;
