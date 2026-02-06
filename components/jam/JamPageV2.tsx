@@ -31,6 +31,7 @@ import { SILENCE_FRAMING_MAP } from '../../jam/silence/SilenceFraming';
 import { ACTIVITY_DENSITY_MAP } from '../../jam/density/ActivityDensity';
 import { deriveDensityProfile } from '../../jam/density/deriveDensityProfile';
 import { resolveCreativeSurface } from '../../jam/creative/resolveCreativeSurface';
+import { resolveCreativeGrid } from '../../jam/creative/CreativeGrid';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -672,6 +673,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   // Creative substrate is inert by default and cannot override proof/narrative/silence.
   const creativeSurface = useMemo(() => resolveCreativeSurface(), []);
+  const creativeGrid = useMemo(() => resolveCreativeGrid(creativeSurface.gridVariant), [creativeSurface.gridVariant]);
 
   const identityStatusLabel = hasCommitment
     ? 'Authored'
@@ -1018,6 +1020,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           silenceFraming={silenceFraming}
           densityIntent={densityIntent}
           creativeSurface={creativeSurface}
+          creativeGrid={creativeGrid}
         />
       </div>
 

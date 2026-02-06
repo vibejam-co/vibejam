@@ -16,6 +16,7 @@ import { ProofEmphasisIntent } from '../../jam/proof/ProofEmphasis';
 import { SilenceFramingIntent } from '../../jam/silence/SilenceFraming';
 import { ActivityDensityIntent } from '../../jam/density/ActivityDensity';
 import { CreativeSurfaceConfig } from '../../jam/creative/CreativeSurfaceConfig';
+import { CreativeGridDefinition } from '../../jam/creative/CreativeGrid';
 
 interface LayoutRendererProps {
   config: LayoutConfigV1;
@@ -33,6 +34,7 @@ interface LayoutRendererProps {
   silenceFraming?: SilenceFramingIntent | null;
   densityIntent?: ActivityDensityIntent | null;
   creativeSurface?: CreativeSurfaceConfig;
+  creativeGrid?: CreativeGridDefinition;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -141,7 +143,8 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({
   proofEmphasis,
   silenceFraming,
   densityIntent,
-  creativeSurface
+  creativeSurface,
+  creativeGrid
 }) => {
   const credibilityEnabled = FEATURE_FLAGS.VITE_FEATURE_CREDIBILITY_VISUALS;
   const activeCredibility = credibilityEnabled ? credibility : undefined;
@@ -341,7 +344,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({
 
   return (
     <div className={`${theme.page} ${silenceBackdrop} ${identityVolatility}`}>
-      <div className={grid.container}>
+      <div className={`${grid.container} ${creativeGrid?.containerClass || ''}`} style={creativeGrid?.containerStyle}>
         {config.emphasis.hero && (
           <div className={`${heroPlacement.wrapper} ${sectionEmphasis('hero')} ${contrastClass('hero')}`}>
             {config.heroPlacement === 'offset' ? (

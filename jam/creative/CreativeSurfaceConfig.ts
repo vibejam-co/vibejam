@@ -1,4 +1,9 @@
-export type CreativeGridVariant = 'default_grid';
+export type CreativeGridVariant =
+  | 'editorial_column'
+  | 'asymmetric_flow'
+  | 'modular_blocks'
+  | 'freeform_canvas'
+  | 'brutalist_stack';
 
 export type CreativeColorSlots = {
   primary: string;
@@ -23,7 +28,7 @@ export type CreativeSurfaceConfig = {
 };
 
 export const DEFAULT_CREATIVE_SURFACE_CONFIG: CreativeSurfaceConfig = {
-  gridVariant: 'default_grid',
+  gridVariant: 'editorial_column',
   colorSlots: {
     primary: 'current',
     secondary: 'current',
