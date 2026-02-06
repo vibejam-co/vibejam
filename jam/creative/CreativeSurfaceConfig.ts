@@ -20,6 +20,7 @@ export type CreativeTypographySlots = {
 };
 
 export type CreativeSurfaceConfig = {
+  templateId: 'default' | 'black_label' | 'deep_focus' | 'neon_brutal';
   gridVariant: CreativeGridVariant;
   colorSlots: CreativeColorSlots;
   typographySlots: CreativeTypographySlots;
@@ -28,6 +29,7 @@ export type CreativeSurfaceConfig = {
 };
 
 export const DEFAULT_CREATIVE_SURFACE_CONFIG: CreativeSurfaceConfig = {
+  templateId: 'default',
   gridVariant: 'editorial_column',
   colorSlots: {
     primary: 'current',

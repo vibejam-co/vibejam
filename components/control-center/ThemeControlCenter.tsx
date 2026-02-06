@@ -3,6 +3,7 @@ import { getThemeRegistry, getThemeBehaviorById, getThemeDominanceById, getTheme
 import { LAYOUT_PRESETS, LayoutArchetype } from '../../layout/LayoutConfig';
 import { THEME_EXPRESSIONS } from '../../theme/ThemeExpression';
 import { CreativeGridVariant, CreativeSurfaceConfig } from '../../jam/creative/CreativeSurfaceConfig';
+import { PREMIUM_JAM_TEMPLATES, PremiumJamTemplateId } from '../../jam/templates/PremiumJamTemplates';
 
 interface ThemeControlCenterProps {
   currentThemeId: string;
@@ -125,6 +126,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   const gridVariants: CreativeGridVariant[] = ['editorial_column', 'asymmetric_flow', 'modular_blocks', 'freeform_canvas', 'brutalist_stack'];
   const colorTokens = ['current', 'muted', 'accent', 'contrast', 'warm', 'cool'];
   const typeTokens = ['inherit', 'serif', 'sans', 'mono', 'editorial', 'grotesque'];
+  const premiumTemplates = Object.values(PREMIUM_JAM_TEMPLATES);
   const material = getThemeMaterialById(currentThemeId);
   const materialMotion = (() => {
     const tension = material.interactionTension === 'soft'
@@ -200,7 +202,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
           <div className="absolute -inset-4 bg-gradient-to-br from-violet-500/10 via-transparent to-fuchsia-500/10 blur-3xl" />
           
           {/* Main panel */}
-          <div className="relative bg-black/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl shadow-black/50 w-80 overflow-hidden">
+          <div className="relative bg-black/95 backdrop-blur-3xl border border-white/10 rounded-3xl shadow-2xl shadow-black/50 w-80 overflow-hidden flex flex-col max-h-[85vh]">
             
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
@@ -267,7 +269,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
             )}
 
             {/* Content */}
-            <div className="p-4">
+            <div className="p-4 overflow-y-auto min-h-0">
               
               {/* THEME SECTION — Audio Mixer Sliders */}
               {(!themeOnly || activeSection === 'theme') && (
@@ -392,6 +394,35 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
               {/* CREATIVE SECTION — Cockpit Controls */}
               {!themeOnly && activeSection === 'creative' && (
                 <div className="space-y-5">
+                  <div className="space-y-2">
+                    <div className="text-[9px] uppercase tracking-widest text-white/50">Premium</div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {premiumTemplates.map((template) => {
+                        const isActive = creativeSurface?.templateId === template.id;
+                        return (
+                          <button
+                            key={template.id}
+                            onClick={() => onCreativeSurfaceChange?.({ templateId: template.id as PremiumJamTemplateId })}
+                            className={`w-full rounded-2xl border px-3 py-3 text-left transition-all ${
+                              isActive
+                                ? 'bg-white text-black border-white shadow-lg'
+                                : 'border-white/10 text-white/60 hover:border-white/30 hover:text-white'
+                            }`}
+                          >
+                            <div className="text-[10px] font-semibold uppercase tracking-widest">
+                              {template.label}
+                            </div>
+                            <div className="text-[9px] uppercase tracking-widest opacity-60">
+                              {template.tier === 'premium' ? 'Premium' : 'Standard'}
+                            </div>
+                            <div className="text-[9px] uppercase tracking-widest opacity-40 mt-1">
+                              {template.description}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     <div className="text-[9px] uppercase tracking-widest text-white/50">Grid</div>
                     <div className="flex flex-wrap gap-2">

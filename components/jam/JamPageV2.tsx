@@ -34,6 +34,8 @@ import { CreativeSurfaceConfig } from '../../jam/creative/CreativeSurfaceConfig'
 import { resolveCreativeSurface } from '../../jam/creative/resolveCreativeSurface';
 import { resolveCreativeGrid } from '../../jam/creative/CreativeGrid';
 import { enforceCreativeSafety } from '../../jam/creative/CreativeSafety';
+import { resolvePremiumTemplate } from '../../jam/templates/resolvePremiumTemplate';
+import { PREMIUM_JAM_TEMPLATES, PremiumJamTemplateId } from '../../jam/templates/PremiumJamTemplates';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -680,6 +682,19 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const applyCreativeSurfacePatch = (patch: Partial<CreativeSurfaceConfig>) => {
     setCreativeSurfaceUndo(creativeSurface);
+    if (patch.templateId) {
+      const template = PREMIUM_JAM_TEMPLATES[patch.templateId as PremiumJamTemplateId] || PREMIUM_JAM_TEMPLATES.default;
+      setCreativeSurface(enforceCreativeSafety({
+        ...creativeSurface,
+        ...template.creativeOverrides,
+        templateId: patch.templateId,
+        ...patch,
+        colorSlots: { ...creativeSurface.colorSlots, ...(patch.colorSlots || {}) },
+        typographySlots: { ...creativeSurface.typographySlots, ...(patch.typographySlots || {}) }
+      }));
+      return;
+    }
+
     setCreativeSurface(enforceCreativeSafety({
       ...creativeSurface,
       ...patch,
@@ -699,7 +714,11 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     setCreativeSurfaceUndo(null);
   };
 
-  const creativeGrid = useMemo(() => resolveCreativeGrid(creativeSurface.gridVariant), [creativeSurface.gridVariant]);
+  const effectiveCreativeSurface = useMemo(() => (
+    enforceCreativeSafety(resolvePremiumTemplate(creativeSurface, creativeSurface.templateId))
+  ), [creativeSurface]);
+
+  const creativeGrid = useMemo(() => resolveCreativeGrid(effectiveCreativeSurface.gridVariant), [effectiveCreativeSurface.gridVariant]);
 
   const identityStatusLabel = hasCommitment
     ? 'Authored'
@@ -986,6 +1005,106 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           border-width: 2px;
         }
 
+        .jam-reading[data-template="black_label"] {
+          background: #0b0b0c;
+          color: #e6e1d6;
+        }
+
+        .jam-reading[data-template="black_label"] .jam-grid-editorial {
+          max-width: 52rem;
+        }
+
+        .jam-reading[data-template="black_label"] h1,
+        .jam-reading[data-template="black_label"] h4 {
+          font-family: "Avenir Next", "Helvetica Neue", system-ui, sans-serif;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+        }
+
+        .jam-reading[data-template="black_label"] .jam-timeline-item {
+          border-left: 2px solid rgba(255,255,255,0.08);
+        }
+
+        .jam-reading[data-template="black_label"] .jam-timeline-dot {
+          background: #0b0b0c;
+          border-color: rgba(255,255,255,0.45);
+        }
+
+        .jam-reading[data-template="black_label"] .text-sm.text-gray-500 {
+          border-color: rgba(255,255,255,0.35) !important;
+          color: rgba(230,225,214,0.85) !important;
+        }
+
+        .jam-reading[data-template="black_label"] a {
+          color: #e6e1d6;
+        }
+
+        .jam-reading[data-template="black_label"] img {
+          filter: grayscale(0.6) contrast(1.1);
+        }
+
+        .jam-reading[data-template="deep_focus"] {
+          background: #11151b;
+          color: #e3e8ef;
+        }
+
+        .jam-reading[data-template="deep_focus"] .jam-grid-editorial {
+          max-width: 64rem;
+        }
+
+        .jam-reading[data-template="deep_focus"] h1 {
+          font-family: "Iowan Old Style", "Times New Roman", serif;
+          letter-spacing: -0.02em;
+        }
+
+        .jam-reading[data-template="deep_focus"] .jam-timeline {
+          padding-top: 3rem;
+          padding-bottom: 3rem;
+        }
+
+        .jam-reading[data-template="deep_focus"] .jam-timeline-title {
+          font-weight: 600;
+        }
+
+        .jam-reading[data-template="deep_focus"] .text-sm.text-gray-500 {
+          border-color: rgba(227,232,239,0.25) !important;
+          color: rgba(227,232,239,0.75) !important;
+        }
+
+        .jam-reading[data-template="neon_brutal"] {
+          background: #050507;
+          color: #f7f5ff;
+        }
+
+        .jam-reading[data-template="neon_brutal"] .jam-grid-freeform {
+          max-width: 72rem;
+        }
+
+        .jam-reading[data-template="neon_brutal"] h1,
+        .jam-reading[data-template="neon_brutal"] h4 {
+          font-family: "Impact", "Arial Black", system-ui, sans-serif;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+
+        .jam-reading[data-template="neon_brutal"] .jam-timeline-item {
+          margin-left: -1rem;
+        }
+
+        .jam-reading[data-template="neon_brutal"] .jam-timeline-dot {
+          background: #05f2ff;
+          border-color: #ff1cf7;
+        }
+
+        .jam-reading[data-template="neon_brutal"] .text-sm.text-gray-500 {
+          border-color: rgba(255,28,247,0.6) !important;
+          color: rgba(255,28,247,0.85) !important;
+        }
+
+        .jam-reading[data-template="neon_brutal"] a {
+          color: #05f2ff;
+        }
+
       `}</style>
 
       {showBackButton && (
@@ -1029,6 +1148,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         data-activity={activityState}
         data-proof={hasProof ? 'on' : 'off'}
         data-milestones={hasMilestones ? 'on' : 'off'}
+        data-template={effectiveCreativeSurface.templateId}
       >
         <LayoutRenderer
           config={activeConfig}
@@ -1045,7 +1165,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           proofEmphasis={proofEmphasis}
           silenceFraming={silenceFraming}
           densityIntent={densityIntent}
-          creativeSurface={creativeSurface}
+          creativeSurface={effectiveCreativeSurface}
           creativeGrid={creativeGrid}
         />
       </div>
@@ -1065,7 +1185,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           onThemeChange={handleThemeChange}
           onLayoutChange={handleArchetypeChange}
           onReset={handleReset}
-          creativeSurface={creativeSurface}
+          creativeSurface={effectiveCreativeSurface}
           onCreativeSurfaceChange={applyCreativeSurfacePatch}
           onCreativeReset={handleCreativeReset}
           onCreativeUndo={handleCreativeUndo}
