@@ -1,5 +1,6 @@
 import { ThemeConfigV1 } from './ThemeConfig';
 import { resolveThemeExpression } from './ThemeExpression';
+import { warnIfJamRuntimeInactive } from '../lib/jamRuntime';
 
 export type ThemeClasses = {
   page: string;
@@ -16,6 +17,7 @@ export type ThemeClasses = {
 // ============================================================================
 
 export const resolveThemeClasses = (theme: ThemeConfigV1): ThemeClasses => {
+  warnIfJamRuntimeInactive('resolveThemeClasses');
   const isDark = theme.palette === 'dark';
 
   // Resolve ALL expression layers

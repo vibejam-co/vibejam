@@ -5,8 +5,9 @@ import { DEFAULT_THEME_CONTRAST, ThemeContrastProfile, validateThemeContrast, va
 import { DEFAULT_MATERIAL_RESPONSE, MaterialResponseProfile, validateMaterialResponse } from './MaterialResponse';
 import { resolveThemeClasses } from './ThemeClasses';
 import { validateExpressionDivergence } from './ThemeExpression';
+import { warnIfJamRuntimeInactive } from '../lib/jamRuntime';
 
-export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
+const buildThemeRegistry = (): Readonly<Record<string, ThemeConfigV1>> => ({
   default: DEFAULT_THEME_CONFIG,
 
   // FROSTED: Ethereal, clean, airy
@@ -63,9 +64,9 @@ export const THEME_REGISTRY: Readonly<Record<string, ThemeConfigV1>> = {
     accentIntensity: 'medium',
     backgroundTreatment: 'gradient'
   }
-};
+});
 
-export const THEME_BEHAVIOR_REGISTRY: Readonly<Record<string, ThemeBehaviorProfile>> = {
+const buildThemeBehaviorRegistry = (): Readonly<Record<string, ThemeBehaviorProfile>> => ({
   // FROSTED: Quiet journal — restrained, airy, linear
   frosted: {
     version: 1,
@@ -126,9 +127,9 @@ export const THEME_BEHAVIOR_REGISTRY: Readonly<Record<string, ThemeBehaviorProfi
     ...DEFAULT_THEME_BEHAVIOR,
     displayLabel: 'Standard · Balanced · Clean'
   }
-};
+});
 
-export const THEME_DOMINANCE_REGISTRY: Readonly<Record<string, ThemeDominanceProfile>> = {
+const buildThemeDominanceRegistry = (): Readonly<Record<string, ThemeDominanceProfile>> => ({
   // FROSTED: Soft presence, clear but quiet hierarchy
   frosted: {
     version: 1,
@@ -184,9 +185,9 @@ export const THEME_DOMINANCE_REGISTRY: Readonly<Record<string, ThemeDominancePro
     ...DEFAULT_THEME_DOMINANCE,
     displayLabel: 'Hero-Led · Balanced · Controlled'
   }
-};
+});
 
-export const THEME_CONTRAST_REGISTRY: Readonly<Record<string, ThemeContrastProfile>> = {
+const buildThemeContrastRegistry = (): Readonly<Record<string, ThemeContrastProfile>> => ({
   // FROSTED: Reverent, journey-first, quiet trust
   frosted: {
     version: 1,
@@ -242,9 +243,9 @@ export const THEME_CONTRAST_REGISTRY: Readonly<Record<string, ThemeContrastProfi
     ...DEFAULT_THEME_CONTRAST,
     displayLabel: 'Reverent · Hero-Led · Quiet'
   }
-};
+});
 
-export const THEME_MATERIAL_REGISTRY: Readonly<Record<string, MaterialResponseProfile>> = {
+const buildThemeMaterialRegistry = (): Readonly<Record<string, MaterialResponseProfile>> => ({
   frosted: {
     version: 1,
     surfaceWeight: 'light',
@@ -289,47 +290,87 @@ export const THEME_MATERIAL_REGISTRY: Readonly<Record<string, MaterialResponsePr
     ...DEFAULT_MATERIAL_RESPONSE,
     displayLabel: 'Firm · Snapped'
   }
+});
+
+let cachedThemeRegistry: Readonly<Record<string, ThemeConfigV1>> | null = null;
+let cachedBehaviorRegistry: Readonly<Record<string, ThemeBehaviorProfile>> | null = null;
+let cachedDominanceRegistry: Readonly<Record<string, ThemeDominanceProfile>> | null = null;
+let cachedContrastRegistry: Readonly<Record<string, ThemeContrastProfile>> | null = null;
+let cachedMaterialRegistry: Readonly<Record<string, MaterialResponseProfile>> | null = null;
+
+export const getThemeRegistry = (): Readonly<Record<string, ThemeConfigV1>> => {
+  warnIfJamRuntimeInactive('ThemeRegistry');
+  if (!cachedThemeRegistry) cachedThemeRegistry = buildThemeRegistry();
+  return cachedThemeRegistry;
+};
+
+export const getThemeBehaviorRegistry = (): Readonly<Record<string, ThemeBehaviorProfile>> => {
+  warnIfJamRuntimeInactive('ThemeBehaviorRegistry');
+  if (!cachedBehaviorRegistry) cachedBehaviorRegistry = buildThemeBehaviorRegistry();
+  return cachedBehaviorRegistry;
+};
+
+export const getThemeDominanceRegistry = (): Readonly<Record<string, ThemeDominanceProfile>> => {
+  warnIfJamRuntimeInactive('ThemeDominanceRegistry');
+  if (!cachedDominanceRegistry) cachedDominanceRegistry = buildThemeDominanceRegistry();
+  return cachedDominanceRegistry;
+};
+
+export const getThemeContrastRegistry = (): Readonly<Record<string, ThemeContrastProfile>> => {
+  warnIfJamRuntimeInactive('ThemeContrastRegistry');
+  if (!cachedContrastRegistry) cachedContrastRegistry = buildThemeContrastRegistry();
+  return cachedContrastRegistry;
+};
+
+export const getThemeMaterialRegistry = (): Readonly<Record<string, MaterialResponseProfile>> => {
+  warnIfJamRuntimeInactive('ThemeMaterialRegistry');
+  if (!cachedMaterialRegistry) cachedMaterialRegistry = buildThemeMaterialRegistry();
+  return cachedMaterialRegistry;
 };
 
 export const getThemeById = (id?: string | null): ThemeConfigV1 | null => {
   if (!id) return null;
-  const theme = THEME_REGISTRY[id] || null;
+  const theme = getThemeRegistry()[id] || null;
   return theme ? validateThemeConfig(theme) : null;
 };
 
 export const getThemeBehaviorById = (id?: string | null): ThemeBehaviorProfile => {
-  const behavior = (id && THEME_BEHAVIOR_REGISTRY[id]) || THEME_BEHAVIOR_REGISTRY.default;
+  const registry = getThemeBehaviorRegistry();
+  const behavior = (id && registry[id]) || registry.default;
   const validated = validateThemeBehavior(behavior);
   return {
     ...validated,
-    displayLabel: behavior.displayLabel || THEME_BEHAVIOR_REGISTRY.default.displayLabel
+    displayLabel: behavior.displayLabel || registry.default.displayLabel
   };
 };
 
 export const getThemeDominanceById = (id?: string | null): ThemeDominanceProfile => {
-  const dominance = (id && THEME_DOMINANCE_REGISTRY[id]) || THEME_DOMINANCE_REGISTRY.default;
+  const registry = getThemeDominanceRegistry();
+  const dominance = (id && registry[id]) || registry.default;
   const validated = validateThemeDominance(dominance);
   return {
     ...validated,
-    displayLabel: dominance.displayLabel || THEME_DOMINANCE_REGISTRY.default.displayLabel
+    displayLabel: dominance.displayLabel || registry.default.displayLabel
   };
 };
 
 export const getThemeContrastById = (id?: string | null): ThemeContrastProfile => {
-  const contrast = (id && THEME_CONTRAST_REGISTRY[id]) || THEME_CONTRAST_REGISTRY.default;
+  const registry = getThemeContrastRegistry();
+  const contrast = (id && registry[id]) || registry.default;
   const validated = validateThemeContrast(contrast);
   return {
     ...validated,
-    displayLabel: contrast.displayLabel || THEME_CONTRAST_REGISTRY.default.displayLabel
+    displayLabel: contrast.displayLabel || registry.default.displayLabel
   };
 };
 
 export const getThemeMaterialById = (id?: string | null): MaterialResponseProfile => {
-  const material = (id && THEME_MATERIAL_REGISTRY[id]) || THEME_MATERIAL_REGISTRY.default;
+  const registry = getThemeMaterialRegistry();
+  const material = (id && registry[id]) || registry.default;
   const validated = validateMaterialResponse(material);
   return {
     ...validated,
-    displayLabel: material.displayLabel || THEME_MATERIAL_REGISTRY.default.displayLabel
+    displayLabel: material.displayLabel || registry.default.displayLabel
   };
 };
 
@@ -340,8 +381,8 @@ const validateBehaviorCoverageAndDivergence = (): void => {
   const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   if (!showDevWarning) return;
 
-  const themeIds = Object.keys(THEME_REGISTRY);
-  const behaviorIds = Object.keys(THEME_BEHAVIOR_REGISTRY);
+  const themeIds = Object.keys(getThemeRegistry());
+  const behaviorIds = Object.keys(getThemeBehaviorRegistry());
 
   for (const id of themeIds) {
     if (!behaviorIds.includes(id)) {
@@ -349,7 +390,7 @@ const validateBehaviorCoverageAndDivergence = (): void => {
     }
   }
 
-  const entries = Object.entries(THEME_BEHAVIOR_REGISTRY).filter(([id]) => id !== 'default');
+  const entries = Object.entries(getThemeBehaviorRegistry()).filter(([id]) => id !== 'default');
 
   for (let i = 0; i < entries.length; i += 1) {
     const [nameA, behaviorA] = entries[i];
@@ -377,7 +418,7 @@ const validateThemeClassDivergence = (): void => {
   const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   if (!showDevWarning) return;
 
-  const themeEntries = Object.entries(THEME_REGISTRY).filter(([id]) => id !== 'default');
+  const themeEntries = Object.entries(getThemeRegistry()).filter(([id]) => id !== 'default');
   const classEntries = themeEntries.map(([id, config]) => [id, resolveThemeClasses(config)] as const);
 
   const tokens = (value: string) => new Set(value.split(/\s+/).filter(Boolean));
@@ -419,8 +460,8 @@ const validateDominanceCoverageAndDivergence = (): void => {
   const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   if (!showDevWarning) return;
 
-  const themeIds = Object.keys(THEME_REGISTRY);
-  const dominanceIds = Object.keys(THEME_DOMINANCE_REGISTRY);
+  const themeIds = Object.keys(getThemeRegistry());
+  const dominanceIds = Object.keys(getThemeDominanceRegistry());
 
   for (const id of themeIds) {
     if (!dominanceIds.includes(id)) {
@@ -428,7 +469,7 @@ const validateDominanceCoverageAndDivergence = (): void => {
     }
   }
 
-  const entries = Object.entries(THEME_DOMINANCE_REGISTRY).filter(([id]) => id !== 'default');
+  const entries = Object.entries(getThemeDominanceRegistry()).filter(([id]) => id !== 'default');
 
   for (let i = 0; i < entries.length; i += 1) {
     const [nameA, domA] = entries[i];
@@ -455,8 +496,8 @@ const validateContrastCoverage = (): void => {
   const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   if (!showDevWarning) return;
 
-  const themeIds = Object.keys(THEME_REGISTRY);
-  const contrastIds = Object.keys(THEME_CONTRAST_REGISTRY);
+  const themeIds = Object.keys(getThemeRegistry());
+  const contrastIds = Object.keys(getThemeContrastRegistry());
 
   for (const id of themeIds) {
     if (!contrastIds.includes(id)) {
@@ -470,8 +511,8 @@ const validateMaterialCoverageAndDivergence = (): void => {
   const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   if (!showDevWarning) return;
 
-  const themeIds = Object.keys(THEME_REGISTRY);
-  const materialIds = Object.keys(THEME_MATERIAL_REGISTRY);
+  const themeIds = Object.keys(getThemeRegistry());
+  const materialIds = Object.keys(getThemeMaterialRegistry());
 
   for (const id of themeIds) {
     if (!materialIds.includes(id)) {
@@ -479,7 +520,7 @@ const validateMaterialCoverageAndDivergence = (): void => {
     }
   }
 
-  const entries = Object.entries(THEME_MATERIAL_REGISTRY).filter(([id]) => id !== 'default');
+  const entries = Object.entries(getThemeMaterialRegistry()).filter(([id]) => id !== 'default');
   const profileSet = new Set<string>();
 
   for (const [name, profile] of entries) {
@@ -501,10 +542,10 @@ export const runThemeRegistryDevChecks = (): void => {
   hasRunDevChecks = true;
 
   validateBehaviorCoverageAndDivergence();
-  validateExpressionDivergence(Object.keys(THEME_REGISTRY));
+  validateExpressionDivergence(Object.keys(getThemeRegistry()));
   validateThemeClassDivergence();
   validateDominanceCoverageAndDivergence();
   validateContrastCoverage();
-  validateContrastRules(THEME_CONTRAST_REGISTRY);
+  validateContrastRules(getThemeContrastRegistry());
   validateMaterialCoverageAndDivergence();
 };

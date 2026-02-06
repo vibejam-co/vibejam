@@ -1,4 +1,5 @@
-import { backend } from './backend';
+import { getBackend } from './backendRuntime';
+import { warnIfJamRuntimeInactive } from './jamRuntime';
 
 export type CredibilityDirection = 'up' | 'flat' | 'down';
 
@@ -48,8 +49,10 @@ export const formatSince = (days: number | null): string => {
 };
 
 export const loadFollowSignalSurface = async (handle: string, limit: number = 6): Promise<FollowSignalSummary> => {
+  warnIfJamRuntimeInactive('loadFollowSignalSurface');
   if (!handle) return { items: [], activeCount: 0, totalCount: 0 };
 
+  const backend = await getBackend();
   const res = await backend.listFollows({ handle, kind: 'following', limit });
   const follows = res.items || [];
 

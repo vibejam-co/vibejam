@@ -1,4 +1,5 @@
 import { registerGovernanceTouchpoint } from '../lib/ChangeTypes';
+import { warnIfJamRuntimeInactive } from '../lib/jamRuntime';
 
 // ============================================================================
 // CREDIBILITY STATE CONTRACT
@@ -37,6 +38,7 @@ const parseDate = (value?: string | null): Date | null => {
 };
 
 export const deriveCredibilityState = (input: CredibilityInput): CredibilityState => {
+  warnIfJamRuntimeInactive('deriveCredibilityState');
   if (!hasWarnedCredibilityState) {
     registerGovernanceTouchpoint('credibility-state');
     hasWarnedCredibilityState = true;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ThemeConfigV1 } from '../../theme/ThemeConfig';
-import { THEME_REGISTRY, getThemeById } from '../../theme/ThemeRegistry';
+import { getThemeRegistry } from '../../theme/ThemeRegistry';
 import { ThemeClasses, resolveThemeClasses } from '../../theme/ThemeClasses';
 
 interface ThemeControlDockProps {
@@ -33,7 +33,7 @@ const ThemeControlDock: React.FC<ThemeControlDockProps> = ({
 
     if (!isOwner || !mounted) return null;
 
-    const themes = Object.entries(THEME_REGISTRY).filter(([id]) => id !== 'default'); // Show presets
+    const themes = Object.entries(getThemeRegistry()).filter(([id]) => id !== 'default'); // Show presets
 
     // Resolve current theme classes for the orb preview
     const currentThemeClasses = resolveThemeClasses(activeConfig);

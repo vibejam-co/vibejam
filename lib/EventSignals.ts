@@ -1,4 +1,5 @@
-import { backend } from './backend';
+import { getBackend } from './backendRuntime';
+import { warnIfJamRuntimeInactive } from './jamRuntime';
 
 export type EventSignalType =
   | 'jam_page_view'
@@ -30,11 +31,14 @@ export const emitEventSignal = (
   context: Partial<EventSignalContext>,
   meta: Record<string, any> = {}
 ) => {
+  warnIfJamRuntimeInactive('emitEventSignal');
   const isDev = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   const normalized = normalizeEventContext(context);
-  backend.trackEvent(eventType, {
-    ...normalized,
-    ...meta
+  void getBackend().then((backend) => {
+    backend.trackEvent(eventType, {
+      ...normalized,
+      ...meta
+    });
   });
 
   if (isDev) {

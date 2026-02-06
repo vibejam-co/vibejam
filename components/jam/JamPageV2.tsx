@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AppProject } from '../../types';
-import { backend } from '../../lib/backend';
 import { mapJamToAppProject } from '../../lib/jamMapping';
 import LayoutRenderer from '../../layout/renderer/LayoutRenderer';
 import { createTruthModel } from '../../layout/truth';
@@ -8,7 +7,7 @@ import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1,
 import { resolveTheme, ResolvedTheme } from '../../theme/ThemeResolver';
 import { resolveThemeClasses } from '../../theme/ThemeClasses';
 import ThemeControlDock from '../creator/ThemeControlDock';
-import { THEME_REGISTRY, getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById, runThemeRegistryDevChecks } from '../../theme/ThemeRegistry';
+import { getThemeRegistry, getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById, runThemeRegistryDevChecks } from '../../theme/ThemeRegistry';
 import { ThemeBehaviorProfile } from '../../theme/ThemeBehavior';
 import ThemeRemixDrawer from '../creator/ThemeRemixDrawer';
 import { ThemeRemixResult, validateRemix } from '../../theme/ThemeRemix';
@@ -21,6 +20,8 @@ import { loadFollowSignalSurface } from '../../lib/FollowSignalSurface';
 import { TrustSignalsV1, deriveTrustSignals } from '../../theme/TrustSignals';
 import { emitEventSignal, normalizeEventContext } from '../../lib/EventSignals';
 import { FEATURE_FLAGS } from '../../constants';
+import { getBackend } from '../../lib/backendRuntime';
+import { markJamRuntimeActive } from '../../lib/jamRuntime';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -66,6 +67,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   coldStartPreview = false,
   showControlCenter
 }) => {
+  markJamRuntimeActive('JamPageV2');
+
   const [loadedProject, setLoadedProject] = useState<AppProject | null>(project ?? null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -101,6 +104,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     const loadJam = async () => {
       setIsLoading(true);
       try {
+        const backend = await getBackend();
         const bySlug = await backend.getJamBySlug(routeSlug);
         let jam = bySlug.ok ? bySlug.jam : null;
         if (!jam) {
@@ -400,6 +404,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     let cancelled = false;
     const checkSignals = async () => {
       if (!coldStartActive || !loadedProject?.id) return;
+      const backend = await getBackend();
       const res = await backend.listSignals(loadedProject.id);
       if (cancelled) return;
       if (res?.items?.length) setColdStartActive(false);
@@ -412,6 +417,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     let cancelled = false;
     const checkSignalsForCommitment = async () => {
       if (!loadedProject?.id || commitmentMoments.firstSignalPosted) return;
+      const backend = await getBackend();
       const res = await backend.listSignals(loadedProject.id);
       if (cancelled) return;
       if (res?.items?.length) {
@@ -429,6 +435,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       if (commitmentMoments.firstFollower) return;
       const handle = loadedProject?.creator?.handle;
       if (!handle) return;
+      const backend = await getBackend();
       const res = await backend.getFollowStatus({ handle });
       if (cancelled) return;
       if (res?.followersCount && res.followersCount > 0) {
@@ -444,6 +451,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     const loadFollowers = async () => {
       const handle = loadedProject?.creator?.handle;
       if (!handle) return;
+      const backend = await getBackend();
       const res = await backend.getFollowStatus({ handle });
       if (cancelled) return;
       if (typeof res.followersCount === 'number') {
@@ -471,11 +479,12 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   }, [currentUserHandle]);
 
   const resolvedThemeName = (() => {
+    const registry = getThemeRegistry();
     if (ephemeralRemix) return 'ai-remix';
-    if (activeThemeId && THEME_REGISTRY[activeThemeId]) return activeThemeId;
-    if (jamThemeId && THEME_REGISTRY[jamThemeId]) return jamThemeId;
+    if (activeThemeId && registry[activeThemeId]) return activeThemeId;
+    if (jamThemeId && registry[jamThemeId]) return jamThemeId;
     if (jamThemeConfig) return 'custom';
-    if (userThemeId && THEME_REGISTRY[userThemeId]) return userThemeId;
+    if (userThemeId && registry[userThemeId]) return userThemeId;
     if (userThemeConfig) return 'custom';
     return 'default';
   })();
@@ -617,6 +626,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     if (!loadedProject?.id) return null;
     setIsRemixing(true);
     try {
+      const backend = await getBackend();
       const result = await backend.remixTheme({
         jamId: loadedProject.id,
         prompt,

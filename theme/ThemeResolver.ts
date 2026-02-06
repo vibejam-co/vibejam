@@ -4,6 +4,7 @@ import { ThemeBehaviorProfile } from './ThemeBehavior';
 import { ThemeDominanceProfile } from './ThemeDominance';
 import { ThemeContrastProfile } from './ThemeContrast';
 import { MaterialResponseProfile } from './MaterialResponse';
+import { warnIfJamRuntimeInactive } from '../lib/jamRuntime';
 
 export type ThemeResolutionInput = {
   urlTheme?: string | null;
@@ -34,6 +35,7 @@ const resolveByConfig = (config?: Partial<ThemeConfigV1> | null): ThemeConfigV1 
 
 // Resolve both config AND behavior
 export const resolveTheme = (input: ThemeResolutionInput): ResolvedTheme => {
+  warnIfJamRuntimeInactive('resolveTheme');
   // URL theme takes highest priority
   const urlTheme = resolveById(input.urlTheme);
   if (urlTheme) {

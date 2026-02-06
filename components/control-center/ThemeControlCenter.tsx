@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { THEME_REGISTRY, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById } from '../../theme/ThemeRegistry';
+import { getThemeRegistry, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById } from '../../theme/ThemeRegistry';
 import { LAYOUT_PRESETS, LayoutArchetype } from '../../layout/LayoutConfig';
 import { THEME_EXPRESSIONS } from '../../theme/ThemeExpression';
 
@@ -110,7 +110,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   }, [isOpen]);
 
   const layouts = Object.keys(LAYOUT_PRESETS) as LayoutArchetype[];
-  const themes = Object.keys(THEME_REGISTRY).filter((t) => t !== 'default');
+  const themes = Object.keys(getThemeRegistry()).filter((t) => t !== 'default');
   const material = getThemeMaterialById(currentThemeId);
   const materialMotion = (() => {
     const tension = material.interactionTension === 'soft'

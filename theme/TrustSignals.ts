@@ -1,4 +1,5 @@
 import { registerGovernanceTouchpoint } from '../lib/ChangeTypes';
+import { warnIfJamRuntimeInactive } from '../lib/jamRuntime';
 
 // ============================================================================
 // TRUST SIGNALS
@@ -71,6 +72,7 @@ const resolveActivityPattern = (milestones: { date: string }[] | null | undefine
 };
 
 export const deriveTrustSignals = (input: TrustSignalInput): TrustSignalsV1 => {
+  warnIfJamRuntimeInactive('deriveTrustSignals');
   if (!hasWarnedTrustSignals) {
     registerGovernanceTouchpoint('trust-signals');
     hasWarnedTrustSignals = true;

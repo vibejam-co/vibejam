@@ -24,15 +24,15 @@ export const isObserveOnlyWindow = () => {
   return now <= end;
 };
 
-const isDev = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+const isDev = () => typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
 
 export const registerGovernanceTouchpoint = (label: string) => {
-  if (!isDev) return;
+  if (!isDev()) return;
   console.warn(`[Governance] Touchpoint: ${label}. Changes here require review and explicit intent.`);
 };
 
 export const warnIfRankingOrHype = (flags: { leaderboard?: boolean; hype?: boolean }) => {
-  if (!isDev) return;
+  if (!isDev()) return;
   if (flags.leaderboard) {
     console.warn('[Governance] Ranking surface enabled (leaderboard). Ensure this is intentional and reviewed.');
   }
@@ -42,7 +42,7 @@ export const warnIfRankingOrHype = (flags: { leaderboard?: boolean; hype?: boole
 };
 
 export const warnIfObserveOnlyWindow = () => {
-  if (!isDev) return;
+  if (!isDev()) return;
   if (isObserveOnlyWindow()) {
     const end = getObserveWindowEndsAt();
     console.warn(`[Governance] Observe-only window active until ${end?.toISOString().slice(0, 10)}. Log insights; avoid shipping fixes.`);
