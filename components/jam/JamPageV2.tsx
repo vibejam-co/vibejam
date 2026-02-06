@@ -613,6 +613,16 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const hasMilestones = previewTruth.Timeline.props.milestones?.length > 0;
   const hasProof = !!previewTruth.Proof.props.proofUrl;
+  type JamNarrativeMode = 'chronicle' | 'dossier' | 'stream';
+  const activityCount = previewTruth.Timeline.props.milestones?.length || 0;
+  const hasRecentActivity = Number.isFinite(trustSignals.updateRecencyDays)
+    ? trustSignals.updateRecencyDays <= 7
+    : false;
+  const narrativeMode: JamNarrativeMode = hasProof
+    ? 'dossier'
+    : hasRecentActivity && activityCount > 0
+      ? 'stream'
+      : 'chronicle';
   const activityState: 'silent' | 'light' | 'active' =
     (!hasMilestones && !hasProof) || trustSignals.activityPattern === 'silent'
       ? 'silent'
@@ -898,6 +908,62 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           height: 10px;
           border-width: 2px;
         }
+
+        .jam-editorial .jam-reading[data-narrative="chronicle"] .jam-timeline-meta span {
+          letter-spacing: 0.36em;
+          font-weight: 600;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="chronicle"] .jam-timeline-title {
+          font-weight: 600;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="chronicle"] .text-sm.text-gray-500 {
+          opacity: 0.6;
+          border-style: dashed;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="dossier"] .text-sm.text-gray-500 {
+          opacity: 1;
+          border-color: rgba(15, 23, 42, 0.55);
+          border-style: solid;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="dossier"] .text-sm.text-gray-500 span {
+          font-weight: 700;
+          letter-spacing: 0.06em;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="dossier"] .jam-timeline {
+          opacity: 0.85;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="dossier"] .jam-timeline-title {
+          font-weight: 600;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="dossier"] .jam-timeline-body {
+          opacity: 0.55;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="stream"] .jam-timeline {
+          padding-top: 1.5rem;
+          padding-bottom: 1.5rem;
+          row-gap: 0.5rem;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="stream"] .jam-timeline-item {
+          padding-bottom: 1.25rem;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="stream"] .jam-timeline-item:first-child .jam-timeline-title,
+        .jam-editorial .jam-reading[data-narrative="stream"] .jam-timeline-item:nth-child(2) .jam-timeline-title {
+          font-weight: 700;
+        }
+
+        .jam-editorial .jam-reading[data-narrative="stream"] .jam-timeline-meta {
+          margin-bottom: 0.25rem;
+        }
       `}</style>
 
       {showBackButton && (
@@ -939,6 +1005,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       <div
         className="jam-reading"
         data-activity={activityState}
+        data-narrative={narrativeMode}
         data-proof={hasProof ? 'on' : 'off'}
         data-milestones={hasMilestones ? 'on' : 'off'}
       >
