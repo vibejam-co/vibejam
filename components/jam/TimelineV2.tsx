@@ -1,6 +1,7 @@
 import React from 'react';
 import TimelineItem from './TimelineItem';
 import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
+import { SilenceFramingIntent } from '../../jam/silence/SilenceFraming';
 
 interface Milestone {
     date: string;
@@ -13,24 +14,24 @@ interface TimelineV2Props {
     milestones: Milestone[];
     onDiscussionClick?: (milestoneIndex: number) => void;
     narrativeMode?: JamNarrativeMode;
+    silenceFraming?: SilenceFramingIntent | null;
 }
 
-const TimelineV2: React.FC<TimelineV2Props> = ({ milestones, onDiscussionClick }) => {
+const TimelineV2: React.FC<TimelineV2Props> = ({ milestones, onDiscussionClick, silenceFraming }) => {
+    const silenceOpacity = silenceFraming?.timelineOpacityBias === 'muted' ? 'opacity-70' : '';
+    const silenceSpacing = silenceFraming?.sectionBreathingRoom === 'expanded' ? 'py-10' : 'py-6';
+
     if (!milestones || milestones.length === 0) {
         return (
-            <div className="jam-timeline-empty py-16 px-10 text-left border border-dashed border-gray-200">
+            <div className={`jam-timeline-empty px-10 border border-dashed border-gray-200 ${silenceSpacing} ${silenceOpacity}`} aria-hidden="true">
                 <div className="jam-timeline-empty-rule mb-6" />
-                <p className="jam-timeline-empty-title text-sm uppercase tracking-[0.32em] text-gray-400">No milestones yet</p>
-                <p className="jam-timeline-empty-body mt-4 text-base text-gray-500">
-                    Silence is the current state. Evidence will accumulate here.
-                </p>
-                <div className="jam-timeline-empty-rule mt-8" />
+                <div className="jam-timeline-empty-rule mt-6" />
             </div>
         );
     }
 
     return (
-        <div className="jam-timeline space-y-2 ml-4 py-6">
+        <div className={`jam-timeline space-y-2 ml-4 ${silenceSpacing} ${silenceOpacity}`}>
             {milestones.map((m, i) => (
                 <TimelineItem
                     key={i}

@@ -26,6 +26,8 @@ import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
 import { deriveJamNarrativeMode, deriveJamNarrativeReason } from '../../jam/narrative/deriveJamNarrativeMode';
 import { deriveProofLevel } from '../../jam/proof/deriveProofLevel';
 import { PROOF_EMPHASIS_MAP } from '../../jam/proof/ProofEmphasis';
+import { deriveSilenceState } from '../../jam/silence/deriveSilenceState';
+import { SILENCE_FRAMING_MAP } from '../../jam/silence/SilenceFraming';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -648,6 +650,17 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const proofEmphasis = useMemo(() => PROOF_EMPHASIS_MAP[proofLevel], [proofLevel]);
 
+  const silenceState = useMemo(() => (
+    deriveSilenceState({
+      proofUrl: previewTruth.Proof.props.proofUrl,
+      milestones: previewTruth.Timeline.props.milestones,
+      updateRecencyDays: trustSignals.updateRecencyDays
+    })
+  ), [previewTruth.Proof.props.proofUrl, previewTruth.Timeline.props.milestones, trustSignals.updateRecencyDays]);
+
+  const silenceActive = (!hasMilestones && !hasProof) || trustSignals.activityPattern === 'silent';
+  const silenceFraming = silenceActive ? SILENCE_FRAMING_MAP[silenceState] : null;
+
   const identityStatusLabel = hasCommitment
     ? 'Authored'
     : isPreviewing
@@ -990,6 +1003,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           trustSignals={trustSignalsWithSocial}
           narrativeMode={narrativeMode}
           proofEmphasis={proofEmphasis}
+          silenceFraming={silenceFraming}
         />
       </div>
 
