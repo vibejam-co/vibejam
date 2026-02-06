@@ -25,6 +25,7 @@ import JamPageV2 from './components/jam/JamPageV2';
 import ProfilePageV2 from './components/profile/ProfilePageV2';
 import EmbedPage from './components/embed/EmbedPage';
 import { warnIfObserveOnlyWindow, warnIfRankingOrHype } from './lib/ChangeTypes';
+import JamShell from './components/jam/JamShell';
 
 const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { signInWithGoogle } = useAuth();
@@ -1144,8 +1145,11 @@ const AppContent: React.FC = () => {
   );
 
   const isV2PageActive = currentPage === 'jam' || currentPage === 'profile' || currentPage === 'embed';
+  const appShellClass = isV2PageActive
+    ? 'min-h-screen w-screen overflow-x-visible flex flex-col'
+    : 'min-h-screen flex flex-col overflow-x-hidden';
   return (
-    <div className="min-h-screen flex flex-col overflow-x-hidden">
+    <div className={appShellClass}>
       {!isV2PageActive && renderHeader()}
 
       <div className="flex-1 relative">
@@ -1240,20 +1244,22 @@ const AppContent: React.FC = () => {
       )}
 
       {currentPage === 'jam' && (
-        <JamPageV2
-          project={selectedApp}
-          jamSlug={jamRouteSlug}
-          onClose={closeJam}
-          isLoggedIn={!!currentUser}
-          currentUserHandle={currentUser?.handle}
-          onAuthTrigger={() => setIsAuthOpen(true)}
-          onManageJam={goToCreatorStudio}
-          onCreatorClick={(creator) => openProfile(creator.handle)}
-          isOwner={selectedApp ? currentUser?.handle === selectedApp.creator.handle : undefined}
-          userThemeId={(profile as any)?.theme_id || (profile as any)?.themeId || null}
-          userThemeConfig={(profile as any)?.theme_config || (profile as any)?.themeConfig || null}
-          showChrome={true}
-        />
+        <JamShell>
+          <JamPageV2
+            project={selectedApp}
+            jamSlug={jamRouteSlug}
+            onClose={closeJam}
+            isLoggedIn={!!currentUser}
+            currentUserHandle={currentUser?.handle}
+            onAuthTrigger={() => setIsAuthOpen(true)}
+            onManageJam={goToCreatorStudio}
+            onCreatorClick={(creator) => openProfile(creator.handle)}
+            isOwner={selectedApp ? currentUser?.handle === selectedApp.creator.handle : undefined}
+            userThemeId={(profile as any)?.theme_id || (profile as any)?.themeId || null}
+            userThemeConfig={(profile as any)?.theme_config || (profile as any)?.themeConfig || null}
+            showChrome={true}
+          />
+        </JamShell>
       )}
 
       {isLaunchpadOpen && (
