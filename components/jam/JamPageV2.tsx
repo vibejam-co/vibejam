@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AppProject } from '../../types';
 import { mapJamToAppProject } from '../../lib/jamMapping';
-import LayoutRenderer from '../../layout/renderer/LayoutRenderer';
+import CanvasRenderer from '../../layout/canvas/CanvasRenderer';
 import { createTruthModel } from '../../layout/truth';
 import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1, validateLayoutConfig } from '../../layout/LayoutConfig';
 import { resolveTheme, ResolvedTheme } from '../../theme/ThemeResolver';
@@ -36,6 +36,7 @@ import { resolveCreativeGrid } from '../../jam/creative/CreativeGrid';
 import { enforceCreativeSafety } from '../../jam/creative/CreativeSafety';
 import { resolvePremiumTemplate } from '../../jam/templates/resolvePremiumTemplate';
 import { PREMIUM_JAM_TEMPLATES, PremiumJamTemplateId } from '../../jam/templates/PremiumJamTemplates';
+import { EDITORIAL_CANVAS, POSTER_CANVAS } from '../../jam/canvas/JamCanvasPresets';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -841,6 +842,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     ? `${window.location.origin}/jam/${routeSlug || loadedProject.slug || loadedProject.id}`
     : `/jam/${routeSlug || loadedProject.slug || loadedProject.id}`;
 
+  const usePosterCanvas = false;
+  const canvasPlan = usePosterCanvas ? POSTER_CANVAS : EDITORIAL_CANVAS;
+
   return (
     <div className={`relative ${themeClasses.page} jam-editorial`}>
       {/* DOPAMINE FLASH — CSS-only transition feedback */}
@@ -1150,8 +1154,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         data-milestones={hasMilestones ? 'on' : 'off'}
         data-template={effectiveCreativeSurface.templateId}
       >
-        <LayoutRenderer
-          config={activeConfig}
+        <CanvasRenderer
+          plan={canvasPlan}
           truth={previewTruth}
           theme={themeClasses}
           behavior={resolvedBehavior}
@@ -1161,12 +1165,9 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           material={resolvedMaterial}
           credibility={effectiveCredibility}
           trustSignals={trustSignalsWithSocial}
-          narrativeMode={narrativeMode}
           proofEmphasis={proofEmphasis}
           silenceFraming={silenceFraming}
           densityIntent={densityIntent}
-          creativeSurface={effectiveCreativeSurface}
-          creativeGrid={creativeGrid}
         />
       </div>
 
