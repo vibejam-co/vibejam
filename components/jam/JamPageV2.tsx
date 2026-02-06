@@ -24,6 +24,8 @@ import { getBackend } from '../../lib/backendRuntime';
 import { markJamRuntimeActive } from '../../lib/jamRuntime';
 import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
 import { deriveJamNarrativeMode, deriveJamNarrativeReason } from '../../jam/narrative/deriveJamNarrativeMode';
+import { deriveProofLevel } from '../../jam/proof/deriveProofLevel';
+import { PROOF_EMPHASIS_MAP } from '../../jam/proof/ProofEmphasis';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -637,6 +639,15 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         ? 'active'
         : 'light';
 
+  const proofLevel = useMemo(() => (
+    deriveProofLevel({
+      proofUrl: previewTruth.Proof.props.proofUrl,
+      proofFreshness: effectiveCredibility.proofFreshness
+    })
+  ), [previewTruth.Proof.props.proofUrl, effectiveCredibility.proofFreshness]);
+
+  const proofEmphasis = useMemo(() => PROOF_EMPHASIS_MAP[proofLevel], [proofLevel]);
+
   const identityStatusLabel = hasCommitment
     ? 'Authored'
     : isPreviewing
@@ -978,6 +989,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           credibility={effectiveCredibility}
           trustSignals={trustSignalsWithSocial}
           narrativeMode={narrativeMode}
+          proofEmphasis={proofEmphasis}
         />
       </div>
 

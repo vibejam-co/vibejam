@@ -12,6 +12,7 @@ import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
 import { FEATURE_FLAGS } from '../../constants';
 import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
+import { ProofEmphasisIntent } from '../../jam/proof/ProofEmphasis';
 
 interface LayoutRendererProps {
   config: LayoutConfigV1;
@@ -25,6 +26,7 @@ interface LayoutRendererProps {
   credibility?: CredibilityState;
   trustSignals?: TrustSignalsV1;
   narrativeMode?: JamNarrativeMode;
+  proofEmphasis?: ProofEmphasisIntent;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -118,7 +120,20 @@ export const resolveTimelineRhythm = (config: LayoutConfigV1, behavior?: ThemeBe
   return rhythmMap[behavior.narrativeFlow];
 };
 
-const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance, contrast, identity, material, credibility, trustSignals, narrativeMode }) => {
+const LayoutRenderer: React.FC<LayoutRendererProps> = ({
+  config,
+  truth,
+  theme,
+  behavior,
+  dominance,
+  contrast,
+  identity,
+  material,
+  credibility,
+  trustSignals,
+  narrativeMode,
+  proofEmphasis
+}) => {
   const credibilityEnabled = FEATURE_FLAGS.VITE_FEATURE_CREDIBILITY_VISUALS;
   const activeCredibility = credibilityEnabled ? credibility : undefined;
   // BEHAVIOR-AWARE COMPOSITION: Adjust layout feel without changing grid math
@@ -208,6 +223,20 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
         ? 'shadow-sm'
         : 'shadow-md';
     return `transition-[transform,box-shadow,opacity] duration-150 ease-out ${tension} ${settle} ${feedback} ${weight}`;
+  })();
+
+  const proofEmphasisClass = (() => {
+    if (!proofEmphasis) return '';
+    if (proofEmphasis.weight === 'heavy') return 'font-semibold border-y-2 border-current/40 py-3';
+    if (proofEmphasis.weight === 'medium') return 'font-semibold border-y border-current/30 py-2';
+    return 'border-y border-current/15 py-1';
+  })();
+
+  const proofProximityClass = (() => {
+    if (!proofEmphasis) return '';
+    if (proofEmphasis.proximityBias === 'dominant') return 'mt-4';
+    if (proofEmphasis.proximityBias === 'near') return 'mt-2';
+    return 'mt-1';
   })();
 
   const materialProof = material?.feedbackVisibility === 'assertive'
@@ -426,7 +455,7 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
           </div>
 
           {(proofVisible || truth.Metrics.props.growth || truth.Metrics.props.revenue) && (
-            <div className={`flex flex-wrap gap-4 text-sm text-gray-500 ${theme.body}`}>
+            <div className={`flex flex-wrap gap-4 text-sm text-gray-500 ${theme.body} ${proofEmphasisClass} ${proofProximityClass}`}>
               {proofVisible && truth.Proof.props.proofUrl && (
                 <a href={truth.Proof.props.proofUrl} target="_blank" rel="noreferrer" className={`font-semibold ${materialProof} ${theme.accent} ${proofArtifact} ${trustSignalStyle} ${materialMotion} ${credibilityProof}`}>
                   Source Verified
