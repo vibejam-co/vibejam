@@ -22,7 +22,8 @@ import { emitEventSignal, normalizeEventContext } from '../../lib/EventSignals';
 import { FEATURE_FLAGS } from '../../constants';
 import { getBackend } from '../../lib/backendRuntime';
 import { markJamRuntimeActive } from '../../lib/jamRuntime';
-import { DEFAULT_JAM_NARRATIVE_MODE, JamNarrativeMode } from '../../jam/narrative/JamNarrative';
+import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
+import { deriveJamNarrativeMode, deriveJamNarrativeReason } from '../../jam/narrative/deriveJamNarrativeMode';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -614,7 +615,21 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const hasMilestones = previewTruth.Timeline.props.milestones?.length > 0;
   const hasProof = !!previewTruth.Proof.props.proofUrl;
-  const narrativeMode: JamNarrativeMode = DEFAULT_JAM_NARRATIVE_MODE;
+  const narrativeInput = useMemo(() => ({
+    proofUrl: previewTruth.Proof.props.proofUrl,
+    milestones: previewTruth.Timeline.props.milestones,
+    updatedAt: (loadedProject as any)?.updatedAt || (loadedProject as any)?.updated_at || null,
+    publishedAt: (loadedProject as any)?.publishedAt || (loadedProject as any)?.published_at || null,
+    createdAt: (loadedProject as any)?.createdAt || (loadedProject as any)?.created_at || null
+  }), [loadedProject, previewTruth.Proof.props.proofUrl, previewTruth.Timeline.props.milestones]);
+
+  const narrativeMode: JamNarrativeMode = useMemo(() => (
+    deriveJamNarrativeMode(narrativeInput)
+  ), [narrativeInput]);
+
+  const narrativeReason = useMemo(() => (
+    deriveJamNarrativeReason(narrativeInput)
+  ), [narrativeInput]);
   const activityState: 'silent' | 'light' | 'active' =
     (!hasMilestones && !hasProof) || trustSignals.activityPattern === 'silent'
       ? 'silent'
@@ -632,6 +647,12 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     if (ephemeralRemix) return ephemeralRemix.classes;
     return resolveThemeClasses(resolvedTheme);
   }, [ephemeralRemix, resolvedTheme]);
+
+  useEffect(() => {
+    const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+    if (!showDevWarning) return;
+    console.info(`[jam:narrative] mode=${narrativeMode} reason=${narrativeReason}`);
+  }, [narrativeMode, narrativeReason]);
 
   const handleRemix = async (prompt: string) => {
     if (!loadedProject?.id) return null;
