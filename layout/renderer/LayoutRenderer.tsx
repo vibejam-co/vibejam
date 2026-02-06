@@ -14,6 +14,7 @@ import { FEATURE_FLAGS } from '../../constants';
 import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
 import { ProofEmphasisIntent } from '../../jam/proof/ProofEmphasis';
 import { SilenceFramingIntent } from '../../jam/silence/SilenceFraming';
+import { ActivityDensityIntent } from '../../jam/density/ActivityDensity';
 
 interface LayoutRendererProps {
   config: LayoutConfigV1;
@@ -29,6 +30,7 @@ interface LayoutRendererProps {
   narrativeMode?: JamNarrativeMode;
   proofEmphasis?: ProofEmphasisIntent;
   silenceFraming?: SilenceFramingIntent | null;
+  densityIntent?: ActivityDensityIntent | null;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -135,7 +137,8 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({
   trustSignals,
   narrativeMode,
   proofEmphasis,
-  silenceFraming
+  silenceFraming,
+  densityIntent
 }) => {
   const credibilityEnabled = FEATURE_FLAGS.VITE_FEATURE_CREDIBILITY_VISUALS;
   const activeCredibility = credibilityEnabled ? credibility : undefined;
@@ -247,6 +250,11 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({
     : '';
   const silenceToneClass = silenceFraming?.contrastSoftening ? 'opacity-85' : '';
   const silenceTimelineClass = silenceFraming?.timelineOpacityBias === 'muted' ? 'opacity-80' : '';
+  const densitySectionSpacing = densityIntent?.typographyProximity === 'compact'
+    ? 'space-y-3'
+    : densityIntent?.typographyProximity === 'relaxed'
+      ? 'space-y-6'
+      : '';
 
   const materialProof = material?.feedbackVisibility === 'assertive'
     ? 'tracking-[0.25em]'
@@ -442,11 +450,17 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({
         )}
 
         <div className={`${timelinePlacement} ${timelineRhythm} ${credibilityTimeline} ${sectionEmphasis('timeline')} ${contrastClass('timeline')} ${credibilityTone} ${credibilitySilence} ${primarySection !== 'timeline' ? 'mt-6 md:mt-10' : ''} ${credibilityHeroGap} ${silenceTimelineClass}`}>
-          <TimelineV2 milestones={truth.Timeline.props.milestones} onDiscussionClick={() => undefined} narrativeMode={narrativeMode} silenceFraming={silenceFraming} />
+          <TimelineV2
+            milestones={truth.Timeline.props.milestones}
+            onDiscussionClick={() => undefined}
+            narrativeMode={narrativeMode}
+            silenceFraming={silenceFraming}
+            densityIntent={densityIntent}
+          />
         </div>
 
         <div
-          className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${contrastClass('proof')} ${credibilityTone} ${credibilitySilence} ${trustTone} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body} ${identityTextDensity} ${silenceSpacingClass} ${silenceToneClass}`}
+          className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${contrastClass('proof')} ${credibilityTone} ${credibilitySilence} ${trustTone} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body} ${identityTextDensity} ${silenceSpacingClass} ${silenceToneClass} ${densitySectionSpacing}`}
           data-narrative-mode={narrativeMode}
         >
           <div className="flex items-center gap-3">

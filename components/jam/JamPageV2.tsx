@@ -28,6 +28,8 @@ import { deriveProofLevel } from '../../jam/proof/deriveProofLevel';
 import { PROOF_EMPHASIS_MAP } from '../../jam/proof/ProofEmphasis';
 import { deriveSilenceState } from '../../jam/silence/deriveSilenceState';
 import { SILENCE_FRAMING_MAP } from '../../jam/silence/SilenceFraming';
+import { ACTIVITY_DENSITY_MAP } from '../../jam/density/ActivityDensity';
+import { deriveDensityProfile } from '../../jam/density/deriveDensityProfile';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -661,6 +663,12 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const silenceActive = (!hasMilestones && !hasProof) || trustSignals.activityPattern === 'silent';
   const silenceFraming = silenceActive ? SILENCE_FRAMING_MAP[silenceState] : null;
 
+  const densityProfile = useMemo(() => (
+    deriveDensityProfile(narrativeMode, silenceState)
+  ), [narrativeMode, silenceState]);
+
+  const densityIntent = useMemo(() => ACTIVITY_DENSITY_MAP[densityProfile], [densityProfile]);
+
   const identityStatusLabel = hasCommitment
     ? 'Authored'
     : isPreviewing
@@ -1004,6 +1012,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           narrativeMode={narrativeMode}
           proofEmphasis={proofEmphasis}
           silenceFraming={silenceFraming}
+          densityIntent={densityIntent}
         />
       </div>
 

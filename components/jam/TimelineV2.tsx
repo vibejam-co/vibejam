@@ -2,6 +2,7 @@ import React from 'react';
 import TimelineItem from './TimelineItem';
 import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
 import { SilenceFramingIntent } from '../../jam/silence/SilenceFraming';
+import { ActivityDensityIntent } from '../../jam/density/ActivityDensity';
 
 interface Milestone {
     date: string;
@@ -15,11 +16,22 @@ interface TimelineV2Props {
     onDiscussionClick?: (milestoneIndex: number) => void;
     narrativeMode?: JamNarrativeMode;
     silenceFraming?: SilenceFramingIntent | null;
+    densityIntent?: ActivityDensityIntent | null;
 }
 
-const TimelineV2: React.FC<TimelineV2Props> = ({ milestones, onDiscussionClick, silenceFraming }) => {
+const TimelineV2: React.FC<TimelineV2Props> = ({ milestones, onDiscussionClick, silenceFraming, densityIntent }) => {
     const silenceOpacity = silenceFraming?.timelineOpacityBias === 'muted' ? 'opacity-70' : '';
     const silenceSpacing = silenceFraming?.sectionBreathingRoom === 'expanded' ? 'py-10' : 'py-6';
+    const densityGap = densityIntent?.verticalGapBias === 'wide'
+        ? 'space-y-6'
+        : densityIntent?.verticalGapBias === 'tight'
+            ? 'space-y-1'
+            : 'space-y-3';
+    const densityPadding = densityIntent?.groupingStrength === 'strong'
+        ? 'py-4'
+        : densityIntent?.groupingStrength === 'loose'
+            ? 'py-8'
+            : 'py-6';
 
     if (!milestones || milestones.length === 0) {
         return (
@@ -31,7 +43,7 @@ const TimelineV2: React.FC<TimelineV2Props> = ({ milestones, onDiscussionClick, 
     }
 
     return (
-        <div className={`jam-timeline space-y-2 ml-4 ${silenceSpacing} ${silenceOpacity}`}>
+        <div className={`jam-timeline ml-4 ${silenceSpacing} ${silenceOpacity} ${densityGap} ${densityPadding}`}>
             {milestones.map((m, i) => (
                 <TimelineItem
                     key={i}
