@@ -7,6 +7,7 @@ import { DEFAULT_LAYOUT_CONFIG, LAYOUT_PRESETS, LayoutArchetype, LayoutConfigV1,
 import { resolveTheme, ResolvedTheme } from '../../theme/ThemeResolver';
 import { resolveThemeClasses } from '../../theme/ThemeClasses';
 import ThemeControlDock from '../creator/ThemeControlDock';
+import ThemeControlCenter from '../control-center/ThemeControlCenter';
 import { getThemeRegistry, getThemeById, getThemeBehaviorById, getThemeDominanceById, getThemeContrastById, getThemeMaterialById, runThemeRegistryDevChecks } from '../../theme/ThemeRegistry';
 import { ThemeBehaviorProfile } from '../../theme/ThemeBehavior';
 import ThemeRemixDrawer from '../creator/ThemeRemixDrawer';
