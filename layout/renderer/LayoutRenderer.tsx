@@ -11,6 +11,7 @@ import { TrustSignalsV1 } from '../../theme/TrustSignals';
 import { TruthBlocks } from '../truth';
 import TimelineV2 from '../../components/jam/TimelineV2';
 import { FEATURE_FLAGS } from '../../constants';
+import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
 
 interface LayoutRendererProps {
   config: LayoutConfigV1;
@@ -23,6 +24,7 @@ interface LayoutRendererProps {
   material?: MaterialResponseProfile;
   credibility?: CredibilityState;
   trustSignals?: TrustSignalsV1;
+  narrativeMode?: JamNarrativeMode;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -116,7 +118,7 @@ export const resolveTimelineRhythm = (config: LayoutConfigV1, behavior?: ThemeBe
   return rhythmMap[behavior.narrativeFlow];
 };
 
-const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance, contrast, identity, material, credibility, trustSignals }) => {
+const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, behavior, dominance, contrast, identity, material, credibility, trustSignals, narrativeMode }) => {
   const credibilityEnabled = FEATURE_FLAGS.VITE_FEATURE_CREDIBILITY_VISUALS;
   const activeCredibility = credibilityEnabled ? credibility : undefined;
   // BEHAVIOR-AWARE COMPOSITION: Adjust layout feel without changing grid math
@@ -402,10 +404,13 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({ config, truth, theme, b
         )}
 
         <div className={`${timelinePlacement} ${timelineRhythm} ${credibilityTimeline} ${sectionEmphasis('timeline')} ${contrastClass('timeline')} ${credibilityTone} ${credibilitySilence} ${primarySection !== 'timeline' ? 'mt-6 md:mt-10' : ''} ${credibilityHeroGap}`}>
-          <TimelineV2 milestones={truth.Timeline.props.milestones} onDiscussionClick={() => undefined} />
+          <TimelineV2 milestones={truth.Timeline.props.milestones} onDiscussionClick={() => undefined} narrativeMode={narrativeMode} />
         </div>
 
-        <div className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${contrastClass('proof')} ${credibilityTone} ${credibilitySilence} ${trustTone} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body} ${identityTextDensity}`}>
+        <div
+          className={`${identityPlacement} ${identityOffset} ${sectionEmphasis('proof')} ${contrastClass('proof')} ${credibilityTone} ${credibilitySilence} ${trustTone} ${primarySection !== 'proof' ? 'mt-6 md:mt-10' : ''} space-y-5 ${theme.body} ${identityTextDensity}`}
+          data-narrative-mode={narrativeMode}
+        >
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-100">
               {truth.Identity.props.avatarUrl && (

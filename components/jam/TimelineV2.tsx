@@ -1,5 +1,6 @@
 import React from 'react';
 import TimelineItem from './TimelineItem';
+import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
 
 interface Milestone {
     date: string;
@@ -11,6 +12,7 @@ interface Milestone {
 interface TimelineV2Props {
     milestones: Milestone[];
     onDiscussionClick?: (milestoneIndex: number) => void;
+    narrativeMode?: JamNarrativeMode;
 }
 
 const TimelineV2: React.FC<TimelineV2Props> = ({ milestones, onDiscussionClick }) => {
