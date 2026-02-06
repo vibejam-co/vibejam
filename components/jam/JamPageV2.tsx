@@ -489,6 +489,14 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     return 'default';
   })();
 
+  const eventContext = useMemo(() => normalizeEventContext({
+    jamId: loadedProject?.id,
+    theme: resolvedThemeName,
+    narrative: resolvedBehavior?.narrativeFlow,
+    credibility: effectiveCredibility.momentumLevel,
+    surface: showChrome ? 'in-app' : 'public'
+  }), [loadedProject?.id, resolvedThemeName, resolvedBehavior?.narrativeFlow, effectiveCredibility.momentumLevel, showChrome]);
+
   useEffect(() => {
     if (!loadedProject) return;
     if (typeof document === 'undefined') return;
@@ -602,14 +610,6 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     ...trustSignals,
     socialSignals
   };
-
-  const eventContext = useMemo(() => normalizeEventContext({
-    jamId: loadedProject?.id,
-    theme: resolvedThemeName,
-    narrative: resolvedBehavior?.narrativeFlow,
-    credibility: effectiveCredibility.momentumLevel,
-    surface: showChrome ? 'in-app' : 'public'
-  }), [loadedProject?.id, resolvedThemeName, resolvedBehavior?.narrativeFlow, effectiveCredibility.momentumLevel, showChrome]);
 
   const identityStatusLabel = hasCommitment
     ? 'Authored'
