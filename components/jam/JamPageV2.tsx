@@ -727,7 +727,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     : `/jam/${routeSlug || loadedProject.slug || loadedProject.id}`;
 
   return (
-    <div className={`relative ${themeClasses.page}`}>
+    <div className={`relative ${themeClasses.page} jam-editorial`}>
       {/* DOPAMINE FLASH — CSS-only transition feedback */}
       {dopamineFlash !== 'none' && (
         <div 
@@ -742,6 +742,65 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         @keyframes dopamineFlash {
           0% { opacity: 0.8; }
           100% { opacity: 0; }
+        }
+      `}</style>
+      <style>{`
+        .jam-editorial .jam-reading h1 {
+          font-family: ui-serif, "Iowan Old Style", "Times New Roman", serif;
+          letter-spacing: -0.03em;
+          text-transform: none;
+        }
+
+        .jam-editorial .jam-reading > div > div {
+          row-gap: 4.5rem;
+        }
+
+        .jam-editorial .jam-reading > div > div > div + div {
+          border-top: 1px solid rgba(15, 23, 42, 0.18);
+          padding-top: 2.5rem;
+        }
+
+        .jam-editorial .jam-reading .tracking-widest {
+          letter-spacing: 0.32em;
+          font-size: 10px;
+        }
+
+        .jam-editorial .jam-reading .uppercase {
+          text-transform: none;
+        }
+
+        .jam-editorial .jam-reading [class*="shadow"] {
+          box-shadow: none !important;
+        }
+
+        .jam-editorial .jam-reading .rounded-2xl,
+        .jam-editorial .jam-reading .rounded-3xl,
+        .jam-editorial .jam-reading .rounded-xl,
+        .jam-editorial .jam-reading .rounded-lg {
+          border-radius: 6px !important;
+        }
+
+        .jam-editorial .jam-reading .text-sm.text-gray-500 {
+          border-top: 1px solid rgba(15, 23, 42, 0.25);
+          border-bottom: 1px solid rgba(15, 23, 42, 0.25);
+          padding: 0.75rem 0;
+          gap: 1.25rem;
+        }
+
+        .jam-editorial .jam-reading .text-sm.text-gray-500 a {
+          letter-spacing: 0.28em;
+          font-size: 10px;
+          text-transform: uppercase;
+          border-bottom: 1px solid currentColor;
+          padding-bottom: 2px;
+        }
+
+        .jam-editorial .jam-reading img {
+          filter: saturate(0.85) contrast(1.05);
+        }
+
+        .jam-editorial .jam-reading .border {
+          border-color: rgba(15, 23, 42, 0.18) !important;
         }
       `}</style>
 
@@ -781,18 +840,20 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         </div>
       )}
 
-      <LayoutRenderer
-        config={activeConfig}
-        truth={previewTruth}
-        theme={themeClasses}
-        behavior={resolvedBehavior}
-        dominance={resolvedDominance}
-        contrast={lockedContrast}
-        identity={themeIdentity}
-        material={resolvedMaterial}
-        credibility={effectiveCredibility}
-        trustSignals={trustSignalsWithSocial}
-      />
+      <div className="jam-reading">
+        <LayoutRenderer
+          config={activeConfig}
+          truth={previewTruth}
+          theme={themeClasses}
+          behavior={resolvedBehavior}
+          dominance={resolvedDominance}
+          contrast={lockedContrast}
+          identity={themeIdentity}
+          material={resolvedMaterial}
+          credibility={effectiveCredibility}
+          trustSignals={trustSignalsWithSocial}
+        />
+      </div>
 
       {canShowControlCenter && (
         <ThemeControlCenter
