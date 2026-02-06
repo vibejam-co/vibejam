@@ -37,6 +37,10 @@ const TimelineV2: React.FC<TimelineV2Props> = ({ milestones, onDiscussionClick, 
         return (
             <div className={`jam-timeline-empty px-10 border border-dashed border-gray-200 ${silenceSpacing} ${silenceOpacity}`} aria-hidden="true">
                 <div className="jam-timeline-empty-rule mb-6" />
+                <p className="jam-timeline-empty-title text-sm uppercase tracking-[0.32em] text-gray-400">No milestones yet</p>
+                <p className="jam-timeline-empty-body mt-4 text-base text-gray-500">
+                    Silence is the current state. Evidence will accumulate here.
+                </p>
                 <div className="jam-timeline-empty-rule mt-6" />
             </div>
         );
