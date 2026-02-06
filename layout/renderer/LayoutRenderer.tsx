@@ -15,6 +15,7 @@ import { JamNarrativeMode } from '../../jam/narrative/JamNarrative';
 import { ProofEmphasisIntent } from '../../jam/proof/ProofEmphasis';
 import { SilenceFramingIntent } from '../../jam/silence/SilenceFraming';
 import { ActivityDensityIntent } from '../../jam/density/ActivityDensity';
+import { CreativeSurfaceConfig } from '../../jam/creative/CreativeSurfaceConfig';
 
 interface LayoutRendererProps {
   config: LayoutConfigV1;
@@ -31,6 +32,7 @@ interface LayoutRendererProps {
   proofEmphasis?: ProofEmphasisIntent;
   silenceFraming?: SilenceFramingIntent | null;
   densityIntent?: ActivityDensityIntent | null;
+  creativeSurface?: CreativeSurfaceConfig;
 }
 
 export const resolveGrid = (config: LayoutConfigV1) => {
@@ -138,7 +140,8 @@ const LayoutRenderer: React.FC<LayoutRendererProps> = ({
   narrativeMode,
   proofEmphasis,
   silenceFraming,
-  densityIntent
+  densityIntent,
+  creativeSurface
 }) => {
   const credibilityEnabled = FEATURE_FLAGS.VITE_FEATURE_CREDIBILITY_VISUALS;
   const activeCredibility = credibilityEnabled ? credibility : undefined;
