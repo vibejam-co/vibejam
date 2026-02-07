@@ -85,3 +85,46 @@ export const POSTER_CANVAS: JamCanvasPlan = {
     breathingRoom: 'tight'
   }
 };
+
+export const PREMIUM_SAFE_CANVAS: JamCanvasPlan = {
+  id: 'premium_safe_canvas',
+  label: 'Premium Safe Canvas',
+  canvasMode: 'manifesto',
+  order: ['hero', 'proof', 'narrative', 'identity'],
+  regions: {
+    hero: {
+      id: 'hero',
+      placement: 'center',
+      width: 'full',
+      emphasis: 'dominant',
+      stacking: 'normal'
+    },
+    proof: {
+      id: 'proof',
+      placement: 'center',
+      width: 'medium',
+      emphasis: 'standard',
+      stacking: 'normal'
+    },
+    narrative: {
+      id: 'narrative',
+      placement: 'bottom',
+      width: 'full',
+      emphasis: 'standard',
+      stacking: 'normal'
+    },
+    identity: {
+      id: 'identity',
+      placement: 'side',
+      width: 'narrow',
+      emphasis: 'minor',
+      stacking: 'normal'
+    }
+  },
+  spatialRules: {
+    alignment: 'asymmetric',
+    overlap: 'none',
+    density: 'balanced',
+    breathingRoom: 'normal'
+  }
+};

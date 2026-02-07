@@ -36,7 +36,8 @@ import { resolveCreativeGrid } from '../../jam/creative/CreativeGrid';
 import { enforceCreativeSafety } from '../../jam/creative/CreativeSafety';
 import { resolvePremiumTemplate } from '../../jam/templates/resolvePremiumTemplate';
 import { PREMIUM_JAM_TEMPLATES, PremiumJamTemplateId } from '../../jam/templates/PremiumJamTemplates';
-import { EDITORIAL_CANVAS } from '../../jam/canvas/JamCanvasPresets';
+import { PREMIUM_SAFE_CANVAS } from '../../jam/canvas/JamCanvasPresets';
+import { JamCanvasPlan } from '../../jam/canvas/JamCanvasPlan';
 import { JamDesignIntent } from '../../jam/canvas/JamDesignIntent';
 import { generateCanvasPlanFromIntent } from '../../jam/canvas/JamCanvasIntentPlanner';
 import {
@@ -66,6 +67,8 @@ interface JamPageV2Props {
   coldStartPreview?: boolean;
   showControlCenter?: boolean;
 }
+
+const premiumDefaultCanvasSessionCache = new Map<string, JamCanvasPlan>();
 
 const JamPageV2: React.FC<JamPageV2Props> = ({
   project,
@@ -850,13 +853,65 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     ? `${window.location.origin}/jam/${routeSlug || loadedProject.slug || loadedProject.id}`
     : `/jam/${routeSlug || loadedProject.slug || loadedProject.id}`;
 
-  const [canvasPlan, setCanvasPlan] = useState(EDITORIAL_CANVAS);
+  const [canvasPlan, setCanvasPlan] = useState(PREMIUM_SAFE_CANVAS);
   const [isRedesigningWithAi, setIsRedesigningWithAi] = useState(false);
-  const lastKnownGoodPlanRef = useRef(EDITORIAL_CANVAS);
+  const lastKnownGoodPlanRef = useRef(PREMIUM_SAFE_CANVAS);
 
   useEffect(() => {
     lastKnownGoodPlanRef.current = canvasPlan;
   }, [canvasPlan]);
+
+  const looksPremiumByDefault = (plan: JamCanvasPlan | null): plan is JamCanvasPlan => {
+    if (!plan) return false;
+    if (plan.canvasMode !== 'editorial') return true;
+    if (plan.spatialRules.alignment === 'asymmetric') return true;
+    if (plan.spatialRules.overlap === 'allowed') return true;
+    if (plan.spatialRules.density !== 'balanced') return true;
+    return plan.regions.hero.placement !== 'top' || plan.regions.proof.placement !== 'bottom';
+  };
+
+  useEffect(() => {
+    if (!loadedProject?.id && !loadedProject?.slug) return;
+    const cacheKey = loadedProject?.id || loadedProject?.slug || 'anonymous';
+    const cachedPlan = premiumDefaultCanvasSessionCache.get(cacheKey);
+    if (cachedPlan) {
+      setCanvasPlan(cachedPlan);
+      return;
+    }
+
+    let cancelled = false;
+    const primePremiumDefault = async () => {
+      const initialIntent: JamDesignIntent = {
+        prompt: 'Design this Jam to feel premium, modern, and confident with clear visual hierarchy.',
+        mood: 'focused',
+        audience: 'builders'
+      };
+      const escalationIntent: JamDesignIntent = {
+        prompt: 'Design this Jam as a premium editorial flagship with asymmetric composition, distinct hierarchy, and bold structure.',
+        mood: 'experimental',
+        audience: 'investors'
+      };
+
+      let plan = await generateCanvasPlanFromIntent(initialIntent);
+      if (!looksPremiumByDefault(plan)) {
+        plan = await generateCanvasPlanFromIntent(escalationIntent);
+      }
+
+      const finalPlan = looksPremiumByDefault(plan) ? plan : PREMIUM_SAFE_CANVAS;
+      if (!looksPremiumByDefault(plan) && showDevLabel) {
+        console.warn('[Jam Premium Default] AI default generation failed. Using premium safe fallback canvas.');
+      }
+
+      if (cancelled) return;
+      premiumDefaultCanvasSessionCache.set(cacheKey, finalPlan);
+      setCanvasPlan(finalPlan);
+    };
+
+    primePremiumDefault();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadedProject?.id, loadedProject?.slug, showDevLabel]);
 
   const handleRedesignWithAi = async () => {
     if (isRedesigningWithAi) return;
