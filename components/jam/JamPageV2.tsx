@@ -38,8 +38,10 @@ import { resolvePremiumTemplate } from '../../jam/templates/resolvePremiumTempla
 import { PREMIUM_JAM_TEMPLATES, PremiumJamTemplateId } from '../../jam/templates/PremiumJamTemplates';
 import { PREMIUM_SAFE_CANVAS } from '../../jam/canvas/JamCanvasPresets';
 import { JamCanvasPlan } from '../../jam/canvas/JamCanvasPlan';
+import { JamDesignArtifact } from '../../jam/canvas/JamDesignArtifact';
 import { JamDesignIntent } from '../../jam/canvas/JamDesignIntent';
 import { generateCanvasPlanFromIntent } from '../../jam/canvas/JamCanvasIntentPlanner';
+import { enforceJamCanvasSafety, isValidJamCanvasPlan } from '../../jam/canvas/JamCanvasSafety';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -69,6 +71,30 @@ interface JamPageV2Props {
 }
 
 const premiumDefaultCanvasSessionCache = new Map<string, JamCanvasPlan>();
+const designArtifactSessionCache = new Map<string, JamDesignArtifact[]>();
+
+const encodeDesignArtifact = (artifact: JamDesignArtifact): string => {
+  const json = JSON.stringify(artifact);
+  return btoa(encodeURIComponent(json));
+};
+
+const decodeDesignArtifact = (encoded: string): JamDesignArtifact | null => {
+  try {
+    const json = decodeURIComponent(atob(encoded));
+    const parsed = JSON.parse(json) as JamDesignArtifact;
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (typeof parsed.id !== 'string' || !parsed.id) return null;
+    if (typeof parsed.intent !== 'string') return null;
+    if (typeof parsed.createdAt !== 'number') return null;
+    if (!isValidJamCanvasPlan(parsed.canvasPlan)) return null;
+    return {
+      ...parsed,
+      canvasPlan: enforceJamCanvasSafety(parsed.canvasPlan)
+    };
+  } catch {
+    return null;
+  }
+};
 
 const JamPageV2: React.FC<JamPageV2Props> = ({
   project,
@@ -849,17 +875,84 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     const flag = new URLSearchParams(window.location.search).get('legacyLayout');
     return showDevLabel || flag === '1';
   }, [showDevLabel]);
+  const designShareToken = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('design');
+  }, [routeSlug]);
+  const sharedDesignFromUrl = useMemo(() => {
+    if (!designShareToken) return null;
+    return decodeDesignArtifact(designShareToken);
+  }, [designShareToken]);
   const publicUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/jam/${routeSlug || loadedProject.slug || loadedProject.id}`
     : `/jam/${routeSlug || loadedProject.slug || loadedProject.id}`;
+  const designStorageKey = useMemo(
+    () => `vibejam.design.artifacts.${loadedProject.id || loadedProject.slug || routeSlug || 'anonymous'}`,
+    [loadedProject.id, loadedProject.slug, routeSlug]
+  );
 
   const [canvasPlan, setCanvasPlan] = useState(PREMIUM_SAFE_CANVAS);
   const [isRedesigningWithAi, setIsRedesigningWithAi] = useState(false);
+  const [activeCanvasIntent, setActiveCanvasIntent] = useState('AI premium default');
+  const [savedDesigns, setSavedDesigns] = useState<JamDesignArtifact[]>([]);
+  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null);
+  const [designShareFeedback, setDesignShareFeedback] = useState<'idle' | 'copied'>('idle');
+  const [isSharedDesignPreview, setIsSharedDesignPreview] = useState(false);
   const lastKnownGoodPlanRef = useRef(PREMIUM_SAFE_CANVAS);
 
   useEffect(() => {
     lastKnownGoodPlanRef.current = canvasPlan;
   }, [canvasPlan]);
+
+  useEffect(() => {
+    const cached = designArtifactSessionCache.get(designStorageKey);
+    if (cached) {
+      setSavedDesigns(cached);
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(designStorageKey);
+      if (!raw) {
+        setSavedDesigns([]);
+        return;
+      }
+      const parsed = JSON.parse(raw) as JamDesignArtifact[];
+      const hydrated = Array.isArray(parsed)
+        ? parsed.filter((artifact) => {
+          if (!artifact || typeof artifact !== 'object') return false;
+          if (typeof artifact.id !== 'string' || !artifact.id) return false;
+          if (typeof artifact.intent !== 'string') return false;
+          if (typeof artifact.createdAt !== 'number') return false;
+          return isValidJamCanvasPlan(artifact.canvasPlan);
+        }).map((artifact) => ({
+          ...artifact,
+          canvasPlan: enforceJamCanvasSafety(artifact.canvasPlan)
+        }))
+        : [];
+      designArtifactSessionCache.set(designStorageKey, hydrated);
+      setSavedDesigns(hydrated);
+    } catch {
+      setSavedDesigns([]);
+    }
+  }, [designStorageKey]);
+
+  const persistDesignArtifacts = (artifacts: JamDesignArtifact[]) => {
+    designArtifactSessionCache.set(designStorageKey, artifacts);
+    setSavedDesigns(artifacts);
+    try {
+      window.localStorage.setItem(designStorageKey, JSON.stringify(artifacts));
+    } catch {
+      // no-op: local fallback is session cache
+    }
+  };
+
+  const buildArtifact = (intent: string, forkedFrom?: string): JamDesignArtifact => ({
+    id: `design_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    canvasPlan: enforceJamCanvasSafety(canvasPlan),
+    intent,
+    createdAt: Date.now(),
+    forkedFrom
+  });
 
   const looksPremiumByDefault = (plan: JamCanvasPlan | null): plan is JamCanvasPlan => {
     if (!plan) return false;
@@ -872,10 +965,20 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   useEffect(() => {
     if (!loadedProject?.id && !loadedProject?.slug) return;
+    if (sharedDesignFromUrl) {
+      setCanvasPlan(enforceJamCanvasSafety(sharedDesignFromUrl.canvasPlan));
+      setActiveCanvasIntent(sharedDesignFromUrl.intent || 'Shared design preview');
+      setActiveArtifactId(sharedDesignFromUrl.id);
+      setIsSharedDesignPreview(true);
+      return;
+    }
+
     const cacheKey = loadedProject?.id || loadedProject?.slug || 'anonymous';
     const cachedPlan = premiumDefaultCanvasSessionCache.get(cacheKey);
     if (cachedPlan) {
       setCanvasPlan(cachedPlan);
+      setActiveCanvasIntent('AI premium default');
+      setIsSharedDesignPreview(false);
       return;
     }
 
@@ -905,13 +1008,15 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       if (cancelled) return;
       premiumDefaultCanvasSessionCache.set(cacheKey, finalPlan);
       setCanvasPlan(finalPlan);
+      setActiveCanvasIntent(looksPremiumByDefault(plan) ? initialIntent.prompt : 'Premium safe fallback');
+      setIsSharedDesignPreview(false);
     };
 
     primePremiumDefault();
     return () => {
       cancelled = true;
     };
-  }, [loadedProject?.id, loadedProject?.slug, showDevLabel]);
+  }, [loadedProject?.id, loadedProject?.slug, showDevLabel, sharedDesignFromUrl]);
 
   const handleRedesignWithAi = async () => {
     if (isRedesigningWithAi) return;
@@ -939,7 +1044,10 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       }
 
       if (plan) {
-        setCanvasPlan(plan);
+        setCanvasPlan(enforceJamCanvasSafety(plan));
+        setActiveCanvasIntent(primaryIntent.prompt);
+        setIsSharedDesignPreview(false);
+        setActiveArtifactId(null);
       } else {
         const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
         if (showDevWarning) {
@@ -955,6 +1063,55 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       setCanvasPlan(previousPlan);
     } finally {
       setIsRedesigningWithAi(false);
+    }
+  };
+
+  const handleSaveDesign = () => {
+    const artifact = buildArtifact(activeCanvasIntent);
+    const next = [artifact, ...savedDesigns].slice(0, 12);
+    persistDesignArtifacts(next);
+    setActiveArtifactId(artifact.id);
+  };
+
+  const handleForkDesign = () => {
+    const source = savedDesigns.find((artifact) => artifact.id === activeArtifactId);
+    const artifact = buildArtifact(activeCanvasIntent, source?.id || activeArtifactId || undefined);
+    const next = [artifact, ...savedDesigns].slice(0, 12);
+    persistDesignArtifacts(next);
+    setActiveArtifactId(artifact.id);
+    setCanvasPlan(enforceJamCanvasSafety(artifact.canvasPlan));
+    setIsSharedDesignPreview(false);
+  };
+
+  const handleApplySavedDesign = (artifactId: string) => {
+    const target = savedDesigns.find((artifact) => artifact.id === artifactId);
+    if (!target) return;
+    if (!isValidJamCanvasPlan(target.canvasPlan)) return;
+    const safePlan = enforceJamCanvasSafety(target.canvasPlan);
+    setCanvasPlan(safePlan);
+    setActiveCanvasIntent(target.intent || 'Saved design');
+    setActiveArtifactId(target.id);
+    setIsSharedDesignPreview(false);
+  };
+
+  const handleShareDesign = async () => {
+    const source = savedDesigns.find((artifact) => artifact.id === activeArtifactId) || buildArtifact(activeCanvasIntent);
+    if (!isValidJamCanvasPlan(source.canvasPlan)) return;
+    const token = encodeDesignArtifact({
+      ...source,
+      canvasPlan: enforceJamCanvasSafety(source.canvasPlan)
+    });
+    const shareUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}?design=${token}`
+      : `?design=${token}`;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+      setDesignShareFeedback('copied');
+      setTimeout(() => setDesignShareFeedback('idle'), 2000);
+    } catch {
+      setDesignShareFeedback('idle');
     }
   };
 
@@ -1312,6 +1469,56 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           allowLegacyLayoutControls={allowLegacyLayoutControls}
         />
       )}
+
+      {isSharedDesignPreview && (
+        <div className="fixed top-16 right-6 z-[9999] rounded-xl border border-black/10 bg-white/90 px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-black/70 shadow-lg">
+          Previewing shared design
+        </div>
+      )}
+
+      <div className="fixed bottom-24 right-6 z-[9999] w-[280px] rounded-2xl border border-black/10 bg-white/90 p-3 shadow-xl backdrop-blur">
+        <div className="text-[9px] uppercase tracking-widest text-black/40">Design asset</div>
+        <div className="mt-1 text-[10px] text-black/60 truncate" title={activeCanvasIntent}>
+          {activeCanvasIntent}
+        </div>
+        {savedDesigns.length > 0 && (
+          <select
+            value={activeArtifactId || ''}
+            onChange={(e) => handleApplySavedDesign(e.target.value)}
+            className="mt-2 w-full rounded-lg border border-black/10 bg-white px-2 py-1.5 text-[10px] text-black/70"
+          >
+            <option value="" disabled>Select saved design</option>
+            {savedDesigns.map((artifact) => (
+              <option key={artifact.id} value={artifact.id}>
+                {new Date(artifact.createdAt).toLocaleString()}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={handleSaveDesign}
+            className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-[9px] font-semibold uppercase tracking-widest text-black/60"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={handleForkDesign}
+            className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-[9px] font-semibold uppercase tracking-widest text-black/60"
+          >
+            Fork
+          </button>
+          <button
+            type="button"
+            onClick={handleShareDesign}
+            className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-[9px] font-semibold uppercase tracking-widest text-black/60"
+          >
+            {designShareFeedback === 'copied' ? 'Copied' : 'Share'}
+          </button>
+        </div>
+      </div>
 
       <div className="fixed bottom-6 right-6 z-[9999]">
         <button
