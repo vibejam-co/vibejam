@@ -1085,6 +1085,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const handleRedesignWithAi = async () => {
     if (isRedesigningWithAi) return;
     setIsRedesigningWithAi(true);
+    const previousPlan = lastKnownGoodPlanRef.current;
     const defaultPrompt = 'Design this Jam to feel premium and distinctive with a dramatic spatial re-composition.';
     console.log('[Gemini] Requesting canvas plan');
     const getDistinctFallbackPlan = (previous: JamCanvasPlan): JamCanvasPlan => {
