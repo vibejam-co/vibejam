@@ -841,6 +841,11 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
 
   const showDevLabel = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+  const allowLegacyLayoutControls = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const flag = new URLSearchParams(window.location.search).get('legacyLayout');
+    return showDevLabel || flag === '1';
+  }, [showDevLabel]);
   const publicUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/jam/${routeSlug || loadedProject.slug || loadedProject.id}`
     : `/jam/${routeSlug || loadedProject.slug || loadedProject.id}`;
@@ -1249,15 +1254,16 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           onCreativeReset={handleCreativeReset}
           onCreativeUndo={handleCreativeUndo}
           canUndoCreative={!!creativeSurfaceUndo}
+          allowLegacyLayoutControls={allowLegacyLayoutControls}
         />
       )}
 
-      <div className="fixed bottom-24 right-6 z-[9999]">
+      <div className="fixed bottom-6 right-6 z-[9999]">
         <button
           type="button"
           onClick={handleRedesignWithAi}
           disabled={isRedesigningWithAi}
-          className="inline-flex items-center gap-2 rounded-2xl bg-white text-black border border-black/10 px-5 py-3 text-sm font-semibold tracking-wide shadow-2xl hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.45)] transition-all duration-150 disabled:opacity-70 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 rounded-2xl bg-white text-black border border-black/10 px-6 py-3.5 text-sm font-semibold tracking-wide shadow-2xl hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.45)] transition-all duration-150 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {isRedesigningWithAi ? 'Redesigning...' : 'Redesign with AI'}
         </button>

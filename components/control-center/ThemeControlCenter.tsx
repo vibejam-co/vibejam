@@ -24,6 +24,7 @@ interface ThemeControlCenterProps {
   onCreativeReset?: () => void;
   onCreativeUndo?: () => void;
   canUndoCreative?: boolean;
+  allowLegacyLayoutControls?: boolean;
 }
 
 // Theme color indicators for visual preview
@@ -90,10 +91,12 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   onCreativeSurfaceChange,
   onCreativeReset,
   onCreativeUndo,
-  canUndoCreative
+  canUndoCreative,
+  allowLegacyLayoutControls = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<'theme' | 'layout' | 'creative'>('theme');
+  const [showLegacyAdvanced, setShowLegacyAdvanced] = useState(false);
   const [isChanging, setIsChanging] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<'idle' | 'copied'>('idle');
   const panelRef = useRef<HTMLDivElement>(null);
@@ -127,6 +130,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   const colorTokens = ['current', 'muted', 'accent', 'contrast', 'warm', 'cool'];
   const typeTokens = ['inherit', 'serif', 'sans', 'mono', 'editorial', 'grotesque'];
   const premiumTemplates = Object.values(PREMIUM_JAM_TEMPLATES);
+  const canShowLegacyLayouts = allowLegacyLayoutControls && showLegacyAdvanced;
   const material = getThemeMaterialById(currentThemeId);
   const materialMotion = (() => {
     const tension = material.interactionTension === 'soft'
@@ -167,7 +171,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] font-sans">
+    <div className="fixed bottom-6 left-6 z-[9998] font-sans">
       {/* FLOATING TRIGGER — Creative, not utility */}
       {!isOpen && (
         <button
@@ -216,6 +220,9 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
                 <div className="text-[9px] uppercase tracking-widest text-white/25 mt-1">
                   Legacy override surface
                 </div>
+                <div className="text-[9px] uppercase tracking-widest text-white/25 mt-1">
+                  AI redesign is recommended
+                </div>
                 <div className="text-[9px] uppercase tracking-widest text-white/30 mt-1">
                   {credibilityLabel}
                 </div>
@@ -236,7 +243,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
             </div>
 
             {/* Section Tabs */}
-            {!themeOnly && (
+            {!themeOnly && canShowLegacyLayouts && (
               <div className="flex p-2 gap-1">
                 <button
                   onClick={() => setActiveSection('theme')}
@@ -275,7 +282,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
             <div className="p-4 overflow-y-auto min-h-0">
               
               {/* THEME SECTION — Audio Mixer Sliders */}
-              {(!themeOnly || activeSection === 'theme') && (
+              {(!themeOnly || activeSection === 'theme' || !canShowLegacyLayouts) && (
                 <div className="space-y-4">
                   {themes.map((themeId, index) => {
                     const isActive = currentThemeId === themeId;
@@ -351,7 +358,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
               )}
 
               {/* LAYOUT SECTION — Figma-style Grid Blocks */}
-              {!themeOnly && activeSection === 'layout' && (
+              {!themeOnly && canShowLegacyLayouts && activeSection === 'layout' && (
                 <div className="grid grid-cols-2 gap-3">
                   {layouts.map((layoutId) => {
                     const isActive = currentLayoutId === layoutId;
@@ -395,7 +402,7 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
               )}
 
               {/* CREATIVE SECTION — Cockpit Controls */}
-              {!themeOnly && activeSection === 'creative' && (
+              {!themeOnly && canShowLegacyLayouts && activeSection === 'creative' && (
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <div className="text-[9px] uppercase tracking-widest text-white/50">Premium</div>
@@ -561,7 +568,19 @@ const ThemeControlCenter: React.FC<ThemeControlCenterProps> = ({
               >
                 Reset to Defaults
               </button>
-              {!themeOnly && activeSection === 'creative' && (
+              {!themeOnly && allowLegacyLayoutControls && (
+                <button
+                  onClick={() => {
+                    setShowLegacyAdvanced((prev) => !prev);
+                    if (!showLegacyAdvanced) setActiveSection('layout');
+                    if (showLegacyAdvanced) setActiveSection('theme');
+                  }}
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[9px] uppercase tracking-widest text-white/35 hover:text-white/55"
+                >
+                  {showLegacyAdvanced ? 'Hide Legacy Layout Tools' : 'Show Legacy Layout Tools'}
+                </button>
+              )}
+              {!themeOnly && canShowLegacyLayouts && activeSection === 'creative' && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     onClick={onCreativeUndo}
