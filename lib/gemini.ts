@@ -51,8 +51,8 @@ export async function generateGeminiLayout(intent: string): Promise<any> {
     }
 
     const modelCandidates = [
-        'gemini-3-flash',
-        'gemini-3-pro'
+        'gemini-3-flash-preview',
+        'gemini-3-pro-preview'
     ];
 
     try {
