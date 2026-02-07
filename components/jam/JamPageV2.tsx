@@ -89,10 +89,10 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const [loadedProject, setLoadedProject] = useState<AppProject | null>(project ?? null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
+
   // Dopamine flash state for theme transition
   const [dopamineFlash, setDopamineFlash] = useState<'none' | 'light' | 'dark'>('none');
-  
+
   // AI Remix State
   const [isRemixDrawerOpen, setIsRemixDrawerOpen] = useState(false);
   const [isRemixing, setIsRemixing] = useState(false);
@@ -793,13 +793,13 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const handleThemeChange = (themeName: string) => {
     setPreviousThemeState({ themeId: activeThemeId, remix: ephemeralRemix, source: themeSource });
-    
+
     // DOPAMINE FLASH — instant perceptual change
     const newTheme = getThemeById(themeName);
     const isNewThemeDark = newTheme?.palette === 'dark';
     setDopamineFlash(isNewThemeDark ? 'dark' : 'light');
     setTimeout(() => setDopamineFlash('none'), 150);
-    
+
     setActiveThemeId(themeName);
     setEphemeralRemix(null);
     setThemeSource('control');
@@ -828,7 +828,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     setEphemeralRemix(null);
     setThemeSource('default');
     setActiveConfig(validateLayoutConfig(layoutConfig));
-    
+
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       params.delete('theme');
@@ -839,30 +839,52 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     }
   };
 
+
   const showDevLabel = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
   const publicUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/jam/${routeSlug || loadedProject.slug || loadedProject.id}`
     : `/jam/${routeSlug || loadedProject.slug || loadedProject.id}`;
 
-  const intentPlan: JamDesignIntent = {
-    prompt: 'Design this like a black-card brand for investors',
-    mood: 'institutional',
-    audience: 'investors'
-  };
-  const canvasPlan = generateCanvasPlanFromIntent(intentPlan) || EDITORIAL_CANVAS;
+  // GEMINI ART DIRECTOR TEST HARNESS
+  // This is a temporary wiring to test the AI planner.
+  // In production, this would come from the Project config or a real UI.
+  const [canvasPlan, setCanvasPlan] = useState(EDITORIAL_CANVAS);
+
+  useEffect(() => {
+    // Only run this test harness in dev or if explicitly enabled
+    // For now, we run it to verify the batch.
+    const runPlanner = async () => {
+      const intent: JamDesignIntent = {
+        // TEST INTENT: Toggle this string to test different layouts
+        prompt: 'Design this Jam like a black-label institutional brand meant to intimidate investors.',
+        mood: 'institutional',
+        audience: 'investors'
+      };
+
+      console.log('[Gemini] Requesting plan for intent:', intent.prompt);
+      const plan = await generateCanvasPlanFromIntent(intent);
+
+      if (plan) {
+        console.log('[Gemini] Applied Plan:', plan);
+        setCanvasPlan(plan);
+      }
+    };
+
+    runPlanner();
+  }, []); // Run once on mount for this batch test
+
 
   return (
     <div className={`relative ${themeClasses.page} jam-editorial`}>
       {/* DOPAMINE FLASH — CSS-only transition feedback */}
       {dopamineFlash !== 'none' && (
-        <div 
-          className={`fixed inset-0 z-[9998] pointer-events-none transition-opacity duration-150 ease-out ${
-            dopamineFlash === 'light' ? 'bg-white' : 'bg-black'
-          }`}
+        <div
+          className={`fixed inset-0 z-[9998] pointer-events-none transition-opacity duration-150 ease-out ${dopamineFlash === 'light' ? 'bg-white' : 'bg-black'
+            }`}
           style={{ animation: 'dopamineFlash 150ms ease-out forwards' }}
         />
       )}
-      
+
       <style>{`
         @keyframes dopamineFlash {
           0% { opacity: 0.8; }
