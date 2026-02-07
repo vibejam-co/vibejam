@@ -12,7 +12,7 @@ import {
   JamCanvasStacking,
   JamCanvasWidth
 } from './JamCanvasPlan';
-import { POSTER_CANVAS } from './JamCanvasPresets';
+import { EDITORIAL_CANVAS, POSTER_CANVAS } from './JamCanvasPresets';
 import { JamDesignIntent } from './JamDesignIntent';
 
 type JamCanvasAiRegion = {
@@ -151,7 +151,6 @@ const buildPlanFromAi = (intent: JamDesignIntent, response: JamCanvasAiResponse)
 const validateSafety = (plan: JamCanvasPlan): JamCanvasPlan => {
   // 1. Proof Safety: Proof must never be hidden or minor
   if (plan.regions.proof.emphasis === 'minor') {
-    console.warn('[Safety] Proof emphasis upgraded from minor to standard.');
     plan.regions.proof.emphasis = 'standard';
   }
   // Ensure proof is not 'hidden' (though placement schema doesn't have 'hidden', 'overlay' might be risky if not careful)
@@ -186,15 +185,13 @@ export const generateCanvasPlanFromIntent = async (intent: JamDesignIntent): Pro
     if (!rawResponse) return null;
 
     if (!isValidAiResponse(rawResponse)) {
-      console.warn('Invalid Gemini Layout Response:', rawResponse);
       return null;
     }
 
     const plan = buildPlanFromAi(intent, rawResponse);
     return validateSafety(plan);
 
-  } catch (error) {
-    console.warn('Gemini Planner Error:', error);
+  } catch {
     return null;
   }
 };

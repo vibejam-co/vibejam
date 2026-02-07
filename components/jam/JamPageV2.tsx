@@ -1085,8 +1085,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const handleRedesignWithAi = async () => {
     if (isRedesigningWithAi) return;
     setIsRedesigningWithAi(true);
-    const previousPlan = lastKnownGoodPlanRef.current;
     const defaultPrompt = 'Design this Jam to feel premium and distinctive with a dramatic spatial re-composition.';
+    console.log('[Gemini] Requesting canvas plan');
 
     try {
       const primaryIntent: JamDesignIntent = {
@@ -1118,19 +1118,32 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         });
         setIsSharedDesignPreview(false);
         setActiveArtifactId(null);
+        console.log('[Gemini] Canvas plan applied');
       } else {
         const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
         if (showDevWarning) {
-          console.warn('[Jam AI Redesign] Generation failed. Reverting to last known good canvas plan.');
+          console.warn('[Jam AI Redesign] Gemini unavailable or invalid response. Using premium fallback canvas.');
         }
-        setCanvasPlan(previousPlan);
+        setCanvasPlan(PREMIUM_SAFE_CANVAS);
+        setActiveCanvasIntent('Premium safe fallback');
+        setActiveCanvasProvenance({
+          designedBy: 'human',
+          createdAt: Date.now(),
+          forkDepth: 0
+        });
       }
-    } catch (error) {
+    } catch {
       const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
       if (showDevWarning) {
-        console.warn('[Jam AI Redesign] Unexpected failure. Reverting to last known good canvas plan.', error);
+        console.warn('[Jam AI Redesign] Gemini unavailable or invalid response. Using premium fallback canvas.');
       }
-      setCanvasPlan(previousPlan);
+      setCanvasPlan(PREMIUM_SAFE_CANVAS);
+      setActiveCanvasIntent('Premium safe fallback');
+      setActiveCanvasProvenance({
+        designedBy: 'human',
+        createdAt: Date.now(),
+        forkDepth: 0
+      });
     } finally {
       setIsRedesigningWithAi(false);
     }

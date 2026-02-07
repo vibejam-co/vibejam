@@ -47,12 +47,11 @@ SCHEMA (JamCanvasPlan partial):
 
 export async function generateGeminiLayout(intent: string): Promise<any> {
     if (!API_KEY) {
-        console.warn('[Gemini] API Key missing. Skipping AI layout generation.');
         return null;
     }
 
     try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
         const payload = {
             contents: [{
@@ -67,14 +66,13 @@ export async function generateGeminiLayout(intent: string): Promise<any> {
         const response = await fetch(url, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'x-goog-api-key': API_KEY
             },
             body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
-            const errText = await response.text();
-            console.error('[Gemini] API Error:', response.status, errText);
             return null;
         }
 
@@ -82,19 +80,16 @@ export async function generateGeminiLayout(intent: string): Promise<any> {
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
         if (!text) {
-            console.warn('[Gemini] No text in response candidates.');
             return null;
         }
 
         try {
             return JSON.parse(text);
         } catch (e) {
-            console.error('[Gemini] Failed to parse JSON:', text);
             return null;
         }
 
     } catch (error) {
-        console.error('[Gemini] Network or Logic Error:', error);
         return null;
     }
 }
