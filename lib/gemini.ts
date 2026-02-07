@@ -50,9 +50,14 @@ export async function generateGeminiLayout(intent: string): Promise<any> {
         return null;
     }
 
-    try {
-        const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    const modelCandidates = [
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-lite',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash'
+    ];
 
+    try {
         const payload = {
             contents: [{
                 role: "user",
@@ -63,32 +68,33 @@ export async function generateGeminiLayout(intent: string): Promise<any> {
             }
         };
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': API_KEY
-            },
-            body: JSON.stringify(payload)
-        });
+        for (const model of modelCandidates) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': API_KEY
+                },
+                body: JSON.stringify(payload)
+            });
 
-        if (!response.ok) {
-            return null;
+            if (!response.ok) {
+                continue;
+            }
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!text) continue;
+
+            try {
+                return JSON.parse(text);
+            } catch {
+                continue;
+            }
         }
 
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!text) {
-            return null;
-        }
-
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            return null;
-        }
-
+        return null;
     } catch (error) {
         return null;
     }
