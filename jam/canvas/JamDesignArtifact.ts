@@ -2,7 +2,7 @@ import { JamCanvasPlan } from './JamCanvasPlan';
 
 export type JamDesignProvenance = {
   designedBy: 'ai' | 'human' | 'hybrid';
-  model?: 'gemini-3-flash';
+  model?: 'gemini-3-flash' | 'gemini-3-pro';
   createdAt: number;
   forkDepth?: number;
   forkedFrom?: string;
