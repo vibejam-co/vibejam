@@ -36,7 +36,9 @@ import { resolveCreativeGrid } from '../../jam/creative/CreativeGrid';
 import { enforceCreativeSafety } from '../../jam/creative/CreativeSafety';
 import { resolvePremiumTemplate } from '../../jam/templates/resolvePremiumTemplate';
 import { PREMIUM_JAM_TEMPLATES, PremiumJamTemplateId } from '../../jam/templates/PremiumJamTemplates';
-import { EDITORIAL_CANVAS, POSTER_CANVAS } from '../../jam/canvas/JamCanvasPresets';
+import { EDITORIAL_CANVAS } from '../../jam/canvas/JamCanvasPresets';
+import { JamDesignIntent } from '../../jam/canvas/JamDesignIntent';
+import { generateCanvasPlanFromIntent } from '../../jam/canvas/JamCanvasIntentPlanner';
 import {
   CommitmentMomentsV1,
   CommitmentMomentKey,
@@ -842,8 +844,12 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     ? `${window.location.origin}/jam/${routeSlug || loadedProject.slug || loadedProject.id}`
     : `/jam/${routeSlug || loadedProject.slug || loadedProject.id}`;
 
-  const usePosterCanvas = false;
-  const canvasPlan = usePosterCanvas ? POSTER_CANVAS : EDITORIAL_CANVAS;
+  const intentPlan: JamDesignIntent = {
+    prompt: 'Design this like a black-card brand for investors',
+    mood: 'institutional',
+    audience: 'investors'
+  };
+  const canvasPlan = generateCanvasPlanFromIntent(intentPlan) || EDITORIAL_CANVAS;
 
   return (
     <div className={`relative ${themeClasses.page} jam-editorial`}>
