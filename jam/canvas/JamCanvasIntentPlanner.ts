@@ -12,7 +12,7 @@ import {
   JamCanvasStacking,
   JamCanvasWidth
 } from './JamCanvasPlan';
-import { EDITORIAL_CANVAS, POSTER_CANVAS } from './JamCanvasPresets';
+import { POSTER_CANVAS } from './JamCanvasPresets';
 import { JamDesignIntent } from './JamDesignIntent';
 
 type JamCanvasAiRegion = {
@@ -172,11 +172,9 @@ const validateSafety = (plan: JamCanvasPlan): JamCanvasPlan => {
   return plan;
 };
 
-export const generateCanvasPlanFromIntent = async (intent: JamDesignIntent): Promise<JamCanvasPlan> => {
-  const fallback = EDITORIAL_CANVAS;
-
-  // If no prompt, return fallback immediately
-  if (!intent.prompt || intent.prompt.length < 3) return fallback;
+export const generateCanvasPlanFromIntent = async (intent: JamDesignIntent): Promise<JamCanvasPlan | null> => {
+  // If no prompt, skip generation and let caller keep existing plan.
+  if (!intent.prompt || intent.prompt.length < 3) return null;
 
   try {
     // Dynamic import to avoid circular dependencies if any, though likely not needed here.
@@ -185,13 +183,11 @@ export const generateCanvasPlanFromIntent = async (intent: JamDesignIntent): Pro
 
     const rawResponse = await generateGeminiLayout(intent.prompt); // Pass the raw intent string
 
-    if (!rawResponse) {
-      return fallback;
-    }
+    if (!rawResponse) return null;
 
     if (!isValidAiResponse(rawResponse)) {
       console.warn('Invalid Gemini Layout Response:', rawResponse);
-      return fallback;
+      return null;
     }
 
     const plan = buildPlanFromAi(intent, rawResponse);
@@ -199,6 +195,6 @@ export const generateCanvasPlanFromIntent = async (intent: JamDesignIntent): Pro
 
   } catch (error) {
     console.warn('Gemini Planner Error:', error);
-    return fallback;
+    return null;
   }
 };

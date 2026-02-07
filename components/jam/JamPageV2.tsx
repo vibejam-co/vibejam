@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AppProject } from '../../types';
 import { mapJamToAppProject } from '../../lib/jamMapping';
 import CanvasRenderer from '../../layout/canvas/CanvasRenderer';
@@ -845,33 +845,58 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     ? `${window.location.origin}/jam/${routeSlug || loadedProject.slug || loadedProject.id}`
     : `/jam/${routeSlug || loadedProject.slug || loadedProject.id}`;
 
-  // GEMINI ART DIRECTOR TEST HARNESS
-  // This is a temporary wiring to test the AI planner.
-  // In production, this would come from the Project config or a real UI.
   const [canvasPlan, setCanvasPlan] = useState(EDITORIAL_CANVAS);
+  const [isRedesigningWithAi, setIsRedesigningWithAi] = useState(false);
+  const lastKnownGoodPlanRef = useRef(EDITORIAL_CANVAS);
 
   useEffect(() => {
-    // Only run this test harness in dev or if explicitly enabled
-    // For now, we run it to verify the batch.
-    const runPlanner = async () => {
-      const intent: JamDesignIntent = {
-        // TEST INTENT: Toggle this string to test different layouts
-        prompt: 'Design this Jam like a black-label institutional brand meant to intimidate investors.',
-        mood: 'institutional',
-        audience: 'investors'
+    lastKnownGoodPlanRef.current = canvasPlan;
+  }, [canvasPlan]);
+
+  const handleRedesignWithAi = async () => {
+    if (isRedesigningWithAi) return;
+    setIsRedesigningWithAi(true);
+    const previousPlan = lastKnownGoodPlanRef.current;
+    const defaultPrompt = 'Design this Jam to feel premium and distinctive with a dramatic spatial re-composition.';
+
+    try {
+      const primaryIntent: JamDesignIntent = {
+        prompt: defaultPrompt,
+        mood: 'focused',
+        audience: 'builders'
       };
 
-      console.log('[Gemini] Requesting plan for intent:', intent.prompt);
-      const plan = await generateCanvasPlanFromIntent(intent);
+      let plan = await generateCanvasPlanFromIntent(primaryIntent);
+      const unchanged = plan ? JSON.stringify(plan) === JSON.stringify(previousPlan) : true;
+
+      if (unchanged) {
+        const recoveryIntent: JamDesignIntent = {
+          prompt: `${defaultPrompt} Make the structure clearly different from the current layout.`,
+          mood: 'experimental',
+          audience: 'builders'
+        };
+        plan = await generateCanvasPlanFromIntent(recoveryIntent);
+      }
 
       if (plan) {
-        console.log('[Gemini] Applied Plan:', plan);
         setCanvasPlan(plan);
+      } else {
+        const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+        if (showDevWarning) {
+          console.warn('[Jam AI Redesign] Generation failed. Reverting to last known good canvas plan.');
+        }
+        setCanvasPlan(previousPlan);
       }
-    };
-
-    runPlanner();
-  }, []); // Run once on mount for this batch test
+    } catch (error) {
+      const showDevWarning = typeof import.meta !== 'undefined' && !(import.meta as any).env?.PROD;
+      if (showDevWarning) {
+        console.warn('[Jam AI Redesign] Unexpected failure. Reverting to last known good canvas plan.', error);
+      }
+      setCanvasPlan(previousPlan);
+    } finally {
+      setIsRedesigningWithAi(false);
+    }
+  };
 
 
   return (
@@ -951,7 +976,11 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         }
 
         .jam-editorial .jam-reading {
-          transition: opacity 240ms ease;
+          transition: opacity 180ms ease;
+        }
+
+        .jam-editorial .jam-reading[data-ai-redesigning="true"] {
+          opacity: 0.9;
         }
 
         .jam-editorial .jam-reading[data-activity="silent"] .jam-timeline-empty {
@@ -1181,6 +1210,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         data-proof={hasProof ? 'on' : 'off'}
         data-milestones={hasMilestones ? 'on' : 'off'}
         data-template={effectiveCreativeSurface.templateId}
+        data-ai-redesigning={isRedesigningWithAi ? 'true' : 'false'}
       >
         <CanvasRenderer
           plan={canvasPlan}
@@ -1221,6 +1251,17 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           canUndoCreative={!!creativeSurfaceUndo}
         />
       )}
+
+      <div className="fixed bottom-24 right-6 z-[9999]">
+        <button
+          type="button"
+          onClick={handleRedesignWithAi}
+          disabled={isRedesigningWithAi}
+          className="inline-flex items-center gap-2 rounded-2xl bg-white text-black border border-black/10 px-5 py-3 text-sm font-semibold tracking-wide shadow-2xl hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.45)] transition-all duration-150 disabled:opacity-70 disabled:cursor-not-allowed"
+        >
+          {isRedesigningWithAi ? 'Redesigning...' : 'Redesign with AI'}
+        </button>
+      </div>
 
       {canShowRemixControls && (
         <ThemeControlDock
