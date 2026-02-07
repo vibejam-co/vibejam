@@ -38,7 +38,7 @@ import { resolvePremiumTemplate } from '../../jam/templates/resolvePremiumTempla
 import { PREMIUM_JAM_TEMPLATES, PremiumJamTemplateId } from '../../jam/templates/PremiumJamTemplates';
 import { PREMIUM_SAFE_CANVAS } from '../../jam/canvas/JamCanvasPresets';
 import { JamCanvasPlan } from '../../jam/canvas/JamCanvasPlan';
-import { JamDesignArtifact } from '../../jam/canvas/JamDesignArtifact';
+import { JamDesignArtifact, JamDesignProvenance } from '../../jam/canvas/JamDesignArtifact';
 import { JamDesignIntent } from '../../jam/canvas/JamDesignIntent';
 import { generateCanvasPlanFromIntent } from '../../jam/canvas/JamCanvasIntentPlanner';
 import { enforceJamCanvasSafety, isValidJamCanvasPlan } from '../../jam/canvas/JamCanvasSafety';
@@ -70,12 +70,38 @@ interface JamPageV2Props {
   showControlCenter?: boolean;
 }
 
-const premiumDefaultCanvasSessionCache = new Map<string, JamCanvasPlan>();
+const premiumDefaultCanvasSessionCache = new Map<string, {
+  plan: JamCanvasPlan;
+  intent: string;
+  provenance: JamDesignProvenance;
+}>();
 const designArtifactSessionCache = new Map<string, JamDesignArtifact[]>();
 
 const encodeDesignArtifact = (artifact: JamDesignArtifact): string => {
   const json = JSON.stringify(artifact);
   return btoa(encodeURIComponent(json));
+};
+
+const normalizeProvenance = (
+  provenance: JamDesignProvenance | undefined,
+  createdAt: number,
+  forkedFrom?: string
+): JamDesignProvenance => {
+  if (!provenance) {
+    return {
+      designedBy: 'human',
+      createdAt,
+      forkDepth: forkedFrom ? 1 : 0,
+      forkedFrom
+    };
+  }
+  return {
+    designedBy: provenance.designedBy || 'human',
+    model: provenance.model,
+    createdAt: provenance.createdAt || createdAt,
+    forkDepth: Number.isFinite(provenance.forkDepth) ? provenance.forkDepth : (forkedFrom ? 1 : 0),
+    forkedFrom: provenance.forkedFrom || forkedFrom
+  };
 };
 
 const decodeDesignArtifact = (encoded: string): JamDesignArtifact | null => {
@@ -87,9 +113,11 @@ const decodeDesignArtifact = (encoded: string): JamDesignArtifact | null => {
     if (typeof parsed.intent !== 'string') return null;
     if (typeof parsed.createdAt !== 'number') return null;
     if (!isValidJamCanvasPlan(parsed.canvasPlan)) return null;
+    const provenance = normalizeProvenance(parsed.provenance, parsed.createdAt, parsed.forkedFrom);
     return {
       ...parsed,
-      canvasPlan: enforceJamCanvasSafety(parsed.canvasPlan)
+      canvasPlan: enforceJamCanvasSafety(parsed.canvasPlan),
+      provenance
     };
   } catch {
     return null;
@@ -894,6 +922,11 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   const [canvasPlan, setCanvasPlan] = useState(PREMIUM_SAFE_CANVAS);
   const [isRedesigningWithAi, setIsRedesigningWithAi] = useState(false);
   const [activeCanvasIntent, setActiveCanvasIntent] = useState('AI premium default');
+  const [activeCanvasProvenance, setActiveCanvasProvenance] = useState<JamDesignProvenance>({
+    designedBy: 'human',
+    createdAt: Date.now(),
+    forkDepth: 0
+  });
   const [savedDesigns, setSavedDesigns] = useState<JamDesignArtifact[]>([]);
   const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null);
   const [designShareFeedback, setDesignShareFeedback] = useState<'idle' | 'copied'>('idle');
@@ -926,7 +959,8 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           return isValidJamCanvasPlan(artifact.canvasPlan);
         }).map((artifact) => ({
           ...artifact,
-          canvasPlan: enforceJamCanvasSafety(artifact.canvasPlan)
+          canvasPlan: enforceJamCanvasSafety(artifact.canvasPlan),
+          provenance: normalizeProvenance(artifact.provenance, artifact.createdAt, artifact.forkedFrom)
         }))
         : [];
       designArtifactSessionCache.set(designStorageKey, hydrated);
@@ -946,13 +980,22 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     }
   };
 
-  const buildArtifact = (intent: string, forkedFrom?: string): JamDesignArtifact => ({
-    id: `design_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    canvasPlan: enforceJamCanvasSafety(canvasPlan),
-    intent,
-    createdAt: Date.now(),
-    forkedFrom
-  });
+  const buildArtifact = (
+    intent: string,
+    forkedFrom?: string,
+    provenanceInput?: JamDesignProvenance
+  ): JamDesignArtifact => {
+    const createdAt = Date.now();
+    const provenance = normalizeProvenance(provenanceInput, createdAt, forkedFrom);
+    return {
+      id: `design_${createdAt}_${Math.random().toString(36).slice(2, 8)}`,
+      canvasPlan: enforceJamCanvasSafety(canvasPlan),
+      intent,
+      createdAt,
+      forkedFrom,
+      provenance
+    };
+  };
 
   const looksPremiumByDefault = (plan: JamCanvasPlan | null): plan is JamCanvasPlan => {
     if (!plan) return false;
@@ -969,15 +1012,17 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       setCanvasPlan(enforceJamCanvasSafety(sharedDesignFromUrl.canvasPlan));
       setActiveCanvasIntent(sharedDesignFromUrl.intent || 'Shared design preview');
       setActiveArtifactId(sharedDesignFromUrl.id);
+      setActiveCanvasProvenance(sharedDesignFromUrl.provenance);
       setIsSharedDesignPreview(true);
       return;
     }
 
     const cacheKey = loadedProject?.id || loadedProject?.slug || 'anonymous';
-    const cachedPlan = premiumDefaultCanvasSessionCache.get(cacheKey);
-    if (cachedPlan) {
-      setCanvasPlan(cachedPlan);
-      setActiveCanvasIntent('AI premium default');
+    const cachedDesign = premiumDefaultCanvasSessionCache.get(cacheKey);
+    if (cachedDesign) {
+      setCanvasPlan(cachedDesign.plan);
+      setActiveCanvasIntent(cachedDesign.intent);
+      setActiveCanvasProvenance(cachedDesign.provenance);
       setIsSharedDesignPreview(false);
       return;
     }
@@ -1006,9 +1051,28 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       }
 
       if (cancelled) return;
-      premiumDefaultCanvasSessionCache.set(cacheKey, finalPlan);
+      const usedAiPlan = looksPremiumByDefault(plan);
+      const provenance = usedAiPlan
+        ? {
+          designedBy: 'ai' as const,
+          model: 'gemini-3-flash' as const,
+          createdAt: Date.now(),
+          forkDepth: 0
+        }
+        : {
+          designedBy: 'human' as const,
+          createdAt: Date.now(),
+          forkDepth: 0
+        };
+      const intent = usedAiPlan ? initialIntent.prompt : 'Premium safe fallback';
+      premiumDefaultCanvasSessionCache.set(cacheKey, {
+        plan: finalPlan,
+        intent,
+        provenance
+      });
       setCanvasPlan(finalPlan);
-      setActiveCanvasIntent(looksPremiumByDefault(plan) ? initialIntent.prompt : 'Premium safe fallback');
+      setActiveCanvasIntent(intent);
+      setActiveCanvasProvenance(provenance);
       setIsSharedDesignPreview(false);
     };
 
@@ -1046,6 +1110,12 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       if (plan) {
         setCanvasPlan(enforceJamCanvasSafety(plan));
         setActiveCanvasIntent(primaryIntent.prompt);
+        setActiveCanvasProvenance({
+          designedBy: 'ai',
+          model: 'gemini-3-flash',
+          createdAt: Date.now(),
+          forkDepth: 0
+        });
         setIsSharedDesignPreview(false);
         setActiveArtifactId(null);
       } else {
@@ -1067,7 +1137,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
   };
 
   const handleSaveDesign = () => {
-    const artifact = buildArtifact(activeCanvasIntent);
+    const artifact = buildArtifact(activeCanvasIntent, undefined, activeCanvasProvenance);
     const next = [artifact, ...savedDesigns].slice(0, 12);
     persistDesignArtifacts(next);
     setActiveArtifactId(artifact.id);
@@ -1075,11 +1145,20 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
 
   const handleForkDesign = () => {
     const source = savedDesigns.find((artifact) => artifact.id === activeArtifactId);
-    const artifact = buildArtifact(activeCanvasIntent, source?.id || activeArtifactId || undefined);
+    const sourceProvenance = source?.provenance || activeCanvasProvenance;
+    const artifact = buildArtifact(activeCanvasIntent, source?.id || activeArtifactId || undefined, {
+      designedBy: sourceProvenance.designedBy === 'ai' || sourceProvenance.designedBy === 'hybrid' ? 'ai' : 'human',
+      model: sourceProvenance.model || (sourceProvenance.designedBy !== 'human' ? 'gemini-3-flash' : undefined),
+      createdAt: Date.now(),
+      forkDepth: (sourceProvenance.forkDepth || 0) + 1,
+      forkedFrom: source?.id || activeArtifactId || undefined
+    });
     const next = [artifact, ...savedDesigns].slice(0, 12);
     persistDesignArtifacts(next);
     setActiveArtifactId(artifact.id);
     setCanvasPlan(enforceJamCanvasSafety(artifact.canvasPlan));
+    setActiveCanvasProvenance(artifact.provenance);
+    setActiveCanvasIntent(artifact.intent);
     setIsSharedDesignPreview(false);
   };
 
@@ -1091,11 +1170,13 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     setCanvasPlan(safePlan);
     setActiveCanvasIntent(target.intent || 'Saved design');
     setActiveArtifactId(target.id);
+    setActiveCanvasProvenance(target.provenance);
     setIsSharedDesignPreview(false);
   };
 
   const handleShareDesign = async () => {
-    const source = savedDesigns.find((artifact) => artifact.id === activeArtifactId) || buildArtifact(activeCanvasIntent);
+    const source = savedDesigns.find((artifact) => artifact.id === activeArtifactId)
+      || buildArtifact(activeCanvasIntent, undefined, activeCanvasProvenance);
     if (!isValidJamCanvasPlan(source.canvasPlan)) return;
     const token = encodeDesignArtifact({
       ...source,
@@ -1114,6 +1195,11 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       setDesignShareFeedback('idle');
     }
   };
+
+  const showAiProvenance = activeCanvasProvenance.designedBy === 'ai' || activeCanvasProvenance.designedBy === 'hybrid';
+  const provenanceLabel = activeCanvasProvenance.designedBy === 'hybrid'
+    ? 'AI-assisted layout'
+    : 'Designed with AI';
 
 
   return (
@@ -1445,6 +1531,21 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
           densityIntent={densityIntent}
         />
       </div>
+
+      {showAiProvenance && (
+        <div className="max-w-6xl mx-auto px-4 md:px-8 pb-4">
+          <details className="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white/60 px-3 py-1.5 text-[10px] uppercase tracking-widest text-black/55">
+            <summary className="cursor-pointer list-none">{provenanceLabel}</summary>
+            <div className="mt-2 text-[10px] normal-case tracking-normal text-black/60">
+              <div>Model: {activeCanvasProvenance.model || 'gemini-3-flash'}</div>
+              <div>Created: {new Date(activeCanvasProvenance.createdAt).toLocaleString()}</div>
+              {activeCanvasProvenance.forkedFrom && (
+                <div>Forked from another AI design</div>
+              )}
+            </div>
+          </details>
+        </div>
+      )}
 
       {canShowControlCenter && (
         <ThemeControlCenter
