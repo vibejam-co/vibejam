@@ -36,7 +36,7 @@ import { resolveCreativeGrid } from '../../jam/creative/CreativeGrid';
 import { enforceCreativeSafety } from '../../jam/creative/CreativeSafety';
 import { resolvePremiumTemplate } from '../../jam/templates/resolvePremiumTemplate';
 import { PREMIUM_JAM_TEMPLATES, PremiumJamTemplateId } from '../../jam/templates/PremiumJamTemplates';
-import { PREMIUM_SAFE_CANVAS } from '../../jam/canvas/JamCanvasPresets';
+import { POSTER_CANVAS, PREMIUM_SAFE_CANVAS } from '../../jam/canvas/JamCanvasPresets';
 import { JamCanvasPlan } from '../../jam/canvas/JamCanvasPlan';
 import { JamDesignArtifact, JamDesignProvenance } from '../../jam/canvas/JamDesignArtifact';
 import { JamDesignIntent } from '../../jam/canvas/JamDesignIntent';
@@ -1087,6 +1087,14 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
     setIsRedesigningWithAi(true);
     const defaultPrompt = 'Design this Jam to feel premium and distinctive with a dramatic spatial re-composition.';
     console.log('[Gemini] Requesting canvas plan');
+    const getDistinctFallbackPlan = (previous: JamCanvasPlan): JamCanvasPlan => {
+      const source = previous.canvasMode === 'poster' ? PREMIUM_SAFE_CANVAS : POSTER_CANVAS;
+      return {
+        ...source,
+        id: `${source.id}_${Date.now()}`,
+        label: `${source.label} (fallback)`
+      };
+    };
 
     try {
       const primaryIntent: JamDesignIntent = {
@@ -1108,7 +1116,10 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       }
 
       if (plan) {
-        setCanvasPlan(enforceJamCanvasSafety(plan));
+        const safePlan = enforceJamCanvasSafety(plan);
+        const isSame = JSON.stringify(safePlan) === JSON.stringify(previousPlan);
+        const appliedPlan = isSame ? getDistinctFallbackPlan(previousPlan) : safePlan;
+        setCanvasPlan(appliedPlan);
         setActiveCanvasIntent(primaryIntent.prompt);
         setActiveCanvasProvenance({
           designedBy: 'ai',
@@ -1124,7 +1135,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
         if (showDevWarning) {
           console.warn('[Jam AI Redesign] Gemini unavailable or invalid response. Using premium fallback canvas.');
         }
-        setCanvasPlan(PREMIUM_SAFE_CANVAS);
+        setCanvasPlan(getDistinctFallbackPlan(previousPlan));
         setActiveCanvasIntent('Premium safe fallback');
         setActiveCanvasProvenance({
           designedBy: 'human',
@@ -1137,7 +1148,7 @@ const JamPageV2: React.FC<JamPageV2Props> = ({
       if (showDevWarning) {
         console.warn('[Jam AI Redesign] Gemini unavailable or invalid response. Using premium fallback canvas.');
       }
-      setCanvasPlan(PREMIUM_SAFE_CANVAS);
+      setCanvasPlan(getDistinctFallbackPlan(previousPlan));
       setActiveCanvasIntent('Premium safe fallback');
       setActiveCanvasProvenance({
         designedBy: 'human',

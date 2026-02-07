@@ -110,6 +110,48 @@ const isValidAiResponse = (payload: unknown): payload is JamCanvasAiResponse => 
   });
 };
 
+const toValidAiResponse = (payload: unknown): JamCanvasAiResponse | null => {
+  if (!payload || typeof payload !== 'object') return null;
+  const candidate = payload as any;
+
+  const canvasMode: JamCanvasMode = isAllowed(candidate.canvasMode, CANVAS_MODES)
+    ? candidate.canvasMode
+    : 'manifesto';
+
+  const alignment: JamCanvasAlignment = isAllowed(candidate?.spatialRules?.alignment, ALIGNMENTS)
+    ? candidate.spatialRules.alignment
+    : 'asymmetric';
+  const overlap = typeof candidate?.spatialRules?.overlap === 'boolean'
+    ? candidate.spatialRules.overlap
+    : false;
+  const densityRaw = candidate?.spatialRules?.density;
+  const density = typeof densityRaw === 'number'
+    ? densityRaw
+    : Number.parseFloat(String(densityRaw ?? '0.5'));
+  const safeDensity = Number.isFinite(density) ? density : 0.5;
+
+  const regions = REQUIRED_REGIONS.reduce<Record<JamCanvasRegionId, JamCanvasAiRegion>>((acc, region) => {
+    const entry = candidate?.regions?.[region] || {};
+    const placement: JamCanvasPlacement = isAllowed(entry.placement, PLACEMENTS) ? entry.placement : 'center';
+    const emphasis: JamCanvasEmphasis = isAllowed(entry.emphasis, EMPHASES) ? entry.emphasis : 'standard';
+    acc[region] = { placement, emphasis };
+    return acc;
+  }, {} as Record<JamCanvasRegionId, JamCanvasAiRegion>);
+
+  const order = Array.isArray(candidate.order) ? candidate.order.filter((value: unknown) => isAllowed(value, REQUIRED_REGIONS)) as JamCanvasRegionId[] : undefined;
+
+  return {
+    canvasMode,
+    regions,
+    spatialRules: {
+      alignment,
+      overlap,
+      density: safeDensity
+    },
+    order
+  };
+};
+
 const buildPlanFromAi = (intent: JamDesignIntent, response: JamCanvasAiResponse): JamCanvasPlan => {
   const base = basePlanForMode(response.canvasMode);
   const order = coerceOrder(response.order, base.order);
@@ -184,11 +226,9 @@ export const generateCanvasPlanFromIntent = async (intent: JamDesignIntent): Pro
 
     if (!rawResponse) return null;
 
-    if (!isValidAiResponse(rawResponse)) {
-      return null;
-    }
-
-    const plan = buildPlanFromAi(intent, rawResponse);
+    const aiResponse = isValidAiResponse(rawResponse) ? rawResponse : toValidAiResponse(rawResponse);
+    if (!aiResponse) return null;
+    const plan = buildPlanFromAi(intent, aiResponse);
     return validateSafety(plan);
 
   } catch {

@@ -45,6 +45,45 @@ SCHEMA (JamCanvasPlan partial):
 }
 `;
 
+const parseGeminiJson = (rawText: string): any | null => {
+    const text = rawText.trim();
+    const direct = (() => {
+        try {
+            return JSON.parse(text);
+        } catch {
+            return null;
+        }
+    })();
+    if (direct) return direct;
+
+    const withoutFence = text
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+    const fenced = (() => {
+        try {
+            return JSON.parse(withoutFence);
+        } catch {
+            return null;
+        }
+    })();
+    if (fenced) return fenced;
+
+    const firstBrace = withoutFence.indexOf('{');
+    const lastBrace = withoutFence.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+        const slice = withoutFence.slice(firstBrace, lastBrace + 1);
+        try {
+            return JSON.parse(slice);
+        } catch {
+            return null;
+        }
+    }
+
+    return null;
+};
+
 export async function generateGeminiLayout(intent: string): Promise<any> {
     if (!API_KEY) {
         return null;
@@ -85,11 +124,9 @@ export async function generateGeminiLayout(intent: string): Promise<any> {
             const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!text) continue;
 
-            try {
-                return JSON.parse(text);
-            } catch {
-                continue;
-            }
+            const parsed = parseGeminiJson(text);
+            if (!parsed) continue;
+            return parsed;
         }
 
         return null;
